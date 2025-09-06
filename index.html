@@ -50,13 +50,16 @@
       </div>
     </div>
 <script>
-  // fallback: in case module loading had an issue, make the button fire the event anyway
   document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('startBtn');
-    if (btn) btn.addEventListener('click', () => {
-      window.dispatchEvent(new CustomEvent('start-wave'));
-      console.log('[DL] Fallback start-wave fired');
-    });
+    if (btn) {
+      btn.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('start-wave'));
+        console.log('[DL] Fallback start-wave fired');
+      });
+    } else {
+      console.warn('[DL] startBtn not found at DOMContentLoaded');
+    }
   });
 </script>
     <script type="module" src="./main.js?v=5"></script>
