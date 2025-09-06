@@ -1,7 +1,10 @@
 import { GameState, GRID, resetGrid, ENTRY, EXIT, getDragonStats } from './state.js';
+import { recomputePath } from './pathing.js';
+import { bindUI, renderUI, previewNextWave, toast } from './ui.js';
 import { draw } from './render.js';
 import { makeWave, tickCombat, allEnemiesDead, playerRewardsOnDeath } from './combat.js';
 import { waveComposition } from './scaling.js';
+
 
 
 function init(){
