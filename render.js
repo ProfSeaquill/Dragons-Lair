@@ -1,4 +1,5 @@
 import { GRID, GameState, ENTRY, EXIT, getDragonStats } from './state.js';
+g.fillStyle = '#e46e2e';
 g.beginPath();
 g.arc(EXIT.c*GRID.tile+GRID.tile/2, EXIT.r*GRID.tile+GRID.tile/2, GRID.tile*0.35, 0, Math.PI*2);
 g.fill();
