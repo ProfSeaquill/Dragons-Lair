@@ -49,7 +49,16 @@
         </div>
       </div>
     </div>
-
+<script>
+  // fallback: in case module loading had an issue, make the button fire the event anyway
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('startBtn');
+    if (btn) btn.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('start-wave'));
+      console.log('[DL] Fallback start-wave fired');
+    });
+  });
+</script>
     <script type="module" src="./main.js"></script>
   </body>
 </html>
