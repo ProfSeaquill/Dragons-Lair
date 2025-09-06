@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dragon Tower Defense – Prototype</title>
+  <style>
+    :root{
+      --bg:#0f1220; --panel:#171a2b; --accent:#6ee7ff; --ok:#7cffa5; --warn:#ffd166; --danger:#ff6b6b; --muted:#9aa3b2;
+    }
+    *{box-sizing:border-box; font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    body{margin:0; background:linear-gradient(180deg,#0b0e1a,#101426 60%,#0f1220); color:#e6f0ff}
+    .wrap{max-width:1100px; margin:0 auto; padding:16px}
+    .grid{display:grid; grid-template-columns: 1fr 360px; gap:16px}
+    .card{background:var(--panel); border-radius:16px; padding:14px; box-shadow:0 4px 20px rgba(0,0,0,.25)}
+    h1{font-weight:800; margin:8px 0 4px}
+    .sub{color:var(--muted); font-size:14px; margin-bottom:10px}
+    canvas{width:100%; height:auto; background:#0b0e1a; border-radius:12px}
+    .stats{display:grid; grid-template-columns: repeat(2,1fr); gap:8px; margin-top:8px}
+    .stat{background:#121527; border-radius:12px; padding:10px}
+    .k{color:var(--muted); font-size:12px}
+    .v{font-weight:700; font-size:18px}
+    .btn{width:100%; margin-top:8px; padding:10px 12px; border-radius:12px; background:#1e2340; color:#e6f0ff; border:1px solid #2a315a; cursor:pointer}
+    .btn:hover{background:#242a4e}
+    .btn:disabled{opacity:.55; cursor:not-allowed}
+    .row{display:flex; gap:8px; align-items:center}
+    .pill{padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid #2a315a; color:var(--muted)}
+    .accent{color:var(--accent)}
+    .ok{color:var(--ok)}
+    .danger{color:var(--danger)}
+    .footer{margin-top:10px; font-size:12px; color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🐉 Dragon Tower Defense <span class="sub">– single‑file prototype</span></h1>
+
+    <div class="grid">
+      <div class="card">
+        <canvas id="game" width="700" height="360"></canvas>
+        <div class="row" style="justify-content:space-between; margin-top:10px">
+          <div class="pill">Wave: <span id="wave">1</span></div>
+          <div class="pill">Gold: <span id="gold">0</span></div>
+          <div class="pill">Boss every 5 waves</div>
+          <div class="pill">Auto‑start: <span id="autoFlag">ON</span></div>
+        </div>
+        <button id="startBtn" class="btn">Start Wave</button>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div class="pill">DPS: <span id="dps">5</span></div>
+          <div class="pill">Fire Rate: <span id="rate">5/s</span></div>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><div class="k">Fire Damage</div><div class="v" id="statDamage">5</div></div>
+          <div class="stat"><div class="k">Tick / sec</div><div class="v" id="statTicks">5</div></div>
+          <div class="stat"><div class="k">Burn DoT</div><div class="v" id="statBurn">0</div></div>
+          <div class="stat"><div class="k">Pierce</div><div class="v" id="statPierce">0%</div></div>
+        </div>
+
+        <button id="upDmg" class="btn"></button>
+        <button id="upRate" class="btn"></button>
+        <button id="upBurn" class="btn"></button>
+        <button id="upPierce" class="btn"></button>
+        <button id="saveBtn" class="btn">Save</button>
+        <button id="resetBtn" class="btn">Hard Reset</button>
+        <div class="footer">Tip: focus on <span class="accent">damage</span> early, then add <span class="ok">burn</span> for bosses. Pierce helps versus armored bosses (every 5th wave).</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Game State ---
+    const state = {
+      wave: 1,
+      gold: 0,
+      enemyHP: 0,
+      enemyMaxHP: 0,
+      enemyArmor: 0, // percent reduction (0..0.8)
+      isBoss: false,
+      inWave: false,
+      autoStart: true,
+
+      // Dragon stats
+      damage: 5, // per tick
+      ticksPerSec: 5, // fire rate
+      burnPerSec: 0,
+      pierce: 0, // % armor ignore (0..0.9)
+
+      // Upgrade levels
+      L: { dmg: 0, rate: 0, burn: 0, pierce: 0 }
+    };
+
+    // --- Economy / Scaling ---
+    const cost = {
+      dmg: () => Math.floor(10 * Math.pow(1.25, state.L.dmg)),
+      rate: () => Math.floor(15 * Math.pow(1.3, state.L.rate)),
+      burn: () => Math.floor(40 * Math.pow(1.35, state.L.burn)),
+      pierce: () => Math.floor(60 * Math.pow(1.4, state.L.pierce)),
+    };
+
+    function waveHP(n){
+      const base = 60 * Math.pow(1.18, n-1);
+      return Math.floor(base);
+    }
+    function bossHP(n){
+      // n is wave number, boss every 5th wave
+      return Math.floor(waveHP(n) * 10);
+    }
+    function reward(n, boss){
+      return boss ? Math.floor(50 + n * 12) : Math.floor(10 + n * 3);
+    }
+
+    // --- Rendering ---
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    function draw(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      // background
+      const g = ctx.createLinearGradient(0,0,0,canvas.height);
+      g.addColorStop(0,'#0c0f1e'); g.addColorStop(1,'#0b0e19');
+      ctx.fillStyle = g; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      // Dragon (left)
+      ctx.fillStyle = '#26304f';
+      ctx.beginPath(); ctx.arc(90, canvas.height-90, 60, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#6ee7ff';
+      ctx.beginPath(); ctx.arc(90, canvas.height-90, 30, 0, Math.PI*2); ctx.fill();
+      // Fire beam
+      if(state.inWave){
+        ctx.strokeStyle = '#ff9a3c'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(140, canvas.height-110); ctx.lineTo(460, 120); ctx.stroke();
+      }
+
+      // Enemy (right)
+      if(state.inWave){
+        ctx.fillStyle = state.isBoss ? '#4f2630' : '#2a354f';
+        ctx.beginPath(); ctx.arc(540, 120, state.isBoss? 45:30, 0, Math.PI*2); ctx.fill();
+        // HP bar
+        const w = 420, x=140, y=24, h=18;
+        ctx.fillStyle = '#141a2e'; ctx.fillRect(x,y,w,h);
+        const pct = Math.max(0, state.enemyHP)/state.enemyMaxHP;
+        ctx.fillStyle = state.isBoss ? '#ff6b6b' : '#7cffa5';
+        ctx.fillRect(x+2,y+2,(w-4)*pct,h-4);
+        ctx.fillStyle = '#cdd7ff';
+        ctx.font = 'bold 14px system-ui';
+        ctx.fillText(`${state.isBoss? 'BOSS ' : ''}HP: ${Math.ceil(state.enemyHP)} / ${state.enemyMaxHP}`, x+8, y+14);
+      }
+
+      requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+
+    // --- Loop / Combat ---
+    let tickTimer = null; let burnTimer = null;
+    function startWave(){
+      if(state.inWave) return;
+      state.inWave = true;
+      state.isBoss = (state.wave % 5 === 0);
+      state.enemyMaxHP = state.isBoss ? bossHP(state.wave) : waveHP(state.wave);
+      state.enemyHP = state.enemyMaxHP;
+      state.enemyArmor = state.isBoss ? Math.min(0.6, 0.25 + state.wave*0.01) : Math.min(0.35, 0.08 + state.wave*0.005);
+      updateUI();
+
+      const tickMs = Math.max(60, Math.floor(1000 / state.ticksPerSec));
+      if(tickTimer) clearInterval(tickTimer);
+      tickTimer = setInterval(()=>{
+        applyDamage(state.damage);
+      }, tickMs);
+
+      if(burnTimer) clearInterval(burnTimer);
+      if(state.burnPerSec>0){
+        burnTimer = setInterval(()=> applyDamage(state.burnPerSec), 1000);
+      }
+    }
+
+    function endWave(victory){
+      state.inWave = false;
+      if(tickTimer) clearInterval(tickTimer);
+      if(burnTimer) clearInterval(burnTimer);
+      if(victory){
+        const goldGain = reward(state.wave, state.isBoss);
+        state.gold += goldGain;
+        state.wave += 1;
+      }
+      updateUI();
+      if(state.autoStart){
+        setTimeout(()=> startWave(), 1200);
+      }
+    }
+
+    function effectiveArmor(){
+      const armor = state.enemyArmor * (1 - state.pierce);
+      return Math.max(0, Math.min(0.95, armor));
+    }
+
+    function applyDamage(rawPerSec){
+      // Convert per-sec to per-tick damage (caller passes DPS or DoT per second)
+      // When called from tick, rawPerSec is actually damage-per-tick already (we pass state.damage)
+      let dmg = rawPerSec;
+      if(rawPerSec === state.burnPerSec){
+        // burn is per second, ticks once per second
+      }
+      // Armor reduction
+      const ar = effectiveArmor();
+      dmg = dmg * (1 - ar);
+      state.enemyHP -= dmg;
+      if(state.enemyHP <= 0){
+        state.enemyHP = 0;
+        endWave(true);
+      }
+      updateUIHudOnly();
+    }
+
+    // --- UI / Upgrades ---
+    const el = (id)=>document.getElementById(id);
+    const waveEl = el('wave'), goldEl = el('gold'), startBtn = el('startBtn');
+    const dpsEl = el('dps'), rateEl = el('rate');
+    const statDamage = el('statDamage'), statTicks = el('statTicks'), statBurn = el('statBurn'), statPierce = el('statPierce');
+    const upDmg = el('upDmg'), upRate = el('upRate'), upBurn = el('upBurn'), upPierce = el('upPierce');
+    const autoFlag = el('autoFlag');
+
+    startBtn.onclick = ()=> state.inWave ? null : startWave();
+    startBtn.oncontextmenu = (e)=>{ e.preventDefault(); state.autoStart = !state.autoStart; autoFlag.textContent = state.autoStart? 'ON':'OFF'; };
+
+    function updateUpgradeButtons(){
+      upDmg.textContent = `Upgrade Fire Damage (+1) – ${cost.dmg()}g`;
+      upRate.textContent = `Upgrade Fire Rate (+10%) – ${cost.rate()}g`;
+      upBurn.textContent = `Unlock/Upgrade Burn (+1/sec) – ${cost.burn()}g`;
+      upPierce.textContent = `Upgrade Piercing (+4%) – ${cost.pierce()}g`;
+
+      upDmg.disabled = state.gold < cost.dmg();
+      upRate.disabled = state.gold < cost.rate();
+      upBurn.disabled = state.gold < cost.burn();
+      upPierce.disabled = state.gold < cost.pierce();
+    }
+
+    upDmg.onclick = ()=>{
+      if(state.gold < cost.dmg()) return; state.gold -= cost.dmg(); state.L.dmg++; state.damage += 1; save(); updateUI();
+    };
+    upRate.onclick = ()=>{
+      if(state.gold < cost.rate()) return; state.gold -= cost.rate(); state.L.rate++; state.ticksPerSec = Math.min(50, +(state.ticksPerSec*1.1).toFixed(2)); save(); updateUI();
+    };
+    upBurn.onclick = ()=>{
+      if(state.gold < cost.burn()) return; state.gold -= cost.burn(); state.L.burn++; state.burnPerSec += 1; save(); updateUI();
+    };
+    upPierce.onclick = ()=>{
+      if(state.gold < cost.pierce()) return; state.gold -= cost.pierce(); state.L.pierce++; state.pierce = Math.min(0.9, +(state.pierce + 0.04).toFixed(2)); save(); updateUI();
+    };
+
+    // Save / Load
+    const saveBtn = el('saveBtn'), resetBtn = el('resetBtn');
+    function save(){
+      localStorage.setItem('dragonDefenseSave', JSON.stringify(state));
+    }
+    function load(){
+      const s = localStorage.getItem('dragonDefenseSave');
+      if(!s) return;
+      try{ const obj = JSON.parse(s);
+        for(const k in state){ if(obj[k] !== undefined) state[k] = obj[k]; }
+      }catch(err){ console.warn('Save load failed', err); }
+    }
+    saveBtn.onclick = save; resetBtn.onclick = ()=>{ localStorage.removeItem('dragonDefenseSave'); location.reload(); };
+
+    function updateUIHudOnly(){
+      // Called frequently; avoid heavy work
+      dpsEl.textContent = (state.damage + state.burnPerSec).toFixed(0);
+    }
+
+    function updateUI(){
+      waveEl.textContent = state.wave;
+      goldEl.textContent = state.gold;
+      dpsEl.textContent = (state.damage + state.burnPerSec).toFixed(0);
+      rateEl.textContent = `${state.ticksPerSec.toFixed(2)}/s`;
+      statDamage.textContent = state.damage;
+      statTicks.textContent = state.ticksPerSec.toFixed(2);
+      statBurn.textContent = state.burnPerSec;
+      statPierce.textContent = `${Math.round(state.pierce*100)}%`;
+      updateUpgradeButtons();
+      startBtn.disabled = state.inWave;
+      startBtn.textContent = state.inWave ? 'Fighting…' : 'Start Wave';
+    }
+
+    // --- Init ---
+    load();
+    updateUI();
+    // auto-start the very first wave for vibe
+    setTimeout(()=>{ if(!state.inWave) startWave(); }, 600);
+  </script>
+</body>
+</html>
