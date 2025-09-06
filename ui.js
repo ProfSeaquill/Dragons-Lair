@@ -6,13 +6,26 @@ import { toggleWall } from './pathing.js';
 const $ = (id)=> document.getElementById(id);
 
 export function bindUI(){
-  $('#startBtn').onclick = ()=> window.dispatchEvent(new CustomEvent('start-wave'));
-  $('#autoStart').onchange = (e)=> GameState.autoStart = e.target.checked;
-  $('#saveBtn').onclick = ()=>{ saveState(); toast('Saved!'); };
-  $('#loadBtn').onclick = ()=>{ const ok = loadState(); toast(ok? 'Loaded!' : 'No save found.'); };
+  const startBtn = $('#startBtn');
+  const autoStart = $('#autoStart');
+  const saveBtn = $('#saveBtn');
+  const loadBtn = $('#loadBtn');
+  const canvas = $('#game');
+
+  if (!startBtn) console.warn('[DL] Missing #startBtn in index.html');
+  if (!autoStart) console.warn('[DL] Missing #autoStart in index.html');
+  if (!saveBtn) console.warn('[DL] Missing #saveBtn in index.html');
+  if (!loadBtn) console.warn('[DL] Missing #loadBtn in index.html');
+  if (!canvas) console.warn('[DL] Missing #game <canvas> in index.html');
+
+  if (startBtn) startBtn.onclick = ()=> window.dispatchEvent(new CustomEvent('start-wave'));
+  if (autoStart) autoStart.onchange = (e)=> GameState.autoStart = e.target.checked;
+  if (saveBtn) saveBtn.onclick = ()=>{ saveState(); toast('Saved!'); };
+  if (loadBtn) loadBtn.onclick = ()=>{ const ok = loadState(); toast(ok? 'Loaded!' : 'No save found.'); };
+
+  if (!canvas) return; // bail if no canvas
 
   // Canvas build interactions
-  const canvas = $('#game');
   canvas.addEventListener('contextmenu', (e)=> e.preventDefault());
   canvas.addEventListener('mousedown', (e)=>{
     const rect = canvas.getBoundingClientRect();
@@ -21,7 +34,6 @@ export function bindUI(){
     const isRight = e.button===2;
 
     if (isRight){
-      // remove wall for partial refund
       if (GameState.grid[r][c]===1){
         GameState.grid[r][c]=0;
         GameState.bones += COSTS.wallRefund;
@@ -31,7 +43,6 @@ export function bindUI(){
       return;
     }
 
-    // add wall
     if (GameState.grid[r][c]===0){
       if (GameState.bones>=COSTS.wall){
         const ok = toggleWall(c,r);
@@ -41,6 +52,7 @@ export function bindUI(){
     }
   });
 }
+
 
 export function renderUI(){
   $('#gold').textContent = Math.floor(GameState.gold);
