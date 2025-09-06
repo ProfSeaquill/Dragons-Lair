@@ -1,1 +1,43 @@
-<script type="module" src="./src/main.js"></script>
+<!doctype html>
+#root { display:flex; gap:16px; padding:12px; }
+#leftCol { display:flex; flex-direction:column; gap:12px; }
+#game { background:#0e1526; border:1px solid #223; border-radius:8px; }
+#rightCol { display:flex; flex-direction:column; gap:12px; width:340px; }
+.panel { background:#0f1628; border:1px solid #223; border-radius:10px; padding:10px; }
+.pTitle { font-weight:700; margin-bottom:8px; }
+.uRow { display:flex; align-items:center; justify-content:space-between; margin:6px 0; gap:8px; }
+.uRow small { opacity:.8; }
+.gridHelp { font-size:12px; opacity:.8; }
+</style>
+</head>
+<body>
+<div id="hud">
+<div class="stat">Wave: <span id="wave">1</span></div>
+<div class="stat">HP: <span id="dragonHP">100</span></div>
+<div class="stat">Gold: <span id="gold">0</span></div>
+<div class="stat">Bones: <span id="bones">0</span></div>
+<button id="startBtn" class="btn">Start Wave</button>
+<label class="stat"><input id="autoStart" type="checkbox"/> Auto-start</label>
+<button id="saveBtn" class="btn">Save</button>
+<button id="loadBtn" class="btn">Load</button>
+<span id="msg" style="margin-left:auto; opacity:.8"></span>
+</div>
+<div id="root">
+<div id="leftCol">
+<canvas id="game" width="768" height="512"></canvas>
+<div class="panel gridHelp">Build Mode: Click empty tiles to add walls (50 bones). Walls cannot fully block the path. Right-click a wall to remove (refund 25 bones).</div>
+</div>
+<div id="rightCol">
+<div class="panel">
+<div class="pTitle">Upgrades</div>
+<div id="upgrades"></div>
+</div>
+<div class="panel">
+<div class="pTitle">Next Wave</div>
+<div id="preview"></div>
+</div>
+</div>
+</div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
