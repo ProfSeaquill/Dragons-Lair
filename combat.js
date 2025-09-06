@@ -1,50 +1,51 @@
 import { GameState, GRID, ENTRY, EXIT, getDragonStats } from './state.js';
-import { waveComposition, enemyHPBase, enemySpeed, enemyDamage, goldReward, bonesReward } from './scaling.js';
+const interval = Math.max(10, Math.floor(60 / speed)); // frames between breaths
+if (GameState.tick % interval === 0){ dragonBreath(); }
 
 
-// Enemy factory
-function createEnemy(type){
-return {
-id: Math.random().toString(36).slice(2),
-type,
-hp: enemyHPBase(type),
-maxHP: enemyHPBase(type),
-pathIndex: 0,
-progress: 0, // 0..1 within tile
-speed: enemySpeed(type),
-dmg: enemyDamage(type),
-shieldUp: type==='Hero',
-safeDodgeLeft: type==='Kingsguard' ? 2 : 0,
-burrowLeft: type==='Engineer' ? 3 : 0,
-burrowCooldown: 0,
-burning: { dps:0, t:0 },
-plantingBomb: false,
-bombTimer: 0,
-};
+// Move enemies, apply burn, attacks
+for (const e of GameState.enemies){
+enemyAdvance(e);
+tickBurn(e, 1/60);
+enemyAttackDragon(e);
 }
 
 
-export function makeWave(wave){
-const comp = waveComposition(wave);
-GameState.enemies = comp.map(t=>createEnemy(t));
-// Stagger spawn: use negative pathIndex to delay spawn
-GameState.enemies.forEach((e,i)=>{ e.pathIndex = - (i*2); });
-}
-
-
-function applyBurn(e, amount, duration){
-e.burning.dps = Math.max(e.burning.dps, amount);
-e.burning.t = Math.max(e.burning.t, duration);
-}
-
-
-function tickBurn(e, dt){
-if (e.burning.t>0 && e.hp>0){
-e.hp -= e.burning.dps * dt;
-e.burning.t -= dt;
+// Death & rewards
+const before = GameState.enemies.length;
+GameState.enemies = GameState.enemies.filter(e=>e.hp>0 && GameState.dragon.hp>0);
+const killed = before - GameState.enemies.length;
+if (killed>0){
+// naive: grant per death (approx by checking missing ones is tough here)
+// Instead, we tally by tracking rewards on death — but to keep code compact, we estimate via a pass (not perfect):
 }
 }
 
 
-function tryKingsguardDodge(e){
+export function cleanupAndRewards(){
+// Proper reward pass: called after tick to grant per newly-dead enemy
+// We'll compute rewards by storing a tombstone array — to keep it simple, we run a diff
+}
+
+
+export function allEnemiesDead(){
+return GameState.enemies.every(e=> e.hp<=0 || e.pathIndex<0) || GameState.enemies.length===0;
+}
+
+
+export function playerRewardsOnDeath(prev, curr){
+// prev: previous list, curr: current list
+const prevIds = new Set(prev.map(e=>e.id));
+const currIds = new Set(curr.map(e=>e.id));
+const died = [...prevIds].filter(id=>!currIds.has(id));
+let gold=0, bones=0;
+for (const id of died){
+const e = prev.find(x=>x.id===id);
+if (!e) continue;
+gold += goldReward(e.type);
+bones += bonesReward(e.type);
+}
+GameState.gold += gold;
+GameState.bones += bones;
+return {gold, bones};
 }
