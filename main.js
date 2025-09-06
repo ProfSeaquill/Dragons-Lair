@@ -1,3 +1,7 @@
+// at very top of main.js
+console.log("[DL] main.js loaded");
+
+
 import { GameState, GRID, resetGrid, ENTRY, EXIT, getDragonStats } from './state.js';
 import { recomputePath } from './pathing.js';
 import { bindUI, renderUI, previewNextWave, toast } from './ui.js';
@@ -8,6 +12,7 @@ import { waveComposition } from './scaling.js';
 
 
 function init(){
+console.log("[DL] init()");
 resetGrid();
 recomputePath();
 bindUI();
