@@ -1,1 +1,52 @@
+import { state, save, load } from './state.js';
+import { startWave } from './combat.js';
+import { upgradeButtonTexts } from './upgrades.js';
+import { cost } from './scaling.js';
 
+const $ = (id)=> document.getElementById(id);
+
+// cache
+const waveEl = $('wave'), goldEl = $('gold'), dpsEl = $('dps'), rateEl = $('rate');
+const statDamage = $('statDamage'), statTicks = $('statTicks'), statBurn = $('statBurn'), statPierce = $('statPierce');
+const upDmg = $('upDmg'), upRate = $('upRate'), upBurn = $('upBurn'), upPierce = $('upPierce');
+const startBtn = $('startBtn'), autoFlag = $('autoFlag');
+
+export function wireUI({ onStart, onUpgrade }){
+  startBtn.onclick = ()=> state.inWave ? null : onStart();
+  startBtn.oncontextmenu = (e)=>{ e.preventDefault(); state.autoStart = !state.autoStart; autoFlag.textContent = state.autoStart? 'ON':'OFF'; };
+  upDmg.onclick = onUpgrade.dmg;
+  upRate.onclick = onUpgrade.rate;
+  upBurn.onclick = onUpgrade.burn;
+  upPierce.onclick = onUpgrade.pierce;
+}
+
+export function updateHUD(){
+  dpsEl.textContent = (state.damage + state.burnPerSec).toFixed(0);
+}
+
+export function refreshUpgradeButtons(){
+  const t = upgradeButtonTexts();
+  upDmg.textContent = t.dmg;
+  upRate.textContent = t.rate;
+  upBurn.textContent = t.burn;
+  upPierce.textContent = t.pierce;
+
+  upDmg.disabled   = state.gold < cost.dmg(state.L);
+  upRate.disabled  = state.gold < cost.rate(state.L);
+  upBurn.disabled  = state.gold < cost.burn(state.L);
+  upPierce.disabled= state.gold < cost.pierce(state.L);
+}
+
+export function updateUI(){
+  waveEl.textContent = state.wave;
+  goldEl.textContent = state.gold;
+  rateEl.textContent = `${state.ticksPerSec.toFixed(2)}/s`;
+  statDamage.textContent = state.damage;
+  statTicks.textContent = state.ticksPerSec.toFixed(2);
+  statBurn.textContent = state.burnPerSec;
+  statPierce.textContent = `${Math.round(state.pierce*100)}%`;
+  updateHUD();
+  refreshUpgradeButtons();
+  startBtn.disabled = state.inWave;
+  startBtn.textContent = state.inWave ? 'Fighting…' : 'Start Wave';
+}
