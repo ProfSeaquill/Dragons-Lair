@@ -1,9 +1,32 @@
-export const cost = {
-  dmg: (L)=> Math.floor(10 * Math.pow(1.25, L.dmg)),
-  rate:(L)=> Math.floor(15 * Math.pow(1.3,  L.rate)),
-  burn:(L)=> Math.floor(40 * Math.pow(1.35, L.burn)),
-  pierce:(L)=> Math.floor(60 * Math.pow(1.4,  L.pierce)),
-};
-export const waveHP = (n)=> Math.floor(60 * Math.pow(1.18, n-1));
-export const bossHP = (n)=> Math.floor(waveHP(n) * 10);
-export const reward = (n, boss)=> boss ? Math.floor(50 + n*12) : Math.floor(10 + n*3);
+import { GameState } from './state.js';
+default: return 2;
+}
+}
+
+
+export function bonesReward(type) {
+switch(type) {
+case 'Villager': return 1;
+case 'Squire': return 1;
+case 'Hero': return 2;
+case 'Knight': return 2;
+case 'Kingsguard': return 5;
+case 'Engineer': return 2;
+default: return 1;
+}
+}
+
+
+export function waveComposition(wave) {
+// Simple composition; expand later
+const list = [];
+const add = (type, count)=>{ for(let i=0;i<count;i++) list.push(type); };
+const base = 6 + Math.floor(wave * 0.6);
+add('Villager', Math.max(4, base));
+if (wave>=2) add('Squire', Math.floor(wave/2));
+if (wave>=3) add('Knight', Math.floor((wave-1)/2));
+if (wave>=4) add('Hero', Math.floor((wave-2)/3));
+if (wave>=5) add('Engineer', Math.floor((wave-3)/3));
+if (wave%5===0) add('Kingsguard', 1);
+return list;
+}
