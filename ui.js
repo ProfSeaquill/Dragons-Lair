@@ -23,9 +23,8 @@ export function bindUI(){
   if (saveBtn) saveBtn.onclick = ()=>{ saveState(); toast('Saved!'); };
   if (loadBtn) loadBtn.onclick = ()=>{ const ok = loadState(); toast(ok? 'Loaded!' : 'No save found.'); };
 
-  if (!canvas) return; // bail if no canvas
+  if (!canvas) return;
 
-  // Canvas build interactions
   canvas.addEventListener('contextmenu', (e)=> e.preventDefault());
   canvas.addEventListener('mousedown', (e)=>{
     const rect = canvas.getBoundingClientRect();
@@ -53,14 +52,12 @@ export function bindUI(){
   });
 }
 
-
 export function renderUI(){
   $('#gold').textContent = Math.floor(GameState.gold);
   $('#bones').textContent = Math.floor(GameState.bones);
   $('#wave').textContent = GameState.wave;
   $('#dragonHP').textContent = Math.max(0, Math.floor(GameState.dragon.hp));
 
-  // Upgrades
   const list = getUpgradeInfo();
   const node = $('#upgrades');
   node.innerHTML = '';
