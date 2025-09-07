@@ -66,7 +66,7 @@ function endWave() {
   const heal = ds.regenPerWave ?? 10;
   const d = gs.dragon;
   d.hp = Math.min(d.hpMax, d.hp + heal);
-
+  ui.toast?.(`Dragon healed +${heal} HP`);
   // Advance wave & return to build
   gs.wave = (gs.wave | 0) + 1;
   gs.mode = 'build';
