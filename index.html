@@ -54,6 +54,17 @@
       </div>
     </div>
 
+<div id="bootStatus" style="position:fixed;left:8px;bottom:8px;background:#300;padding:6px 10px;border:1px solid #933;border-radius:8px;font:12px/1.2 system-ui;display:none;z-index:99999"></div>
+<script>
+  (function () {
+    var box = document.getElementById('bootStatus');
+    function show(msg){ if(!box) return; box.style.display='block'; box.textContent=String(msg); }
+    window.addEventListener('error', function (e) { show('Error: ' + (e.message || e.error)); });
+    window.addEventListener('unhandledrejection', function (e) { show('Promise: ' + (e.reason && e.reason.message || e.reason)); });
+    window.addEventListener('dl-boot-ok', function () { if (box) box.style.display = 'none'; });
+  })();
+</script>
+    
     <!-- Let main.js own all wiring; no inline GameState or custom events here -->
     <script type="module" src="./main.js?v=8"></script>
   </body>
