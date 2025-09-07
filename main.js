@@ -5,6 +5,7 @@ import * as ui from './ui.js';
 import * as render from './render.js';
 import * as pathing from './pathing.js';
 import * as combat from './combat.js';
+import { getDragonStats } from './state.js';
 
 let gs = null;
 let ctx = null;
