@@ -57,6 +57,16 @@ export function tickCombat(dt, gs) {
     engineerLogic(e, gs);
     kingsguardDodgeMaybe(e);
     advanceAlongPath(e, gs, dt);
+
+    // Dragon claws auto-swipe adjacent enemies
+if (e.pathIndex >= Math.max(0, gs.path.length - 2) && e.hp > 0) {
+  const { claws } = getDragonStats(gs);
+  if (claws > 0) {
+    e.hp -= claws * dt; // small tick-based damage
+    if (e.hp <= 0 && typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
+  }
+}
+
     tickBurn(e, dt, gs);
     attackDragonIfAtExit(e, gs, dt);
   }
