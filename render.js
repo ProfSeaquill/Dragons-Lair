@@ -214,28 +214,20 @@ export function draw(providedCtx, gs) {
   }
 
 // Breath visualization — highlight the last N tiles from the dragon
-const ds = getDragonStats(gs);
-const reachTiles = ds?.reachTiles ?? ds?.reach ?? 0;
+{
+  const ds = getDragonStats(gs);
+  const reachTiles = (ds && typeof ds.reachTiles === 'number') ? ds.reachTiles : ((ds && ds.reach) || 0);
 
-if (Array.isArray(gs.path) && gs.path.length > 0 && reachTiles > 0) {
-  const endIdx = Math.max(0, gs.path.length - 2); // adjacent tile
-  const startIdx = Math.max(0, endIdx - reachTiles + 1);
+  if (Array.isArray(gs.path) && gs.path.length > 0 && reachTiles > 0) {
+    const endIdx = Math.max(0, gs.path.length - 2); // adjacent tile
+    const startIdx = Math.max(0, endIdx - reachTiles + 1);
 
-  g.fillStyle = 'rgba(255,120,50,0.15)';
-  for (let i = startIdx; i <= endIdx; i++) {
-    const n = normNode(gs.path[i]);
-    if (!inBounds(n.x, n.y)) continue;
-    g.fillRect(n.x * T, n.y * T, T - 1, T - 1);
-  }
-}
-    front = Math.min(front, gs.path.length - 1);
-
-    const start = Math.max(0, front - reachTiles + 1);
     g.fillStyle = 'rgba(255,120,50,0.15)';
-    for (let i = start; i <= front; i++) {
+    for (let i = startIdx; i <= endIdx; i++) {
       const n = normNode(gs.path[i]);
       if (!inBounds(n.x, n.y)) continue;
       g.fillRect(n.x * T, n.y * T, T - 1, T - 1);
     }
   }
 }
+} // ← end of draw()
