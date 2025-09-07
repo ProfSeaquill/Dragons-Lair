@@ -54,6 +54,11 @@ export function initState() {
     fx: { claw: [], wing: [] }, // transient visuals
       _time: 0,                   // seconds since start (for FX timing)
       _lastClawFx: 0,             // throttle claw swipe FX
+
+    gameOver: false,        // set when dragon dies
+    _endedReason: null,     // 'victory' | 'defeat' | null
+    _endedThisWave: false,  // guard to avoid double endWave()
+
     },
 
     // upgrades (indexes into ladders)
