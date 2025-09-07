@@ -111,16 +111,28 @@ function engineerLogic(e, gs) {
 
 function advanceAlongPath(e, gs, dt) {
   if (gs.path.length === 0 || e.hp <= 0) return;
-// Stop on the tile ADJACENT to the dragon (index = length - 2).
+
+  // Stop on the tile ADJACENT to the dragon (index = length - 2).
   const lastFightIdx = Math.max(0, gs.path.length - 2);
-  if (e.pathIndex >= lastFightIdx) return;
+
+  // If already at/after lastFightIdx, keep position and drop hero shield
+  if (e.pathIndex >= lastFightIdx) {
+    if (e.type === 'hero') e.shieldUp = false; // shield stays down near dragon
+    return;
+  }
 
   const tilesToAdvance = e.speed * dt + e.progress;
   const whole = Math.floor(tilesToAdvance);
   e.progress = tilesToAdvance - whole;
 
   e.pathIndex = Math.min(e.pathIndex + whole, lastFightIdx);
+
+  // If we just reached the adjacent tile, drop hero shield
+  if (e.pathIndex >= lastFightIdx && e.type === 'hero') {
+    e.shieldUp = false;
+  }
 }
+
 
 
 function attackDragonIfAtExit(e, gs, dt) {
@@ -148,13 +160,11 @@ function attackDragonIfAtExit(e, gs, dt) {
     return;
   }
 
-  // Others swing intermittently; Hero lowers shield while striking
-  if (Math.random() < 0.02) {
-    gs.dragon.hp -= dmgForType(e.type);
-    if (e.type === 'hero') e.shieldUp = false;
-  } else if (e.type === 'hero') {
-    e.shieldUp = true;
-  }
+ if (Math.random() < 0.02) {
+  gs.dragon.hp -= dmgForType(e.type);
+}
+// Hero keeps shield down while at the dragon
+if (e.type === 'hero') e.shieldUp = false;
 }
 
 
