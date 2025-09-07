@@ -155,6 +155,16 @@ function attackDragonIfAtExit(e, gs, dt) {
 
   // Engineer: plant a bomb with a short fuse; explodes and kills the engineer
   if (e.type === 'engineer') {
+   // Dragon wings gust automatically to push back bombs
+    const { wings } = getDragonStats(gs);
+  if (wings > 0) {
+  // Push engineer back by 'wings' tiles
+    e.pathIndex = Math.max(0, e.pathIndex - wings);
+    e.plantingBomb = false;
+    e.bombTimer = 0;
+    return;
+  }
+    
     if (!e.plantingBomb) {
       e.plantingBomb = true;
       e.bombTimer = 3.0; // seconds
