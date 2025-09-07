@@ -251,39 +251,34 @@ function dragonBreathTick(dt, gs) {
 
 function dragonBreathFire(gs, ds) {
   const reachTiles = ds.reachTiles ?? ds.reach ?? 0;
-  if (reachTiles <= 0) return;
+  if (reachTiles <= 0 || !Array.isArray(gs.path) || gs.path.length === 0) return;
 
-  const active = (gs.enemies || [])
-    .filter(e => e.hp > 0 && e.spawnDelay <= 0)
-    .sort((a, b) => a.pathIndex - b.pathIndex);
+  // Breath originates at the dragon and goes backward along the path
+  const endIdx = Math.max(0, gs.path.length - 2); // we stop enemies on the tile before dragon
+  const startIdx = Math.max(0, endIdx - reachTiles + 1);
 
-  if (active.length === 0 || gs.path.length === 0) return;
+  // Active, spawned enemies within the breath corridor [startIdx .. endIdx]
+  const targets = (gs.enemies || [])
+    .filter(e => e.hp > 0 && (e.spawnDelay || 0) <= 0 && e.pathIndex >= startIdx && e.pathIndex <= endIdx)
+    .sort((a, b) => a.pathIndex - b.pathIndex); // ascending: entry → dragon
 
-  const maxIndex = active[active.length - 1].pathIndex | 0;
-  const minIndex = Math.max(0, maxIndex - reachTiles + 1);
-  const targets = active.filter(e => e.pathIndex >= minIndex && e.pathIndex <= maxIndex);
+  if (targets.length === 0) return;
 
-  // Hero shield blocks POWER to itself + units behind it (toward dragon)
-  let heroIdx = -1;
-  for (let i = targets.length - 1; i >= 0; i--) {
-    const e = targets[i];
-    if (e.type === 'hero' && e.shieldUp && e.hp > 0) { heroIdx = i; break; }
-  }
+  // Hero shield blocks POWER to itself + units behind it (toward the dragon)
+  const shieldingHero = targets.find(e => e.type === 'hero' && e.shieldUp && e.hp > 0);
 
-  for (let i = 0; i < targets.length; i++) {
-    const e = targets[i];
-
+  for (const e of targets) {
     // Burn always applies
     applyBurn(e, ds.burnDps, ds.burnDuration);
 
     // Power may be blocked
     let canPower = true;
     if (e.type === 'hero' && e.shieldUp) canPower = false;
-    if (heroIdx !== -1 && i > heroIdx) canPower = false;
+    if (shieldingHero && e.pathIndex > shieldingHero.pathIndex) canPower = false; // “behind” = closer to dragon
 
     if (canPower) {
       e.hp -= ds.power;
-      if (e.hp <= 0) grantOnKillOnce(gs, e);
+      if (e.hp <= 0 && typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
       if (e.type === 'kingsguard') kingsguardDodgeMaybe(e);
     }
   }
