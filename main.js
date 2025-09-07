@@ -5,6 +5,7 @@ import * as ui from './ui.js';
 import * as render from './render.js';
 import * as pathing from './pathing.js';
 import * as combat from './combat.js';
+import { getDragonStats } from './state.js';
 
 let gs = null;
 let ctx = null;
@@ -60,6 +61,17 @@ function endWave() {
   gs.wave = (gs.wave | 0) + 1;
   gs.mode = 'build';
   gs.lastWaveEndedAt = performance.now();
+  // Heal the dragon between waves (based on regen ladder)
+  const ds = getDragonStats(gs);
+  const heal = ds.regenPerWave ?? 10;
+  const d = gs.dragon;
+  d.hp = Math.min(d.hpMax, d.hp + heal);
+
+  // Advance wave & return to build
+  gs.wave = (gs.wave | 0) + 1;
+  gs.mode = 'build';
+  gs.lastWaveEndedAt = performance.now();
+  
   ui.previewNextWave?.(gs);
   ui.renderUI?.(gs);
 }
