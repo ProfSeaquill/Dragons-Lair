@@ -20,6 +20,8 @@ export const LADDERS = {
   reach: [5, 6, 7, 8, 9, 10, 11, 12],           // tiles (radius in tiles)
   speed: [1.0, 1.25, 1.5, 1.75, 2.0, 2.4, 2.7, 3.0], // breaths per second
   burn:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],    // DPS applied for ECON.BURN_DURATION
+  claws: [0, 6, 12, 20, 30, 45, 65],   // damage dealt to adjacent enemies
+  wings: [0, 1, 3, 5, 7, 9, 12],              // tiles knocked back by wing gust
 };
 
 // --- Helpers: clamp & safe indexing ---
@@ -55,6 +57,9 @@ export function initState() {
       reach: 0,
       speed: 0,
       burn: 0,
+      claws: 0,
+      wings: 0,
+
     },
 
     // map/building
@@ -83,6 +88,8 @@ export function getDragonStats(gs) {
   const reachTiles = ladderPick(LADDERS.reach, u.reach ?? 0, 5);
   const speed = ladderPick(LADDERS.speed, u.speed ?? 0, 1.0);
   const burnDps = ladderPick(LADDERS.burn,  u.burn ?? 0, 1);
+  const claws: UpgradeSteps.claws[gs.dragon.clawsLvl],
+  const wings: UpgradeSteps.wings[gs.dragon.wingsLvl],
 
   return {
     power: pwr,                    // direct hit damage (blocked by Hero shield)
@@ -90,6 +97,7 @@ export function getDragonStats(gs) {
     breathsPerSec: speed,          // attack cadence
     burnDps,                       // damage per second while burning (not blocked)
     burnDuration: ECON.BURN_DURATION, // seconds
+  
   };
 }
 
