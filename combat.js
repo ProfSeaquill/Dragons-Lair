@@ -125,15 +125,30 @@ function advanceAlongPath(e, gs, dt) {
 
 function attackDragonIfAtExit(e, gs, dt) {
   if (e.hp <= 0) return;
-  if (e.pathIndex < gs.path.length - 1) return;
+  if (!Array.isArray(gs.path) || gs.path.length === 0) return;
 
+  // Units stop and attack from the tile ADJACENT to the dragon
+  const lastFightIdx = Math.max(0, gs.path.length - 2);
+  if (e.pathIndex < lastFightIdx) return; // not yet adjacent to dragon
+
+  // Engineer: plant a bomb with a short fuse; explodes and kills the engineer
   if (e.type === 'engineer') {
-    if (!e.plantingBomb) { e.plantingBomb = true; e.bombTimer = 3.0; return; }
+    if (!e.plantingBomb) {
+      e.plantingBomb = true;
+      e.bombTimer = 3.0; // seconds
+      return;
+    }
     e.bombTimer -= dt;
-    if (e.bombTimer <= 0) { gs.dragon.hp -= 30; e.hp = 0; grantOnKillOnce(gs, e); }
+    if (e.bombTimer <= 0) {
+      gs.dragon.hp -= 30; // heavy explosive damage
+      e.hp = 0;
+      // ensure rewards-on-kill if you're using grantOnKillOnce
+      if (typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
+    }
     return;
   }
 
+  // Others swing intermittently; Hero lowers shield while striking
   if (Math.random() < 0.02) {
     gs.dragon.hp -= dmgForType(e.type);
     if (e.type === 'hero') e.shieldUp = false;
@@ -141,6 +156,7 @@ function attackDragonIfAtExit(e, gs, dt) {
     e.shieldUp = true;
   }
 }
+
 
 function dmgForType(t) {
   const k = String(t).toLowerCase();
