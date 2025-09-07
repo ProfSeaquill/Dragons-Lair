@@ -83,15 +83,17 @@ export function renderUpgrades(gs, container, { toast } = {}) {
     btn.className = 'btn';
     btn.textContent = row.lvl >= row.max ? 'Maxed' : `Buy ${row.cost}g`;
 
-    const disabled =
-      row.lvl >= row.max || (gs.gold | 0) < row.cost || gs.mode === 'combat';
-    btn.disabled = disabled;
+      const disabled =
+      row.lvl >= row.max || (gs.gold | 0) < row.cost;
 
     btn.addEventListener('click', () => {
       if (buyUpgrade(gs, row.key)) {
         if (toast) toast(`${row.name} +1`);
         // Re-render list to reflect new levels / gold
         renderUpgrades(gs, container, { toast });
+        // quick HUD refresh for Gold without importing ui.js
+        const goldEl = document.getElementById('gold');
+        if (goldEl) goldEl.textContent = String(gs.gold | 0);
       } else {
         if (toast) {
           if (row.lvl >= row.max) toast(`${row.name} is maxed`);
