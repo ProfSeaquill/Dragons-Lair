@@ -52,29 +52,43 @@ function startWave() {
   }
   combat.makeWave?.(gs);
   gs.mode = 'combat';
+  gs._endedReason = null;
+  gs._endedThisWave = false;
   gs.justStartedAt = performance.now();
   ui.renderUI?.(gs);
 }
 
 function endWave() {
-  // ✅ Advance wave number here
-  gs.wave = (gs.wave | 0) + 1;
+  // Prevent double-invocation (which was causing 1→3→5)
+  if (gs._endedThisWave) return;
+  gs._endedThisWave = true;
+
+  const reason = gs._endedReason || (gs.dragon?.hp <= 0 ? 'defeat' : 'victory');
+
+  if (reason === 'victory') {
+    // ✅ Heal only on victory
+    const ds = state.getDragonStats(gs); // or getDragonStats(gs) if you kept the named import
+    const heal = ds.regenPerWave ?? 10;
+    gs.dragon.hp = Math.min(gs.dragon.hpMax, gs.dragon.hp + heal);
+
+    // Advance wave
+    gs.wave = (gs.wave | 0) + 1;
+    ui.toast?.(`Wave cleared! Dragon healed +${heal} HP`);
+  } else {
+    // ❌ Defeat: no heal, no wave increment
+    gs.gameOver = true;
+    gs.autoStart = false;
+    ui.toast?.('💀 Game Over');
+  }
+
+  // Return to build mode (for restart / next wave)
   gs.mode = 'build';
   gs.lastWaveEndedAt = performance.now();
-  // Heal the dragon between waves (based on regen ladder)
-  const ds = getDragonStats(gs);
-  const heal = ds.regenPerWave ?? 10;
-  const d = gs.dragon;
-  d.hp = Math.min(d.hpMax, d.hp + heal);
-  ui.toast?.(`Dragon healed +${heal} HP`);
-  // Advance wave & return to build
-  gs.wave = (gs.wave | 0) + 1;
-  gs.mode = 'build';
-  gs.lastWaveEndedAt = performance.now();
-  
+
   ui.previewNextWave?.(gs);
   ui.renderUI?.(gs);
 }
+
 
 function tick(ts) {
   const dt = Math.min(0.05, (ts - lastTs) / 1000);
