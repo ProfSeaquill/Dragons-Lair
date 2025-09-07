@@ -67,5 +67,23 @@
     
     <!-- Let main.js own all wiring; no inline GameState or custom events here -->
     <script type="module" src="./main.js?v=8"></script>
+  
+  <script>
+  window.addEventListener("error", (event) => {
+    const msg = document.getElementById("msg");
+    if (msg) {
+      msg.textContent = "⚠️ " + event.message;
+      msg.style.color = "orange";
+    }
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    const msg = document.getElementById("msg");
+    if (msg) {
+      msg.textContent = "⚠️ Promise error: " + (event.reason?.message || event.reason);
+      msg.style.color = "orange";
+    }
+  });
+</script>
   </body>
 </html>
