@@ -36,6 +36,53 @@ function enemyColor(type) {
 }
 function inBounds(x, y) {
   return x >= 0 && y >= 0 && x < (GRID?.W ?? 24) && y < (GRID?.H ?? 16);
+
+}
+function drawClawFx(g, gs, exit, T) {
+  const fxArr = gs.fx?.claw || [];
+  for (const fx of fxArr) {
+    const life = Math.max(0, Math.min(1, fx.ttl / 0.25)); // 0..1
+    const alpha = 0.15 + 0.35 * life;
+    const radius = T * (0.55 + 0.25 * (1 - life));
+    const start = -Math.PI * (0.35 + 0.15 * (1 - life));
+    const end   =  Math.PI * (0.35 + 0.15 * (1 - life));
+    g.strokeStyle = `rgba(255,140,80,${alpha})`;
+    g.lineWidth = 3;
+    g.beginPath();
+    g.arc(exit.cx, exit.cy, radius, start, end);
+    g.stroke();
+  }
+}
+
+function drawWingFx(g, gs, exit, T) {
+  const fxArr = gs.fx?.wing || [];
+  for (const fx of fxArr) {
+    const life = Math.max(0, Math.min(1, fx.ttl / 0.35)); // 0..1
+    const alpha = 0.10 + 0.25 * life;
+    const tiles = (fx.strength || 1);
+    const widthTiles = 3; // visual width of gust
+    const w = widthTiles * T;
+    const h = (tiles * T) * (0.8 + 0.2 * life);
+
+    // rectangular gust pointing "away" from exit along negative X (left)
+    g.save();
+    g.translate(exit.cx, exit.cy);
+    g.fillStyle = `rgba(180,220,255,${alpha})`;
+    g.beginPath();
+    g.rect(-h, -w / 2, h, w);
+    g.fill();
+
+    // a few streak lines
+    g.strokeStyle = `rgba(220,240,255,${alpha + 0.05})`;
+    g.lineWidth = 2;
+    for (let i = -1; i <= 1; i++) {
+      g.beginPath();
+      g.moveTo(-h, i * (w / 4));
+      g.lineTo(-h * 0.2, i * (w / 4));
+      g.stroke();
+    }
+    g.restore();
+  }
 }
 
 // Try to infer ENTRY/EXIT from the path; fall back to edges if no path yet.
@@ -102,6 +149,11 @@ export function draw(providedCtx, gs) {
     g.arc(cx, cy, T * 0.35, 0, Math.PI * 2);
     g.fill();
   }
+ 
+  // FX at dragon location
+  const exitCenter = tileCenter(exit.x, exit.y);
+  drawClawFx(g, gs, exitCenter, T);
+  drawWingFx(g, gs, exitCenter, T);
 
   // Enemies
   if (Array.isArray(gs.enemies)) {
