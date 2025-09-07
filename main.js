@@ -50,6 +50,11 @@ function startWave() {
     pathing.recomputePath?.(gs);
     if (!gs.path || !gs.path.length) { console.warn('[DL] startWave blocked: no valid path'); return; }
   }
+
+    // 🔧 reset end-of-wave flags for the new wave
+  gs._endedReason = null;
+  gs._endedThisWave = false;
+  
   combat.makeWave?.(gs);
   gs.mode = 'combat';
   gs._endedReason = null;
