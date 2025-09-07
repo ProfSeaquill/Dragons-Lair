@@ -44,6 +44,17 @@ export function makeWave(gs) {
 }
 
 export function tickCombat(dt, gs) {
+  // timeline + FX decay
+  gs._time = (gs._time || 0) + dt;
+  if (gs.fx) {
+    const arrs = [gs.fx.claw, gs.fx.wing];
+    for (const a of arrs) {
+      for (let i = a.length - 1; i >= 0; i--) {
+        a[i].ttl -= dt;
+        if (a[i].ttl <= 0) a.splice(i, 1);
+      }
+    }
+  }
   if (!gs?.enemies || !gs?.path?.length) return true;
 
   dragonBreathTick(dt, gs);
@@ -62,6 +73,11 @@ export function tickCombat(dt, gs) {
 if (e.pathIndex >= Math.max(0, gs.path.length - 2) && e.hp > 0) {
   const { claws } = getDragonStats(gs);
   if (claws > 0) {
+    // spawn a short swipe FX (throttled)
+    if ((gs._time - (gs._lastClawFx || 0)) > 0.25) {
+      gs._lastClawFx = gs._time;
+      (gs.fx?.claw || (gs.fx.claw = [])).push({ ttl: 0.25 });
+    }
     e.hp -= claws * dt; // small tick-based damage
     if (e.hp <= 0 && typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
   }
@@ -162,6 +178,8 @@ function attackDragonIfAtExit(e, gs, dt) {
     e.pathIndex = Math.max(0, e.pathIndex - wings);
     e.plantingBomb = false;
     e.bombTimer = 0;
+    // wing gust FX
+  (gs.fx?.wing || (gs.fx.wing = [])).push({ ttl: 0.35, strength: wings });
     return;
   }
     
