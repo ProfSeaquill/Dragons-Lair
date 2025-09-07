@@ -15,6 +15,9 @@ function makeEnemiesForWave(wave) {
 }
 
 function createEnemy(type, wave, spawnIndex = 0) {
+  spawnDelay: spawnIndex * 0.2, // seconds stagger
+pathIndex: 0,                 // start at first node after spawn
+progress: 0,
   const t = String(type).toLowerCase();
   const s = enemyStats(t, wave);
   return {
