@@ -1,74 +1,83 @@
-// pathing.js
-import { GRID, ENTRY, EXIT, GameState } from './state.js';
+// pathing.js — A* pathfinding and wall placement with A* guard
 
-function inBounds(c, r) {
-  return c >= 0 && r >= 0 && c < GRID.cols && r < GRID.rows;
-}
-function isWalkable(c, r) {
-  return inBounds(c, r) && GameState.grid[r][c] === 0;
+import { GRID, ECON, hasWall, placeWall, removeWall } from './state.js';
+
+// ---- Basics ----
+const key = (x, y) => `${x},${y}`;
+const inBounds = (x, y) => x >= 0 && y >= 0 && x < GRID.W && y < GRID.H;
+const isWalkable = (gs, x, y) => inBounds(x, y) && !gs.walls.has(key(x, y));
+
+function entryExit() {
+  // Default entry/exit if not stored elsewhere: middle-left → middle-right
+  return {
+    entry: { x: 0, y: Math.floor(GRID.H / 2) },
+    exit:  { x: GRID.W - 1, y: Math.floor(GRID.H / 2) },
+  };
 }
 
-export function aStar(start, goal) {
+// 4-neighborhood
+function neighbors(gs, n) {
+  const cand = [
+    { x: n.x + 1, y: n.y },
+    { x: n.x - 1, y: n.y },
+    { x: n.x,     y: n.y + 1 },
+    { x: n.x,     y: n.y - 1 },
+  ];
+  return cand.filter(p => isWalkable(gs, p.x, p.y));
+}
+
+const H = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+// ---- A* (grid, 4-dir) ----
+function aStar(gs, start, goal) {
   const open = new Set();
-  const came = new Map();
-  const gScore = new Map();
-  const fScore = new Map();
-  const key = (n) => `${n.c},${n.r}`;
+  const came = new Map();      // childK -> parentK
+  const g = new Map();         // nodeK -> gScore
+  const f = new Map();         // nodeK -> fScore
+  const nodes = new Map();     // nodeK -> {x,y}
 
-  function h(n) { return Math.abs(n.c - goal.c) + Math.abs(n.r - goal.r); }
-  function neighbors(n) {
-    const arr = [
-      { c: n.c + 1, r: n.r },
-      { c: n.c - 1, r: n.r },
-      { c: n.c,     r: n.r + 1 },
-      { c: n.c,     r: n.r - 1 },
-    ];
-    return arr.filter(x => isWalkable(x.c, x.r));
-  }
+  const sK = key(start.x, start.y);
+  const tK = key(goal.x, goal.y);
 
-  const skey = key(start);
-  open.add(skey);
-  gScore.set(skey, 0);
-  fScore.set(skey, h(start));
+  open.add(sK);
+  nodes.set(sK, start);
+  nodes.set(tK, goal);
+  g.set(sK, 0);
+  f.set(sK, H(start, goal));
 
-  const nodes = new Map();
-  nodes.set(skey, start);
-  nodes.set(key(goal), goal);
-
-  while (open.size > 0) {
-    // pick lowest fScore in open
-    let currentKey = null; let best = Infinity;
+  while (open.size) {
+    // pick node in open with smallest f
+    let curK = null, curF = Infinity;
     for (const k of open) {
-      const fs = fScore.get(k) ?? Infinity;
-      if (fs < best) { best = fs; currentKey = k; }
+      const fk = f.get(k) ?? Infinity;
+      if (fk < curF) { curF = fk; curK = k; }
     }
-    const current = nodes.get(currentKey);
-    if (!current) break;
+    const cur = nodes.get(curK);
+    if (!cur) break;
 
-    // reached goal → reconstruct path
-    if (current.c === goal.c && current.r === goal.r) {
+    if (curK === tK) {
+      // reconstruct
       const out = [];
-      let ck = currentKey;
-      while (ck) {
-        const n = nodes.get(ck);
-        out.push({ c: n.c, r: n.r });
-        ck = came.get(ck);
+      let k = curK;
+      while (k) {
+        const n = nodes.get(k);
+        out.push({ x: n.x, y: n.y });
+        k = came.get(k);
       }
       return out.reverse();
     }
 
-    open.delete(currentKey);
+    open.delete(curK);
 
-    // relax neighbors
-    for (const nb of neighbors(current)) {
-      const nk = key(nb);
-      nodes.set(nk, nb);
-      const tentative = (gScore.get(currentKey) ?? Infinity) + 1;
-      if (tentative < (gScore.get(nk) ?? Infinity)) {
-        came.set(nk, currentKey);
-        gScore.set(nk, tentative);
-        fScore.set(nk, tentative + h(nb));
-        if (!open.has(nk)) open.add(nk);
+    for (const nb of neighbors(gs, cur)) {
+      const nK = key(nb.x, nb.y);
+      nodes.set(nK, nb);
+      const tentative = (g.get(curK) ?? Infinity) + 1;
+      if (tentative < (g.get(nK) ?? Infinity)) {
+        came.set(nK, curK);
+        g.set(nK, tentative);
+        f.set(nK, tentative + H(nb, goal));
+        if (!open.has(nK)) open.add(nK);
       }
     }
   }
@@ -76,22 +85,50 @@ export function aStar(start, goal) {
   return [];
 }
 
-export function recomputePath() {
-  GameState.path = aStar(ENTRY, EXIT);
-  return GameState.path.length > 0;
+// ---- Public: recomputePath(gs) ----
+export function recomputePath(gs) {
+  const { entry, exit } = entryExit();
+  gs.path = aStar(gs, entry, exit);
+  return Array.isArray(gs.path) && gs.path.length > 0;
 }
 
-export function toggleWall(c, r) {
-  if (c === ENTRY.c && r === ENTRY.r) return false;
-  if (c === EXIT.c  && r === EXIT.r)  return false;
-  const val = GameState.grid[r][c];
-  GameState.grid[r][c] = val === 0 ? 1 : 0;
-  const ok = recomputePath();
-  if (!ok) {
-    // revert if blocked
-    GameState.grid[r][c] = val;
-    recomputePath();
-    return false;
+// ---- Public: toggleWall(gs, x, y, place) ----
+// Returns: 'ok' | 'blocked' | 'no-bones' | 'occupied' | 'empty'
+export function toggleWall(gs, x, y, place) {
+  const { entry, exit } = entryExit();
+
+  if (!inBounds(x, y)) return 'blocked';
+  // Never allow walls on entry/exit
+  if ((x === entry.x && y === entry.y) || (x === exit.x && y === exit.y)) return 'blocked';
+
+  const already = hasWall(gs, x, y);
+
+  if (place) {
+    if (already) return 'occupied';
+    if ((gs.bones | 0) < ECON.WALL_COST) return 'no-bones';
+
+    // Place tentatively
+    placeWall(gs, x, y);
+    gs.bones = (gs.bones | 0) - ECON.WALL_COST;
+
+    // Path must remain valid
+    if (!recomputePath(gs)) {
+      // Revert
+      removeWall(gs, x, y);
+      gs.bones = (gs.bones | 0) + ECON.WALL_COST;
+      recomputePath(gs);
+      return 'blocked';
+    }
+    return 'ok';
+  } else {
+    if (!already) return 'empty';
+
+    // Remove
+    removeWall(gs, x, y);
+    gs.bones = (gs.bones | 0) + ECON.WALL_REFUND;
+
+    // Recompute (should always be valid after removing)
+    recomputePath(gs);
+    return 'ok';
   }
-  return true;
 }
