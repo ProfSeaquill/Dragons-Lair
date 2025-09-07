@@ -38,6 +38,8 @@ function boot() {
 
   window.__GS__ = gs;
   console.log('[DL] boot complete');
+
+try { window.dispatchEvent(new CustomEvent('dl-boot-ok')); } catch (_){}
 }
 
 function onStartWave() {
