@@ -6,12 +6,12 @@
 // --- Enemy stat helpers ---
 // Rough baselines; tweak as you balance. Wave multipliers apply on top.
 const BASE = {
-  villager:  { hp: 14,  speed: 2.0, gold: 2, bones: 1 },
-  squire:    { hp: 28,  speed: 2.6, gold: 4, bones: 2 },
-  hero:      { hp: 90,  speed: 1.4, gold: 10, bones: 4, shield: true },
-  knight:    { hp: 80,  speed: 3.2, gold: 8, bones: 3, mounted: true },
-  kingsguard:{ hp: 550, speed: 2.4, gold: 40, bones: 16, miniboss: true, mounted: true },
-  engineer:  { hp: 55,  speed: 2.2, gold: 7, bones: 3, digger: true },
+  villager:  { hp: 10,  speed: 1.5, gold: 2, bones: 1 },
+  squire:    { hp: 20,  speed: 1.8, gold: 4, bones: 2 },
+  hero:      { hp: 70,  speed: 1.2, gold: 10, bones: 4, shield: true },
+  knight:    { hp: 50,  speed: 2.5, gold: 8, bones: 10, mounted: true },
+  kingsguard:{ hp: 300, speed: 1.9, gold: 40, bones: 16, miniboss: true, mounted: true },
+  engineer:  { hp: 15,  speed: 2.0, gold: 7, bones: 3, digger: true },
 };
 
 // Global wave multipliers — soft exponential with a small additive bump
@@ -44,8 +44,8 @@ export function waveComposition(wave /*, gs */) {
   const v = Math.max(6, 6 + Math.floor(wave * 1.6));
   const s = wave >= 2 ? Math.floor(wave * 0.9) : 0;
   const k = wave >= 4 ? Math.floor((wave - 2) * 0.6) : 0;
-  const h = wave >= 3 ? (wave % 3 === 0 ? 1 : 0) : 0; // occasional hero
-  const e = wave >= 5 ? (wave % 4 === 0 ? 1 : 0) : 0; // occasional engineer
+  const h = wave >= 5 ? (wave % 3 === 0 ? 1 : 0) : 0; // occasional hero
+  const e = wave >= 10 ? (wave % 4 === 0 ? 1 : 0) : 0; // occasional engineer
 
   const comp = [
     { type: 'villager', count: v },
