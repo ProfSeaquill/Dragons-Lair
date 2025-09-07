@@ -16,12 +16,13 @@ export const ECON = {
 // --- Upgrade ladders (indexes 0..n) ---
 // Power [5,8,12,18,26,38,55]; Reach [5..12]; Speed [1.0..3.0]; Burn [1..12]
 export const LADDERS = {
-  power: [5, 8, 12, 18, 26, 38, 55],
-  reach: [5, 6, 7, 8, 9, 10, 11, 12],           // tiles (radius in tiles)
-  speed: [1.0, 1.25, 1.5, 1.75, 2.0, 2.4, 2.7, 3.0], // breaths per second
+  power: [10, 14, 18, 24, 38, 46, 55, 70],
+  reach: [5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20],           // tiles (radius in tiles)
+  speed: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2.0, 2.2, 2.4, 2.7, 3.0], // breaths per second
   burn:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],    // DPS applied for ECON.BURN_DURATION
   claws: [0, 6, 12, 20, 30, 45, 65],   // damage dealt to adjacent enemies
-  wings: [0, 1, 3, 5, 7, 9, 12],              // tiles knocked back by wing gust
+  wings: [0, 1, 3, 5, 7, 9, 12, 15],              // tiles knocked back by wing gust
+  regen: [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 40], // HP recovered between waves
 };
 
 // --- Helpers: clamp & safe indexing ---
@@ -59,7 +60,7 @@ export function initState() {
       burn: 0,
       claws: 0,
       wings: 0,
-
+      regen: 0,
     },
 
     // map/building
@@ -92,6 +93,7 @@ export function getDragonStats(gs) {
     burnDuration:   ECON.BURN_DURATION,
     claws:          ladderPick(LADDERS.claws,  u.claws ?? 0, 0),
     wings:          ladderPick(LADDERS.wings,  u.wings ?? 0, 0),
+    regenPerWave:   ladderPick(LADDERS.regen,  u.regen ?? 0, 10),
   };
 }
 
