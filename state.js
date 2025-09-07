@@ -92,14 +92,6 @@ export function getDragonStats(gs) {
     burnDuration:   ECON.BURN_DURATION,
     claws:          ladderPick(LADDERS.claws,  u.claws ?? 0, 0),
     wings:          ladderPick(LADDERS.wings,  u.wings ?? 0, 0),
-
-  return {
-    power: pwr,                    // direct hit damage (blocked by Hero shield)
-    reachTiles,                    // tiles affected (AoE / breath width/length)
-    breathsPerSec: speed,          // attack cadence
-    burnDps,                       // damage per second while burning (not blocked)
-    burnDuration: ECON.BURN_DURATION, // seconds
-  
   };
 }
 
