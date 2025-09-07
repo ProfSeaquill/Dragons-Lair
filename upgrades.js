@@ -33,6 +33,13 @@ export function getUpgradeInfo(gs) {
       desc: 'Breaths per second',
     },
     {
+    key: 'regen', name: 'Regen',
+    lvl: u.regen | 0,
+    max: (LADDERS.regen.length - 1),
+    cost: 30 * ((u.regen | 0) + 1), // tweakable; see next section
+    desc: 'HP recovered between waves',
+    },
+    {
       key: 'burn',
       name: 'Burn',
       lvl: u.burn | 0,
