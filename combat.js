@@ -111,12 +111,17 @@ function engineerLogic(e, gs) {
 
 function advanceAlongPath(e, gs, dt) {
   if (gs.path.length === 0 || e.hp <= 0) return;
-  if (e.pathIndex >= gs.path.length - 1) return;
+// Stop on the tile ADJACENT to the dragon (index = length - 2).
+  const lastFightIdx = Math.max(0, gs.path.length - 2);
+  if (e.pathIndex >= lastFightIdx) return;
+
   const tilesToAdvance = e.speed * dt + e.progress;
   const whole = Math.floor(tilesToAdvance);
   e.progress = tilesToAdvance - whole;
-  e.pathIndex = Math.min(e.pathIndex + whole, gs.path.length - 1);
+
+  e.pathIndex = Math.min(e.pathIndex + whole, lastFightIdx);
 }
+
 
 function attackDragonIfAtExit(e, gs, dt) {
   if (e.hp <= 0) return;
