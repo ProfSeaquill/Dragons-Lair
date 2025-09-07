@@ -26,12 +26,12 @@ function normNode(p) {
 }
 function enemyColor(type) {
   const t = String(type || '').toLowerCase();
-  if (t === 'villager')   return '#b3c1d1';
-  if (t === 'squire')     return '#92a7ff';
-  if (t === 'hero')       return '#ffd76a';
-  if (t === 'knight')     return '#8dd18d';
-  if (t === 'kingsguard') return '#ff7e7e';
-  if (t === 'engineer')   return '#ffad66';
+  if (t === 'villager')   return '#ffffff';
+  if (t === 'squire')     return '#00c853';
+  if (t === 'hero')       return '#8fd3ff';
+  if (t === 'knight')     return '#8b5a2b';
+  if (t === 'kingsguard') return '#9b59ff';
+  if (t === 'engineer')   return '#ffd54f';
   return '#ddd';
 }
 function inBounds(x, y) {
