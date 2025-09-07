@@ -8,8 +8,8 @@ export const GRID = {
 };
 
 export const ECON = {
-  WALL_COST: 50,
-  WALL_REFUND: 25,
+  WALL_COST: 30,
+  WALL_REFUND: 15,
   BURN_DURATION: 3.0, // seconds DoT lasts
 };
 
@@ -17,7 +17,7 @@ export const ECON = {
 // Power [5,8,12,18,26,38,55]; Reach [5..12]; Speed [1.0..3.0]; Burn [1..12]
 export const LADDERS = {
   power: [10, 14, 18, 24, 38, 46, 55, 70],
-  reach: [5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20],           // tiles (radius in tiles)
+  reach: [10, 14, 18, 24, 32, 40, 50, 60, 75, 90, 120],           // tiles (radius in tiles)
   speed: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2.0, 2.2, 2.4, 2.7, 3.0], // breaths per second
   burn:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],    // DPS applied for ECON.BURN_DURATION
   claws: [20, 30, 50, 70, 90, 120, 150],   // damage dealt to adjacent enemies
