@@ -84,12 +84,14 @@ export function initState() {
 // These should be read-only views; do not mutate gs here.
 export function getDragonStats(gs) {
   const u = gs?.upgrades ?? {};
-  const pwr  = ladderPick(LADDERS.power, u.power ?? 0, 5);
-  const reachTiles = ladderPick(LADDERS.reach, u.reach ?? 0, 5);
-  const speed = ladderPick(LADDERS.speed, u.speed ?? 0, 1.0);
-  const burnDps = ladderPick(LADDERS.burn,  u.burn ?? 0, 1);
-  const claws: UpgradeSteps.claws[gs.dragon.clawsLvl],
-  const wings: UpgradeSteps.wings[gs.dragon.wingsLvl],
+  return {
+    power:          ladderPick(LADDERS.power,  u.power ?? 0, 5),
+    reachTiles:     ladderPick(LADDERS.reach,  u.reach ?? 0, 5),
+    breathsPerSec:  ladderPick(LADDERS.speed,  u.speed ?? 0, 1.0),
+    burnDps:        ladderPick(LADDERS.burn,   u.burn  ?? 0, 1),
+    burnDuration:   ECON.BURN_DURATION,
+    claws:          ladderPick(LADDERS.claws,  u.claws ?? 0, 0),
+    wings:          ladderPick(LADDERS.wings,  u.wings ?? 0, 0),
 
   return {
     power: pwr,                    // direct hit damage (blocked by Hero shield)
