@@ -40,6 +40,16 @@ function createEnemy(type, wave, spawnIndex = 0) {
 // -------- Wave API --------
 export function makeWave(gs) {
   gs.enemies = makeEnemiesForWave(gs.wave);
+ // normalize legacy negative pathIndex to spawnDelay-based gating
+for (const e of gs.enemies) {
+  if (typeof e.spawnDelay !== 'number') e.spawnDelay = 0;
+  if ((e.pathIndex | 0) < 0) {
+    // -1 → 0.2s, -2 → 0.4s, etc.
+    e.spawnDelay = Math.max(e.spawnDelay, (-e.pathIndex | 0) * 0.2);
+    e.pathIndex = 0;
+    e.progress = 0;
+  }
+}
   gs._breathAcc = 0;
 }
 
