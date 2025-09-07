@@ -20,7 +20,7 @@ export const LADDERS = {
   reach: [5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20],           // tiles (radius in tiles)
   speed: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2.0, 2.2, 2.4, 2.7, 3.0], // breaths per second
   burn:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],    // DPS applied for ECON.BURN_DURATION
-  claws: [0, 6, 12, 20, 30, 45, 65],   // damage dealt to adjacent enemies
+  claws: [20, 30, 50, 70, 90, 120, 150],   // damage dealt to adjacent enemies
   wings: [0, 1, 3, 5, 7, 9, 12, 15],              // tiles knocked back by wing gust
   regen: [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 40], // HP recovered between waves
 };
@@ -50,6 +50,10 @@ export function initState() {
     dragon: {
       hpMax: 100,
       hp: 100,
+
+    fx: { claw: [], wing: [] }, // transient visuals
+      _time: 0,                   // seconds since start (for FX timing)
+      _lastClawFx: 0,             // throttle claw swipe FX
     },
 
     // upgrades (indexes into ladders)
