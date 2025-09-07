@@ -1,78 +1,88 @@
-// at very top of main.js
-console.log("[DL] main.js loaded");
-
-
-import { GameState, GRID, resetGrid, ENTRY, EXIT, getDragonStats } from './state.js';
-import { recomputePath } from './pathing.js';
-import { bindUI, renderUI, previewNextWave, toast } from './ui.js';
+// --- Ensure these imports exist (filenames all lowercase) ---
+import { GameState, initState } from './state.js';
+import { bindUI, renderUI, previewNextWave } from './ui.js';
 import { draw } from './render.js';
-import { makeWave, tickCombat, allEnemiesDead, playerRewardsOnDeath } from './combat.js';
-import { waveComposition } from './scaling.js';
+import { recomputePath } from './pathing.js';
+import { makeWave, tickCombat } from './combat.js';
 
+// --- Globals (or keep inside a module scope) ---
+let gs = null;
+let ctx = null;
+let rafId = 0;
+let lastTs = 0;
 
+// --- STARTUP ---
+async function boot() {
+  const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('game'));
+  ctx = canvas.getContext('2d');
 
-function init(){
-console.log("[DL] init()");
-resetGrid();
-recomputePath();
-bindUI();
-renderUI();
-setupWavePreview();
-loop();
+  gs = initState();                 // must set gs.mode = 'build' initially
+  recomputePath(gs);                // compute a valid path on first load
+  bindUI(gs);                       // wire buttons & checkboxes
+  previewNextWave(gs);
+  renderUI(gs);
+
+  // Listen for the HTML custom event (exact name, on window)
+  window.addEventListener('start-wave', onStartWave);
+
+  // Optional: also wire the button directly, but keep start idempotent
+  const startBtn = document.getElementById('startBtn');
+  if (startBtn) startBtn.addEventListener('click', onStartWave);
+
+  lastTs = performance.now();
+  rafId = requestAnimationFrame(tick);
 }
 
-
-function setupWavePreview(){
-const w = GameState.wave;
-const comp = waveComposition(w);
-const counts = {};
-comp.forEach(t=> counts[t]=(counts[t]||0)+1);
-const html = Object.entries(counts).map(([k,v])=>`<div>${k}: ${v}</div>`).join('');
-previewNextWave(html);
+function onStartWave() {
+  // Idempotent: only start from build mode and if not already starting
+  if (!gs || gs.mode !== 'build') return;
+  startWave();
 }
 
+function startWave() {
+  // Defensive: ensure path exists before creating a wave
+  if (!gs.path || gs.path.length === 0) {
+    // Try to recompute once; if still empty, refuse to start.
+    recomputePath(gs);
+    if (!gs.path || gs.path.length === 0) return;
+  }
 
-let lastEnemies = [];
-
-
-function loop(){
-GameState.tick++;
-// Start wave auto
-if (GameState.autoStart && !GameState.running && GameState.enemies.length===0){ startWave(); }
-
-
-if (GameState.running){
-const prev = [...GameState.enemies];
-tickCombat();
-// Rewards
-const {gold,bones} = playerRewardsOnDeath(prev, GameState.enemies);
-if (gold||bones) renderUI();
-
-
-// End of wave
-if (allEnemiesDead()){
-GameState.running=false;
-GameState.wave++;
-toast(`Wave cleared! +${gold||0}g +${bones||0} bones`);
-setupWavePreview();
-}
+  makeWave(gs);           // populate enemies for this wave
+  gs.mode = 'combat';     // switch mode so tick drives combat
+  gs.justStartedAt = performance.now(); // small debounce for auto-start loops
+  renderUI(gs);
 }
 
-
-draw();
-renderUI();
-requestAnimationFrame(loop);
+function endWave() {
+  gs.mode = 'build';
+  gs.lastWaveEndedAt = performance.now();
+  previewNextWave(gs);
+  renderUI(gs);
 }
 
+// --- MAIN TICK ---
+function tick(ts) {
+  const dt = Math.min(0.05, (ts - lastTs) / 1000); // cap 50ms
+  lastTs = ts;
 
-function startWave(){
-makeWave(GameState.wave);
-GameState.running = true;
+  if (gs.mode === 'combat') {
+    const finished = tickCombat(dt, gs);   // returns true when wave ends
+    if (finished) endWave();
+  } else {
+    // Auto-start check: only if enabled and not too soon
+    if (gs.autoStart) {
+      const now = performance.now();
+      const guard =
+        (!gs.justStartedAt || now - gs.justStartedAt > 200) &&
+        (!gs.lastWaveEndedAt || now - gs.lastWaveEndedAt > 200);
+      if (guard) startWave();
+    }
+  }
+
+  draw(ctx, gs);
+  renderUI(gs); // cheap UI refresh each frame
+  rafId = requestAnimationFrame(tick);
 }
 
-
-window.addEventListener('start-wave', startWave);
-window.addEventListener('grid-changed', ()=>{ setupWavePreview(); });
-
-
-window.addEventListener('load', init);
+// --- KICK ---
+boot();
