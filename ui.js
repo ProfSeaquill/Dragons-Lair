@@ -131,6 +131,14 @@ export function renderUI(gs) {
   setText('wave', gs.wave ?? 1);
   setText('dragonHP', Math.ceil(gs.dragon?.hp ?? 100));
   setText('gold', Math.floor(gs.gold ?? 0));
+  if (typeof gs._uiLastGold !== 'number' || gs._uiLastGold !== (gs.gold|0)) {
+  gs._uiLastGold = (gs.gold|0);
+  const box = document.getElementById('upgrades');
+  if (box && typeof upgrades.renderUpgrades === 'function') {
+    upgrades.renderUpgrades(gs, box, { toast });
+  }
+}
+
   setText('bones', Math.floor(gs.bones ?? 0));
 
   // Keep Auto-start checkbox in sync if toggled programmatically
