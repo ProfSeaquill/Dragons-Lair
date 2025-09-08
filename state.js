@@ -9,7 +9,7 @@ export const GRID = {
 
 export const ECON = {
   WALL_COST: 10,
-  WALL_REFUND: 15,
+  WALL_REFUND: 5,
   BURN_DURATION: 3.0, // seconds DoT lasts
 };
 
