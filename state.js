@@ -25,6 +25,11 @@ export const LADDERS = {
   regen: [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 40], // HP recovered between waves
 };
 
+export const DRAGON_DEFAULTS = {
+  clawCooldown: 5,  // seconds
+  wingCooldown: 30,  // seconds
+};
+
 // --- Helpers: clamp & safe indexing ---
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function ladderPick(arr, idx, fallback) {
