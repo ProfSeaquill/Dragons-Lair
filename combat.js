@@ -107,7 +107,7 @@ if (e.pathIndex >= Math.max(0, gs.path.length - 2) && e.hp > 0) {
 
   // End conditions
   var anyAlive = gs.enemies.some(function (e) { return e.hp > 0; });
-  var anyPendingSpawn = gs.enemies.some(function (e) { retifn e.spawnDelay > 0; });
+  var anyPendingSpawn = gs.enemies.some(function (e) { return e.spawnDelay > 0; });
   var dragonDead = (gs.dragon && gs.dragon.hp <= 0);
 
   if (dragonDead) {
