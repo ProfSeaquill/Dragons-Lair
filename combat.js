@@ -213,7 +213,7 @@ function attackDragonIfAtExit(e, gs, dt) {
     
     if (!e.plantingBomb) {
       e.plantingBomb = true;
-      e.bombTimer = 3.0; // seconds
+      e.bombTimer = 10.0; // seconds
       return;
     }
     e.bombTimer -= dt;
