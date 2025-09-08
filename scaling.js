@@ -10,8 +10,8 @@ const BASE = {
   squire:    { hp: 20,  speed: 1.8, gold: 4, bones: 2 },
   hero:      { hp: 70,  speed: 1.4, gold: 10, bones: 4, shield: true },
   knight:    { hp: 50,  speed: 2.5, gold: 8, bones: 10, mounted: true },
-  kingsguard:{ hp: 300, speed: 1.9, gold: 40, bones: 16, miniboss: true, mounted: true },
-  engineer:  { hp: 15,  speed: 2.0, gold: 7, bones: 3, digger: true },
+  kingsguard:{ hp: 300, speed: 2.0, gold: 40, bones: 12, miniboss: true, mounted: true },
+  engineer:  { hp: 15,  speed: 1.3, gold: 7, bones: 3, digger: true },
 };
 
 // Global wave multipliers — soft exponential with a small additive bump
