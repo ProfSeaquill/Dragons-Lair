@@ -97,6 +97,26 @@ if (e.pathIndex >= Math.max(0, gs.path.length - 2) && e.hp > 0) {
     attackDragonIfAtExit(e, gs, dt);
   }
 
+  // Cull dead enemies (we grant rewards on kill inside tick/breath)
+  gs.enemies = gs.enemies.filter(function (e) {
+    return e && (e.hp > 0 || e.spawnDelay > 0);
+  });
+
+  // End conditions
+  var anyAlive = gs.enemies.some(function (e) { return e.hp > 0; });
+  var anyPendingSpawn = gs.enemies.some(function (e) { return e.spawnDelay > 0; });
+  var dragonDead = (gs.dragon && gs.dragon.hp <= 0);
+
+  if (dragonDead) {
+    gs._endedReason = 'defeat';
+    return true;
+  }
+  if (!anyAlive && !anyPendingSpawn) {
+    gs._endedReason = 'victory';
+    return true;
+  }
+  return false;
+  
     const anyPendingSpawn = gs.enemies.some(e => e.spawnDelay > 0);
   const allDead = gs.enemies.length === 0;
   const dragonDead = gs.dragon?.hp <= 0;
