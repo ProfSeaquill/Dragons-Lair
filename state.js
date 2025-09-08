@@ -110,6 +110,8 @@ export function getDragonStats(gs) {
     claws:          pick(LADDERS.claws,  u.claws, 0),
     wings:          pick(LADDERS.wings,  u.wings, 0),
     regenPerWave:   pick(LADDERS.regen,  u.regen, 10),
+    clawCooldown: DRAGON_DEFAULTS.clawCooldown,
+    wingCooldown: DRAGON_DEFAULTS.wingCooldown,
   };
 }
 
