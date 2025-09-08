@@ -86,7 +86,10 @@ if (e.pathIndex >= Math.max(0, gs.path.length - 2) && e.hp > 0) {
     // spawn a short swipe FX (throttled)
     if ((gs._time - (gs._lastClawFx || 0)) > 0.25) {
       gs._lastClawFx = gs._time;
-      (gs.fx?.claw || (gs.fx.claw = [])).push({ ttl: 0.25 });
+      gs.fx = gs.fx || { claw: [], wing: [] };
+      gs.fx.claw = gs.fx.claw || [];
+      gs.fx.claw.push({ ttl: 0.25 });
+
     }
     e.hp -= claws * dt; // small tick-based damage
     if (e.hp <= 0 && typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
@@ -201,7 +204,10 @@ function attackDragonIfAtExit(e, gs, dt) {
     e.plantingBomb = false;
     e.bombTimer = 0;
     // wing gust FX
-  (gs.fx?.wing || (gs.fx.wing = [])).push({ ttl: 0.35, strength: wings });
+      gs.fx = gs.fx || { claw: [], wing: [] };
+      gs.fx.wing = gs.fx.wing || [];
+      gs.fx.wing.push({ ttl: 0.35, strength: wings });
+
     return;
   }
     
