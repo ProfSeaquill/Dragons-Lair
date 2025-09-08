@@ -273,18 +273,28 @@ function dragonBreathFire(gs, ds) {
   if (targets.length === 0) return;
 
   // Hero shield blocks POWER to itself + units behind it (toward the dragon)
-  const shieldingHero = targets.find(e => e.type === 'hero' && e.shieldUp && e.hp > 0);
+    // Hero shield blocks POWER to itself + any units BEHIND the nearest-to-dragon hero.
+  // targets are sorted ascending by pathIndex (entry -> dragon), so we want the MAX pathIndex hero.
+  let nearestShieldPath = -1;
+  for (const t of targets) {
+    if (t && t.hp > 0 && t.type === 'hero' && t.shieldUp === true) {
+      if (t.pathIndex > nearestShieldPath) nearestShieldPath = t.pathIndex;
+    }
+  }
 
   for (const e of targets) {
     // Burn always applies
     applyBurn(e, ds.burnDps, ds.burnDuration);
 
-    // Power may be blocked
-    let canPower = true;
-    if (e.type === 'hero' && e.shieldUp) canPower = false;
-    if (shieldingHero && e.pathIndex > shieldingHero.pathIndex) canPower = false; // “behind” = closer to dragon
+    // Power is blocked for the shielding hero itself AND anyone at/behind it (closer to dragon).
+    let powerBlocked = false;
+    if (e.type === 'hero' && e.shieldUp === true) {
+      powerBlocked = true;
+    } else if (nearestShieldPath !== -1 && e.pathIndex >= nearestShieldPath) {
+      powerBlocked = true;
+    }
 
-    if (canPower) {
+    if (!powerBlocked) {
       e.hp -= ds.power;
       if (e.hp <= 0 && typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
       if (e.type === 'kingsguard') kingsguardDodgeMaybe(e);
