@@ -117,21 +117,6 @@ if (e.pathIndex >= Math.max(0, gs.path.length - 2) && e.hp > 0) {
   }
   return false;
   
-    const anyPendingSpawn = gs.enemies.some(e => e.spawnDelay > 0);
-  const allDead = gs.enemies.length === 0;
-  const dragonDead = gs.dragon?.hp <= 0;
-
-  // Tell main why we ended; main will handle regen & wave increment.
-  if (dragonDead) {
-    gs._endedReason = 'defeat';
-    return true;
-  }
-  if (allDead && !anyPendingSpawn) {
-    gs._endedReason = 'victory';
-    return true;
-  }
-  return false;
-
 }
 
 // -------- Internals --------
