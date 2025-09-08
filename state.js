@@ -48,18 +48,19 @@ export function initState() {
 
     // dragon
     dragon: {
-      hpMax: 100,
-      hp: 100,
+  hpMax: 100,
+  hp: 100,
+},
 
-    fx: { claw: [], wing: [] }, // transient visuals
-      _time: 0,                   // seconds since start (for FX timing)
-      _lastClawFx: 0,             // throttle claw swipe FX
+// transient FX & timers (root-level; NOT inside dragon)
+fx: { claw: [], wing: [] },
+_time: 0,
+_lastClawFx: 0,
 
-    gameOver: false,        // set when dragon dies
-    _endedReason: null,     // 'victory' | 'defeat' | null
-    _endedThisWave: false,  // guard to avoid double endWave()
-
-    },
+// end-of-wave flags (root-level)
+gameOver: false,
+_endedReason: null,     // 'victory' | 'defeat' | null
+_endedThisWave: false,  // guard to avoid double endWave()
 
     // upgrades (indexes into ladders)
     upgrades: {
@@ -93,16 +94,17 @@ export function initState() {
 // Convert upgrade indexes into concrete combat numbers.
 // These should be read-only views; do not mutate gs here.
 export function getDragonStats(gs) {
-  const u = gs?.upgrades ?? {};
+  const u = (gs && gs.upgrades) ? gs.upgrades : {};
+  const pick = (arr, idx, fb) => ladderPick(arr, (idx|0) || 0, fb);
   return {
-    power:          ladderPick(LADDERS.power,  u.power ?? 0, 5),
-    reachTiles:     ladderPick(LADDERS.reach,  u.reach ?? 0, 5),
-    breathsPerSec:  ladderPick(LADDERS.speed,  u.speed ?? 0, 1.0),
-    burnDps:        ladderPick(LADDERS.burn,   u.burn  ?? 0, 1),
+    power:          pick(LADDERS.power,  u.power, 5),
+    reachTiles:     pick(LADDERS.reach,  u.reach, 5),
+    breathsPerSec:  pick(LADDERS.speed,  u.speed, 1.0),
+    burnDps:        pick(LADDERS.burn,   u.burn,  1),
     burnDuration:   ECON.BURN_DURATION,
-    claws:          ladderPick(LADDERS.claws,  u.claws ?? 0, 0),
-    wings:          ladderPick(LADDERS.wings,  u.wings ?? 0, 0),
-    regenPerWave:   ladderPick(LADDERS.regen,  u.regen ?? 0, 10),
+    claws:          pick(LADDERS.claws,  u.claws, 0),
+    wings:          pick(LADDERS.wings,  u.wings, 0),
+    regenPerWave:   pick(LADDERS.regen,  u.regen, 10),
   };
 }
 
@@ -141,11 +143,14 @@ export function save(gs) {
         hp: clamp(gs.dragon?.hp|0 ?? 100, 0, gs.dragon?.hpMax|0 ?? 100),
       },
       upgrades: {
-        power: gs.upgrades?.power|0 ?? 0,
-        reach: gs.upgrades?.reach|0 ?? 0,
-        speed: gs.upgrades?.speed|0 ?? 0,
-        burn:  gs.upgrades?.burn|0  ?? 0,
-      },
+  power: gs.upgrades?.power|0 ?? 0,
+  reach: gs.upgrades?.reach|0 ?? 0,
+  speed: gs.upgrades?.speed|0 ?? 0,
+  burn:  gs.upgrades?.burn|0  ?? 0,
+  claws: gs.upgrades?.claws|0 ?? 0,
+  wings: gs.upgrades?.wings|0 ?? 0,
+  regen: gs.upgrades?.regen|0 ?? 0,
+},
       walls: Array.from(gs.walls ?? []).slice(0, 5000), // cap to keep saves small
       // Note: We DO NOT save transient fields: mode, enemies, path, timers.
     };
@@ -176,11 +181,14 @@ export function load(gs) {
     // restore upgrades (clamped to ladder length - 1)
     const ladd = LADDERS;
     gs.upgrades = {
-      power: clamp(data.upgrades?.power|0 || 0, 0, ladd.power.length - 1),
-      reach: clamp(data.upgrades?.reach|0 || 0, 0, ladd.reach.length - 1),
-      speed: clamp(data.upgrades?.speed|0 || 0, 0, ladd.speed.length - 1),
-      burn:  clamp(data.upgrades?.burn|0  || 0, 0, ladd.burn.length  - 1),
-    };
+  power: clamp(data.upgrades?.power|0 || 0, 0, ladd.power.length - 1),
+  reach: clamp(data.upgrades?.reach|0 || 0, 0, ladd.reach.length - 1),
+  speed: clamp(data.upgrades?.speed|0 || 0, 0, ladd.speed.length - 1),
+  burn:  clamp(data.upgrades?.burn|0  || 0, 0, ladd.burn.length  - 1),
+  claws: clamp(data.upgrades?.claws|0 || 0, 0, (ladd.claws||[]).length - 1),
+  wings: clamp(data.upgrades?.wings|0 || 0, 0, (ladd.wings||[]).length - 1),
+  regen: clamp(data.upgrades?.regen|0 || 0, 0, (ladd.regen||[]).length - 1),
+};
 
     // restore walls (back into Set)
     gs.walls = new Set(Array.isArray(data.walls) ? data.walls : []);
@@ -207,7 +215,7 @@ export function resetProgress(gs) {
   gs.gold = 0;
   gs.bones = 0;
   gs.dragon = { hpMax: 100, hp: 100 };
-  gs.upgrades = { power: 0, reach: 0, speed: 0, burn: 0 };
+  gs.upgrades = { power: 0, reach: 0, speed: 0, burn: 0, claws: 0, wings: 0, regen: 0 };
   gs.walls = new Set();
   gs.path = [];
   gs.enemies = [];
