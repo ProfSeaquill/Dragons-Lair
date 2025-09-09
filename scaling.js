@@ -10,8 +10,8 @@ const BASE = {
   squire:    { hp: 20,  speed: 1.4, gold: 4, bones: 2 },
   hero:      { hp: 70,  speed: 1.5, gold: 10, bones: 4, shield: true },
   knight:    { hp: 50,  speed: 2.3, gold: 8, bones: 10, mounted: true },
-  kingsguard:{ hp: 300, speed: 2.0, gold: 40, bones: 12, miniboss: true, mounted: true },
-  engineer:  { hp: 15,  speed: 1.3, gold: 7, bones: 3, digger: true },
+  kingsguard:{ hp: 200, speed: 2.0, gold: 40, bones: 12, miniboss: true, mounted: true },
+  engineer:  { hp: 40,  speed: 1.3, gold: 7, bones: 3, digger: true },
 };
 
 // Global wave multipliers — soft exponential with a small additive bump
@@ -61,6 +61,10 @@ export function waveComposition(wave /*, gs */) {
 
   return comp;
 }
+
+// === Engineer tunneling (new) ===
+export const ENGINEER_UNDERGROUND_SPEED = 2.25; // tiles per second equivalent; tune to taste
+export const ENGINEER_UNDERGROUND_IMMUNE = true; // while burrowed, ignore dragon breath / dots
 
 // --- Rewards ---
 // Gold/Bones per kill; can optionally scale a bit with wave.
