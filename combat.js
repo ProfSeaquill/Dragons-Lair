@@ -272,34 +272,30 @@ function dragonBreathFire(gs, ds) {
 
   if (targets.length === 0) return;
 
-    // --- Shielding logic: pick the shielding hero NEAREST to the dragon (max pathIndex) ---
-  const lastFightIdx = Math.max(0, gs.path.length - 2); // adjacent-to-dragon tile
-  let nearestShieldPath = -1;
-
-  for (const t of targets) {
-    if (!t || t.hp <= 0) continue;
-    if (t.type === 'hero' && t.shieldUp === true) {
-      // ignore heroes standing on the adjacent tile (shield down while fighting)
-      if (t.pathIndex >= lastFightIdx) continue;
-      if (t.pathIndex > nearestShieldPath) nearestShieldPath = t.pathIndex;
-    }
-  }
+      // Pick the shielding hero nearest to the dragon (highest pathIndex in the slice)
+  const shieldingHero = targets
+    .filter(x => x.type === 'hero' && x.shieldUp && x.hp > 0)
+    .reduce((best, cur) => (!best || cur.pathIndex > best.pathIndex ? cur : best), null);
 
   for (const e of targets) {
     // Burn always applies
     applyBurn(e, ds.burnDps, ds.burnDuration);
 
-    // POWER is blocked for the shielding hero itself and anyone BEHIND it (toward ENTRY).
-    // targets are sorted ENTRY -> DRAGON (ascending pathIndex), so "behind" means lower/equal index.
-    let powerBlocked = false;
+    // Power may be blocked
+    let canPower = true;
 
-    if (e.type === 'hero' && e.shieldUp === true && e.pathIndex < lastFightIdx) {
-      powerBlocked = true; // the hero holding the shield (not yet adjacent to dragon)
-    } else if (nearestShieldPath !== -1 && e.pathIndex <= nearestShieldPath) {
-      powerBlocked = true; // unit is behind the shielding hero, away from dragon
+    // The hero itself is immune while shieldUp
+    if (e.type === 'hero' && e.shieldUp) {
+      canPower = false;
     }
 
-    if (!powerBlocked) {
+    // Units "behind" the shielding hero (toward ENTRY) are protected.
+    // Since pathIndex increases toward the dragon, "behind" means strictly LESS than hero's index.
+    if (shieldingHero && e !== shieldingHero && e.pathIndex < shieldingHero.pathIndex) {
+      canPower = false;
+    }
+
+    if (canPower) {
       e.hp -= ds.power;
       if (e.hp <= 0 && typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
       if (e.type === 'kingsguard') kingsguardDodgeMaybe(e);
