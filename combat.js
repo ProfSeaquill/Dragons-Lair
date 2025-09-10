@@ -28,8 +28,9 @@ function createEnemy(type, wave, spawnIndex = 0) {
     spawnDelay: spawnIndex * 0.2, // seconds stagger
     shieldUp: t === 'hero',
     safeDodgeLeft: t === 'kingsguard' ? 2 : 0,
-    burrowLeft: t === 'engineer' ? 3 : 0,
-    burrowCooldown: 0,         // seconds
+    // Engineer new behavior: starts burrowed and travels underground to lastFightIdx
+    isBurrowing: t === 'engineer' ? true : false,
+    burrowSpeed: t === 'engineer' ? (s.speed * 3) : undefined,
     burning: { dps: 0, t: 0 },
     plantingBomb: false,
     bombTimer: 0,              // seconds
@@ -75,7 +76,7 @@ export function tickCombat(dt, gs) {
     // spawn gating
     if (e.spawnDelay > 0) { e.spawnDelay = Math.max(0, e.spawnDelay - dt); continue; }
 
-    engineerLogic(e, gs);
+    engineerLogic(e, gs, dt);
     kingsguardDodgeMaybe(e);
     advanceAlongPath(e, gs, dt);
 
@@ -150,87 +151,98 @@ function kingsguardDodgeMaybe(e) {
   if (Math.random() < 0.02) { e.progress = 0; e.safeDodgeLeft--; }
 }
 
-function engineerLogic(e, gs) {
-  if (e.type !== 'engineer' || e.burrowLeft <= 0) return;
-  if (e.burrowCooldown > 0) { e.burrowCooldown = Math.max(0, e.burrowCooldown - 1/60); return; }
-  if (Math.random() < 0.01) {
-    const skip = 2 + Math.floor(Math.random() * 2); // 2–3
-    e.pathIndex = Math.min(e.pathIndex + Math.min(skip, gs.path.length - 1 - e.pathIndex), gs.path.length - 1);
-    e.burrowLeft--; e.burrowCooldown = 1.0; e.progress = 0;
-  }
+function engineerLogic(e, gs, dt) {
+  if (e.type !== 'engineer' || e.hp <= 0) return;
+  // New spec: Engineers burrow from spawn and travel underground directly to the
+  // path tile adjacent to the dragon (lastFightIdx). While burrowing they are
+  // untargetable by dragon breath/claws and do not plant bombs.
+  // Movement is handled in advanceAlongPath(); this remains for future hooks.
 }
 
 function advanceAlongPath(e, gs, dt) {
   if (gs.path.length === 0 || e.hp <= 0) return;
 
-  // Stop on the tile ADJACENT to the dragon (index = length - 2).
   const lastFightIdx = Math.max(0, gs.path.length - 2);
+  const prevIndex = e.pathIndex | 0;
 
-  // If already at/after lastFightIdx, keep position and drop hero shield
   if (e.pathIndex >= lastFightIdx) {
     if (e.type === 'hero') e.shieldUp = false; // shield stays down near dragon
-    return;
+  } else {
+    // Movement: if burrowing, move faster underground; else normal
+    const spd = (e.isBurrowing && e.burrowSpeed) ? e.burrowSpeed : e.speed;
+    const tilesToAdvance = spd * dt + e.progress;
+    const whole = Math.floor(tilesToAdvance);
+    e.progress = tilesToAdvance - whole;
+
+    e.pathIndex = Math.min(e.pathIndex + whole, lastFightIdx);
+
+    // If we just reached the adjacent tile, surface + drop hero shield
+    if (e.pathIndex >= lastFightIdx) {
+      if (e.isBurrowing) { e.isBurrowing = false; e.progress = 0; }
+      if (e.type === 'hero') e.shieldUp = false;
+    }
   }
 
-  const tilesToAdvance = e.speed * dt + e.progress;
-  const whole = Math.floor(tilesToAdvance);
-  e.progress = tilesToAdvance - whole;
+  // Wings (reworked): trigger when ANY enemy ENTERS the adjacent tile.
+  if (prevIndex < lastFightIdx && e.pathIndex >= lastFightIdx) {
+    const ds = getDragonStats(gs);
+    const wings = ds.wings | 0;
+    const cd = ds.wingCooldown || 30;
+    const now = gs._time || 0;
+    if (wings > 0 && (!gs._wingCooldownUntil || now >= gs._wingCooldownUntil)) {
+      // push back and start cooldown
+      e.pathIndex = Math.max(0, e.pathIndex - wings);
+      e.progress = 0;
+      gs._wingCooldownUntil = now + cd;
 
-  e.pathIndex = Math.min(e.pathIndex + whole, lastFightIdx);
+      // FX pulse
+      gs.fx = gs.fx || { claw: [], wing: [] };
+      gs.fx.wing = gs.fx.wing || [];
+      gs.fx.wing.push({ ttl: 0.35, strength: wings });
 
-  // If we just reached the adjacent tile, drop hero shield
-  if (e.pathIndex >= lastFightIdx && e.type === 'hero') {
-    e.shieldUp = false;
+      // Cancel any bomb planting attempt
+      if (e.type === 'engineer') {
+        e.plantingBomb = false;
+        e.bombTimer = 10.0;
+      }
+    }
   }
+
+  // After movement and possible wing push, handle adjacency behaviors (bomb/chip)
+  attackDragonIfAtExit(e, gs, dt);
 }
-
 
 
 function attackDragonIfAtExit(e, gs, dt) {
   if (e.hp <= 0) return;
   if (!Array.isArray(gs.path) || gs.path.length === 0) return;
 
-  // Units stop and attack from the tile ADJACENT to the dragon
   const lastFightIdx = Math.max(0, gs.path.length - 2);
-  if (e.pathIndex < lastFightIdx) return; // not yet adjacent to dragon
+  if (e.pathIndex < lastFightIdx) return;
 
-  // Engineer: plant a bomb with a short fuse; explodes and kills the engineer
+  // Engineer bomb planting (Wings already handled on entry in advanceAlongPath)
   if (e.type === 'engineer') {
-   // Dragon wings gust automatically to push back bombs
-    const { wings } = getDragonStats(gs);
-  if (wings > 0) {
-  // Push engineer back by 'wings' tiles
-    e.pathIndex = Math.max(0, e.pathIndex - wings);
-    e.plantingBomb = false;
-    e.bombTimer = 0;
-    // wing gust FX
-      gs.fx = gs.fx || { claw: [], wing: [] };
-      gs.fx.wing = gs.fx.wing || [];
-      gs.fx.wing.push({ ttl: 0.35, strength: wings });
-
-    return;
-  }
-    
     if (!e.plantingBomb) {
       e.plantingBomb = true;
-      e.bombTimer = 10.0; // seconds
-      return;
-    }
-    e.bombTimer -= dt;
-    if (e.bombTimer <= 0) {
-      gs.dragon.hp -= 30; // heavy explosive damage
-      e.hp = 0;
-      // ensure rewards-on-kill if you're using grantOnKillOnce
-      if (typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
+      e.bombTimer = (typeof e.bombTimer === 'number') ? e.bombTimer : 10.0;
+    } else {
+      e.bombTimer -= dt;
+      if (e.bombTimer <= 0) {
+        gs.dragon.hp -= 30;
+        e.hp = 0;
+        if (typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
+      }
     }
     return;
   }
 
- if (Math.random() < 0.02) {
-  gs.dragon.hp -= dmgForType(e.type);
-}
-// Hero keeps shield down while at the dragon
-if (e.type === 'hero') e.shieldUp = false;
+  // Small generic chip damage (engineer excluded because it uses bombs)
+  if (Math.random() < 0.02) {
+    gs.dragon.hp -= dmgForType(e.type);
+  }
+
+  // Hero keeps shield down while at the dragon
+  if (e.type === 'hero') e.shieldUp = false;
 }
 
 
@@ -267,7 +279,7 @@ function dragonBreathFire(gs, ds) {
 
   // Active, spawned enemies within the breath corridor [startIdx .. endIdx]
   const targets = (gs.enemies || [])
-    .filter(e => e.hp > 0 && (e.spawnDelay || 0) <= 0 && e.pathIndex >= startIdx && e.pathIndex <= endIdx)
+    .filter(e => e.hp > 0 && !e.isBurrowing && (e.spawnDelay || 0) <= 0 && e.pathIndex >= startIdx && e.pathIndex <= endIdx)
     .sort((a, b) => a.pathIndex - b.pathIndex); // ascending: entry → dragon
 
   if (targets.length === 0) return;
