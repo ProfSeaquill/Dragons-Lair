@@ -1,11 +1,11 @@
-// main.js — Dragon’s Lair bootstrap & game loop (fixed wave increment)
+// main.js — Dragon’s Lair bootstrap & game loop (fixed wave increment + 101-wave cap)
 
 import * as state from './state.js';
 import * as ui from './ui.js';
 import * as render from './render.js';
 import * as pathing from './pathing.js';
 import * as combat from './combat.js';
-import { getDragonStats } from './state.js';
+import { getDragonStats, MAX_WAVES } from './state.js';
 
 let gs = null;
 let ctx = null;
@@ -39,7 +39,7 @@ function boot() {
   window.__GS__ = gs;
   console.log('[DL] boot complete');
 
-try { window.dispatchEvent(new CustomEvent('dl-boot-ok')); } catch (_){}
+  try { window.dispatchEvent(new CustomEvent('dl-boot-ok')); } catch (_){}
 }
 
 function onStartWave() {
@@ -48,15 +48,21 @@ function onStartWave() {
 }
 
 function startWave() {
+  // Block starting beyond the campaign cap
+  if ((gs.wave | 0) > MAX_WAVES) {
+    ui.toast?.('🏁 Run complete — you already beat King Arthur!');
+    return;
+  }
+
   if (!gs.path || !gs.path.length) {
     pathing.recomputePath?.(gs);
     if (!gs.path || !gs.path.length) { console.warn('[DL] startWave blocked: no valid path'); return; }
   }
 
-    // 🔧 reset end-of-wave flags for the new wave
+  // 🔧 reset end-of-wave flags for the new wave
   gs._endedReason = null;
   gs._endedThisWave = false;
-  
+
   combat.makeWave?.(gs);
   gs.mode = 'combat';
   gs._endedReason = null;
@@ -73,8 +79,20 @@ function endWave() {
   const reason = gs._endedReason || (gs.dragon?.hp <= 0 ? 'defeat' : 'victory');
 
   if (reason === 'victory') {
-    // ✅ Heal only on victory
-    const ds = state.getDragonStats(gs); // or getDragonStats(gs) if you kept the named import
+    // If we just cleared the final wave, end the run with a win screen
+    if ((gs.wave | 0) >= MAX_WAVES) {
+      gs.gameOver = true;
+      gs.autoStart = false;
+      gs.mode = 'build';
+      ui.toast?.('🏆 Victory! King Arthur has fallen.');
+      gs.lastWaveEndedAt = performance.now();
+      ui.previewNextWave?.(gs);
+      ui.renderUI?.(gs);
+      return;
+    }
+
+    // ✅ Heal only on victory (and only if not final)
+    const ds = state.getDragonStats(gs); // or getDragonStats(gs) if using named import
     const heal = ds.regenPerWave ?? 10;
     gs.dragon.hp = Math.min(gs.dragon.hpMax, gs.dragon.hp + heal);
 
@@ -96,7 +114,6 @@ function endWave() {
   ui.renderUI?.(gs);
 }
 
-
 function tick(ts) {
   const dt = Math.min(0.05, (ts - lastTs) / 1000);
   lastTs = ts;
@@ -106,7 +123,7 @@ function tick(ts) {
     try { finished = !!combat.tickCombat?.(dt, gs); } catch (e) { console.error('[DL] tickCombat error:', e); }
     if (finished) endWave();
   } else {
-    if (gs.autoStart) {
+    if (gs.autoStart && !gs.gameOver) {
       const now = performance.now();
       const guard = (!gs.justStartedAt || now - gs.justStartedAt > 200) &&
                     (!gs.lastWaveEndedAt || now - gs.lastWaveEndedAt > 200);
