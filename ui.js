@@ -1,10 +1,10 @@
 // ui.js — UI wiring, HUD rendering, wave preview, and build-mode controls
 
-import { GRID } from './state.js';                  // expects { W, H, TILE } or at least W,H
+import { GRID, ECON } from './state.js';           // expects { W, H, TILE } and wall costs
 import * as state from './state.js';                // optional: save/load, getDragonStats()
 import * as scaling from './scaling.js';            // waveComposition(wave) for preview
 import * as pathing from './pathing.js';            // toggleWall(gs,x,y,place), recomputePath(gs)
-import * as upgrades from './upgrades.js';          // optional: upgrade definitions/utilities
+import * as upgrades from './upgrades.js';          // upgrade panel builder
 
 // --- Local helpers ---
 const $ = (id) => /** @type {HTMLElement|null} */ (document.getElementById(id));
@@ -82,7 +82,7 @@ export function bindUI(gs) {
 
       const placed = tryToggleWall(gs, gx, gy, true);
       if (placed === 'blocked') toast('Placement would block path', 1000);
-      else if (placed === 'no-bones') toast('Not enough bones (50)', 1000);
+      else if (placed === 'no-bones') toast(`Not enough bones (${ECON.WALL_COST})`, 1000);
       else if (placed === 'ok') toast('Wall placed', 650);
       else if (placed === 'occupied') toast('Tile already a wall', 900);
     });
@@ -95,12 +95,12 @@ export function bindUI(gs) {
       if (!inBounds(gx, gy)) return;
 
       const removed = tryToggleWall(gs, gx, gy, false);
-      if (removed === 'ok') toast('Wall removed (+25)', 650);
+      if (removed === 'ok') toast(`Wall removed (+${ECON.WALL_REFUND})`, 650);
       else if (removed === 'empty') toast('No wall here', 900);
     });
   }
 
-  // Upgrades panel (optional; only if upgrades module exposes helpers)
+  // Upgrades panel
   renderUpgrades(gs);
 }
 
@@ -132,13 +132,12 @@ export function renderUI(gs) {
   setText('dragonHP', Math.ceil(gs.dragon?.hp ?? 100));
   setText('gold', Math.floor(gs.gold ?? 0));
   if (typeof gs._uiLastGold !== 'number' || gs._uiLastGold !== (gs.gold|0)) {
-  gs._uiLastGold = (gs.gold|0);
-  const box = document.getElementById('upgrades');
-  if (box && typeof upgrades.renderUpgrades === 'function') {
-    upgrades.renderUpgrades(gs, box, { toast });
+    gs._uiLastGold = (gs.gold|0);
+    const box = document.getElementById('upgrades');
+    if (box && typeof upgrades.renderUpgrades === 'function') {
+      upgrades.renderUpgrades(gs, box, { toast });
+    }
   }
-}
-
   setText('bones', Math.floor(gs.bones ?? 0));
 
   // Keep Auto-start checkbox in sync if toggled programmatically
@@ -188,7 +187,6 @@ function renderUpgrades(gs) {
   const box = $('upgrades');
   if (!box) return;
 
-  // If upgrades.js exposes a builder, use it
   if (typeof upgrades.renderUpgrades === 'function') {
     upgrades.renderUpgrades(gs, box, { toast });
     return;
@@ -200,8 +198,16 @@ function renderUpgrades(gs) {
 
 function prettyName(type) {
   if (!type) return 'Unknown';
+  const raw = String(type);
+
+  // Boss prettifier: 'boss:Lancelot' → 'Lancelot', 'boss:Arthur' → 'King Arthur'
+  if (raw.startsWith('boss:')) {
+    const name = raw.split(':')[1] || 'Boss';
+    return name === 'Arthur' ? 'King Arthur' : name;
+  }
+
   // Simple prettifier: "kingsguard" -> "Kingsguard", "squire_fast" -> "Squire Fast"
-  return String(type)
+  return raw
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
