@@ -6,7 +6,9 @@ import { waveComposition, enemyStats, rewardsFor } from './scaling.js';
 // -------- Enemy factory --------
 function makeEnemiesForWave(wave) {
   const comp = waveComposition(wave);
-  const list = Array.isArray(comp) ? comp : Object.entries(comp).map(([type, count]) => ({ type, count }));
+  const list = Array.isArray(comp)
+    ? comp
+    : Object.entries(comp).map(([type, count]) => ({ type, count }));
   const out = [];
   for (const { type, count } of list) {
     for (let i = 0; i < count; i++) out.push(createEnemy(type, wave, i));
@@ -14,43 +16,59 @@ function makeEnemiesForWave(wave) {
   return out;
 }
 
+// NOTE: do NOT lowercase type; bosses are case-sensitive (e.g. 'boss:Arthur')
 function createEnemy(type, wave, spawnIndex = 0) {
-  const t = String(type).toLowerCase();
-  const s = enemyStats(t, wave);
+  const t = String(type);
+  const s = enemyStats(t, wave); // scaling.js understands 'boss:<Name>'
+
+  const isHero = t === 'hero';
+  const isKingsguard = t === 'kingsguard';
+  const isEngineer = t === 'engineer';
+  const hasDodge = !!s.dodge;        // kingsguard AND bosses have dodge via scaling.js
+  const isMiniboss = !!s.miniboss;   // kingsguard and bosses
+
   return {
     id: Math.random().toString(36).slice(2),
     type: t,
     hp: s.hp,
     maxHP: s.hp,
-    speed: s.speed,            // tiles/sec
-    pathIndex: 0,              // start at first node after spawn
+    speed: s.speed,               // tiles/sec
+    pathIndex: 0,                 // start at first node after spawn
     progress: 0,
     spawnDelay: spawnIndex * 0.2, // seconds stagger
-    shieldUp: t === 'hero',
-    safeDodgeLeft: t === 'kingsguard' ? 2 : 0,
-    // Engineer new behavior: starts burrowed and travels underground to lastFightIdx
-    isBurrowing: t === 'engineer' ? true : false,
-    burrowSpeed: t === 'engineer' ? (s.speed * 3) : undefined,
+
+    // Shield: hero starts with shield up (drops at melee)
+    shieldUp: isHero,
+
+    // Dodge micro: kingsguard and bosses get a couple of safe dodges
+    dodge: hasDodge,
+    safeDodgeLeft: hasDodge ? 2 : 0,
+
+    // Engineer burrow: starts underground, moves faster, surfaces at lastFightIdx
+    isBurrowing: isEngineer ? true : false,
+    burrowSpeed: isEngineer ? (s.speed * 3) : undefined,
+
     burning: { dps: 0, t: 0 },
     plantingBomb: false,
-    bombTimer: 0,              // seconds
-    __rewarded: false,         // internal: reward granted flag
+    bombTimer: 0,                 // seconds
+    miniboss: isMiniboss,
+    __rewarded: false,            // internal: reward granted flag
   };
 }
 
 // -------- Wave API --------
 export function makeWave(gs) {
   gs.enemies = makeEnemiesForWave(gs.wave);
- // normalize legacy negative pathIndex to spawnDelay-based gating
-for (const e of gs.enemies) {
-  if (typeof e.spawnDelay !== 'number') e.spawnDelay = 0;
-  if ((e.pathIndex | 0) < 0) {
-    // -1 → 0.2s, -2 → 0.4s, etc.
-    e.spawnDelay = Math.max(e.spawnDelay, (-e.pathIndex | 0) * 0.2);
-    e.pathIndex = 0;
-    e.progress = 0;
+  // normalize legacy negative pathIndex to spawnDelay-based gating
+  for (const e of gs.enemies) {
+    if (typeof e.spawnDelay !== 'number') e.spawnDelay = 0;
+    if ((e.pathIndex | 0) < 0) {
+      // -1 → 0.2s, -2 → 0.4s, etc.
+      e.spawnDelay = Math.max(e.spawnDelay, (-e.pathIndex | 0) * 0.2);
+      e.pathIndex = 0;
+      e.progress = 0;
+    }
   }
-}
   gs._breathAcc = 0;
 }
 
@@ -81,21 +99,20 @@ export function tickCombat(dt, gs) {
     advanceAlongPath(e, gs, dt);
 
     // Dragon claws auto-swipe adjacent enemies
-if (e.pathIndex >= Math.max(0, gs.path.length - 2) && e.hp > 0) {
-  const { claws } = getDragonStats(gs);
-  if (claws > 0) {
-    // spawn a short swipe FX (throttled)
-    if ((gs._time - (gs._lastClawFx || 0)) > 0.25) {
-      gs._lastClawFx = gs._time;
-      gs.fx = gs.fx || { claw: [], wing: [] };
-      gs.fx.claw = gs.fx.claw || [];
-      gs.fx.claw.push({ ttl: 0.25 });
-
+    if (e.pathIndex >= Math.max(0, gs.path.length - 2) && e.hp > 0) {
+      const { claws } = getDragonStats(gs);
+      if (claws > 0) {
+        // spawn a short swipe FX (throttled)
+        if ((gs._time - (gs._lastClawFx || 0)) > 0.25) {
+          gs._lastClawFx = gs._time;
+          gs.fx = gs.fx || { claw: [], wing: [] };
+          gs.fx.claw = gs.fx.claw || [];
+          gs.fx.claw.push({ ttl: 0.25 });
+        }
+        e.hp -= claws * dt; // small tick-based damage
+        if (e.hp <= 0) grantOnKillOnce(gs, e);
+      }
     }
-    e.hp -= claws * dt; // small tick-based damage
-    if (e.hp <= 0 && typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
-  }
-}
 
     tickBurn(e, dt, gs);
     attackDragonIfAtExit(e, gs, dt);
@@ -120,13 +137,12 @@ if (e.pathIndex >= Math.max(0, gs.path.length - 2) && e.hp > 0) {
     return true;
   }
   return false;
-  
 }
 
 // -------- Internals --------
 function grantOnKillOnce(gs, e) {
   if (e.__rewarded) return;
-  const r = rewardsFor(e.type, gs.wave);
+  const r = rewardsFor(e.type, gs.wave); // scaling handles bosses & kingsguard
   gs.gold = (gs.gold | 0) + r.gold;
   gs.bones = (gs.bones | 0) + r.bones;
   e.__rewarded = true;
@@ -146,17 +162,17 @@ function tickBurn(e, dt, gs) {
   }
 }
 
+// now works for any dodging miniboss (kingsguard or boss) via e.dodge
 function kingsguardDodgeMaybe(e) {
-  if (e.type !== 'kingsguard' || e.safeDodgeLeft <= 0) return;
+  if (!e.dodge || e.safeDodgeLeft <= 0) return;
+  // small chance to micro-stall; harmless but flavorful
   if (Math.random() < 0.02) { e.progress = 0; e.safeDodgeLeft--; }
 }
 
 function engineerLogic(e, gs, dt) {
   if (e.type !== 'engineer' || e.hp <= 0) return;
-  // New spec: Engineers burrow from spawn and travel underground directly to the
-  // path tile adjacent to the dragon (lastFightIdx). While burrowing they are
-  // untargetable by dragon breath/claws and do not plant bombs.
-  // Movement is handled in advanceAlongPath(); this remains for future hooks.
+  // Engineers burrow from spawn straight to lastFightIdx while untargetable.
+  // Movement handled in advanceAlongPath(); this stays for future hooks.
 }
 
 function advanceAlongPath(e, gs, dt) {
@@ -212,7 +228,6 @@ function advanceAlongPath(e, gs, dt) {
   attackDragonIfAtExit(e, gs, dt);
 }
 
-
 function attackDragonIfAtExit(e, gs, dt) {
   if (e.hp <= 0) return;
   if (!Array.isArray(gs.path) || gs.path.length === 0) return;
@@ -230,7 +245,7 @@ function attackDragonIfAtExit(e, gs, dt) {
       if (e.bombTimer <= 0) {
         gs.dragon.hp -= 30;
         e.hp = 0;
-        if (typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
+        grantOnKillOnce(gs, e);
       }
     }
     return;
@@ -245,14 +260,14 @@ function attackDragonIfAtExit(e, gs, dt) {
   if (e.type === 'hero') e.shieldUp = false;
 }
 
-
 function dmgForType(t) {
-  const k = String(t).toLowerCase();
+  const k = String(t);
   if (k === 'villager') return 1;
   if (k === 'squire') return 2;
   if (k === 'hero') return 4;
   if (k === 'knight') return 3;
   if (k === 'kingsguard') return 6;
+  if (k.startsWith('boss:')) return 8; // bosses hit hardest
   if (k === 'engineer') return 0;
   return 1;
 }
@@ -284,7 +299,7 @@ function dragonBreathFire(gs, ds) {
 
   if (targets.length === 0) return;
 
-      // Pick the shielding hero nearest to the dragon (highest pathIndex in the slice)
+  // Pick the shielding hero nearest to the dragon (highest pathIndex in the slice)
   const shieldingHero = targets
     .filter(x => x.type === 'hero' && x.shieldUp && x.hp > 0)
     .reduce((best, cur) => (!best || cur.pathIndex > best.pathIndex ? cur : best), null);
@@ -309,8 +324,12 @@ function dragonBreathFire(gs, ds) {
 
     if (canPower) {
       e.hp -= ds.power;
-      if (e.hp <= 0 && typeof grantOnKillOnce === 'function') grantOnKillOnce(gs, e);
-      if (e.type === 'kingsguard') kingsguardDodgeMaybe(e);
+      if (e.hp <= 0) {
+        grantOnKillOnce(gs, e);
+      } else if (e.dodge) {
+        // allow dodgers (kingsguard/bosses) to micro-stall under direct hit, too
+        kingsguardDodgeMaybe(e);
+      }
     }
   }
 }
