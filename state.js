@@ -1,4 +1,4 @@
-// state.js — constants, GameState factory, persistence, and derived stats
+// state.js — constants, GameState factory, persistence, and derived stats (UNLIMITED UPGRADES)
 
 // --- Grid & economy constants ---
 export const GRID = {
@@ -13,30 +13,86 @@ export const ECON = {
   BURN_DURATION: 3.0, // seconds DoT lasts
 };
 
-// --- Upgrade ladders (indexes 0..n) ---
-// Power [5,8,12,18,26,38,55]; Reach [5..12]; Speed [1.0..3.0]; Burn [1..12]
-export const LADDERS = {
-  power: [10, 14, 18, 24, 38, 46, 55, 70],
-  reach: [10, 14, 18, 24, 32, 40, 50, 60, 75, 90, 120],           // tiles (radius in tiles)
-  speed: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2.0, 2.2, 2.4, 2.7, 3.0], // breaths per second
-  burn:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],    // DPS applied for ECON.BURN_DURATION
-  claws: [20, 30, 50, 70, 90, 120, 150],   // damage dealt to adjacent enemies
-  wings: [0, 1, 3, 5, 7, 9, 12, 15],              // tiles knocked back by wing gust
-  regen: [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 40], // HP recovered between waves
+// Campaign cap for victory gate
+export const MAX_WAVES = 101;
+
+// --- Dragon defaults ---
+export const DRAGON_DEFAULTS = {
+  clawCooldown: 5,   // seconds
+  wingCooldown: 30,  // seconds
+  hpMax: 100,        // baseline max HP
 };
 
-export const DRAGON_DEFAULTS = {
-  clawCooldown: 5,  // seconds
-  wingCooldown: 30,  // seconds
+// --- Unlimited Upgrades: cost/effect formulas ---
+// All upgrades are unlimited (no caps). Costs scale exponentially, effects scale multiplicatively
+// (or stepwise where that makes more sense).
+//
+// Notes:
+// - "speed" is BREATHS PER SECOND; higher is faster.
+// - "reachTiles" is a distance unit your renderer already uses (you previously returned ladder values).
+// - "wings" is knockback distance in tiles.
+// - "claws" is AoE claw damage.
+// - "regenPerWave" is HP restored between waves.
+export const UPGRADE_CONFIG = {
+  power: {                   // direct damage per breath tick
+    baseCost: 50,
+    costGrowth: 1.18,
+    baseEffect: 10,          // roughly your first ladder value
+    effectGrowth: 1.12,
+  },
+  speed: {                   // breaths per second (BPS)
+    baseCost: 75,
+    costGrowth: 1.20,
+    baseEffect: 0.50,        // your old first entry
+    effectGrowth: 1.07,      // 0.5 → 0.54 → 0.58 ... trending to 3.0+ with levels
+  },
+  reach: {                   // reach expressed in your existing "tiles" metric
+    baseCost: 60,
+    costGrowth: 1.16,
+    baseEffect: 10,          // start near your old ladder (10)
+    stepPerLevel: 4,         // +4 per level (simple, readable, unlimited)
+  },
+  burn: {                    // DoT DPS applied for ECON.BURN_DURATION
+    baseCost: 65,
+    costGrowth: 1.19,
+    baseEffect: 1,           // matches ladder start
+    effectGrowth: 1.15,
+  },
+  claws: {                   // claw AoE damage
+    baseCost: 80,
+    costGrowth: 1.18,
+    baseEffect: 20,
+    effectGrowth: 1.20,
+  },
+  wings: {                   // knockback distance in tiles
+    baseCost: 70,
+    costGrowth: 1.17,
+    baseEffect: 0,
+    stepPerLevel: 2,         // +2 tiles per level
+  },
+  regen: {                   // HP recovered between waves
+    baseCost: 50,
+    costGrowth: 1.15,
+    baseEffect: 10,
+    stepPerLevel: 2,         // +2 HP per level
+  },
 };
+
+// Compute the price for the NEXT level (given current level)
+export function upgradeCost(kind, level) {
+  const cfg = UPGRADE_CONFIG[kind];
+  if (!cfg) return Number.POSITIVE_INFINITY;
+  return Math.floor(cfg.baseCost * Math.pow(cfg.costGrowth, level));
+}
+
+// Convenience for UI: price using gs.upgrades
+export function nextUpgradeCost(kind, upgrades) {
+  const lvl = (upgrades && upgrades[kind]) | 0;
+  return upgradeCost(kind, lvl);
+}
 
 // --- Helpers: clamp & safe indexing ---
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-function ladderPick(arr, idx, fallback) {
-  if (!Array.isArray(arr)) return fallback;
-  const i = clamp(idx|0, 0, arr.length - 1);
-  return arr[i] ?? fallback;
-}
 
 // --- GameState factory ---
 // Note: Keep everything serializable; Sets are stringified to arrays on save.
@@ -53,21 +109,21 @@ export function initState() {
 
     // dragon
     dragon: {
-  hpMax: 100,
-  hp: 100,
-},
+      hpMax: DRAGON_DEFAULTS.hpMax,
+      hp: DRAGON_DEFAULTS.hpMax,
+    },
 
-// transient FX & timers (root-level; NOT inside dragon)
-fx: { claw: [], wing: [] },
-_time: 0,
-_lastClawFx: 0,
+    // transient FX & timers (root-level; NOT inside dragon)
+    fx: { claw: [], wing: [] },
+    _time: 0,
+    _lastClawFx: 0,
 
-// end-of-wave flags (root-level)
-gameOver: false,
-_endedReason: null,     // 'victory' | 'defeat' | null
-_endedThisWave: false,  // guard to avoid double endWave()
+    // end-of-wave flags (root-level)
+    gameOver: false,
+    _endedReason: null,     // 'victory' | 'defeat' | null
+    _endedThisWave: false,  // guard to avoid double endWave()
 
-    // upgrades (indexes into ladders)
+    // upgrades (unlimited integer levels)
     upgrades: {
       power: 0,
       reach: 0,
@@ -96,20 +152,33 @@ _endedThisWave: false,  // guard to avoid double endWave()
 }
 
 // --- Derived stats from upgrades ---
-// Convert upgrade indexes into concrete combat numbers.
+// Convert upgrade levels into concrete combat numbers.
 // These should be read-only views; do not mutate gs here.
 export function getDragonStats(gs) {
   const u = (gs && gs.upgrades) ? gs.upgrades : {};
-  const pick = (arr, idx, fb) => ladderPick(arr, (idx|0) || 0, fb);
+  const lv = (k) => (u[k] | 0);
+
+  // multiplicative helpers
+  const powEff = (k, base, growth) => base * Math.pow(growth, lv(k));
+  const stepEff = (k, base, step) => base + step * lv(k);
+
+  const power         = Math.round(powEff('power', UPGRADE_CONFIG.power.baseEffect, UPGRADE_CONFIG.power.effectGrowth));
+  const breathsPerSec = +(powEff('speed', UPGRADE_CONFIG.speed.baseEffect, UPGRADE_CONFIG.speed.effectGrowth)).toFixed(3);
+  const reachTiles    = Math.round(stepEff('reach', UPGRADE_CONFIG.reach.baseEffect, UPGRADE_CONFIG.reach.stepPerLevel));
+  const burnDps       = Math.round(powEff('burn', UPGRADE_CONFIG.burn.baseEffect, UPGRADE_CONFIG.burn.effectGrowth));
+  const claws         = Math.round(powEff('claws', UPGRADE_CONFIG.claws.baseEffect, UPGRADE_CONFIG.claws.effectGrowth));
+  const wings         = Math.round(stepEff('wings', UPGRADE_CONFIG.wings.baseEffect, UPGRADE_CONFIG.wings.stepPerLevel));
+  const regenPerWave  = Math.round(stepEff('regen', UPGRADE_CONFIG.regen.baseEffect, UPGRADE_CONFIG.regen.stepPerLevel));
+
   return {
-    power:          pick(LADDERS.power,  u.power, 5),
-    reachTiles:     pick(LADDERS.reach,  u.reach, 5),
-    breathsPerSec:  pick(LADDERS.speed,  u.speed, 1.0),
-    burnDps:        pick(LADDERS.burn,   u.burn,  1),
-    burnDuration:   ECON.BURN_DURATION,
-    claws:          pick(LADDERS.claws,  u.claws, 0),
-    wings:          pick(LADDERS.wings,  u.wings, 0),
-    regenPerWave:   pick(LADDERS.regen,  u.regen, 10),
+    power,
+    reachTiles,
+    breathsPerSec,
+    burnDps,
+    burnDuration: ECON.BURN_DURATION,
+    claws,
+    wings,
+    regenPerWave,
     clawCooldown: DRAGON_DEFAULTS.clawCooldown,
     wingCooldown: DRAGON_DEFAULTS.wingCooldown,
   };
@@ -137,7 +206,7 @@ export function removeWall(gs, x, y) {
 function key(x, y) { return `${x},${y}`; }
 
 // --- Persistence (localStorage) ---
-const SAVE_KEY = 'dl_save_v1';
+const SAVE_KEY = 'dl_save_v2'; // bump key to avoid mixing with older ladder saves
 
 export function save(gs) {
   try {
@@ -146,18 +215,18 @@ export function save(gs) {
       gold: gs.gold|0,
       bones: gs.bones|0,
       dragon: {
-        hpMax: gs.dragon?.hpMax|0 ?? 100,
-        hp: clamp(gs.dragon?.hp|0 ?? 100, 0, gs.dragon?.hpMax|0 ?? 100),
+        hpMax: gs.dragon?.hpMax|0 ?? DRAGON_DEFAULTS.hpMax,
+        hp: clamp(gs.dragon?.hp|0 ?? DRAGON_DEFAULTS.hpMax, 0, gs.dragon?.hpMax|0 ?? DRAGON_DEFAULTS.hpMax),
       },
       upgrades: {
-  power: gs.upgrades?.power|0 ?? 0,
-  reach: gs.upgrades?.reach|0 ?? 0,
-  speed: gs.upgrades?.speed|0 ?? 0,
-  burn:  gs.upgrades?.burn|0  ?? 0,
-  claws: gs.upgrades?.claws|0 ?? 0,
-  wings: gs.upgrades?.wings|0 ?? 0,
-  regen: gs.upgrades?.regen|0 ?? 0,
-},
+        power: gs.upgrades?.power|0 ?? 0,
+        reach: gs.upgrades?.reach|0 ?? 0,
+        speed: gs.upgrades?.speed|0 ?? 0,
+        burn:  gs.upgrades?.burn|0  ?? 0,
+        claws: gs.upgrades?.claws|0 ?? 0,
+        wings: gs.upgrades?.wings|0 ?? 0,
+        regen: gs.upgrades?.regen|0 ?? 0,
+      },
       walls: Array.from(gs.walls ?? []).slice(0, 5000), // cap to keep saves small
       // Note: We DO NOT save transient fields: mode, enemies, path, timers.
     };
@@ -170,9 +239,13 @@ export function save(gs) {
 }
 
 export function load(gs) {
+  // Try v2 first, then fall back to v1 (migrating old saves)
+  let raw = localStorage.getItem(SAVE_KEY);
+  const FALLBACK_KEY = 'dl_save_v1';
+  if (!raw) raw = localStorage.getItem(FALLBACK_KEY);
+  if (!raw) return false;
+
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return false;
     const data = JSON.parse(raw);
 
     // restore primitives
@@ -181,21 +254,21 @@ export function load(gs) {
     gs.bones = Math.max(0, data.bones|0 || 0);
 
     // restore dragon
-    const hpMax = clamp(data.dragon?.hpMax|0 || 100, 1, 1_000_000);
-    let hp = clamp(data.dragon?.hp|0 || hpMax, 0, hpMax);
+    const hpMax = clamp((data.dragon?.hpMax|0) || DRAGON_DEFAULTS.hpMax, 1, 1_000_000);
+    let hp = clamp((data.dragon?.hp|0) || hpMax, 0, hpMax);
     gs.dragon = { hpMax, hp };
 
-    // restore upgrades (clamped to ladder length - 1)
-    const ladd = LADDERS;
+    // restore upgrades (NO ladder clamp — unlimited now)
+    const u = (data.upgrades || {});
     gs.upgrades = {
-  power: clamp(data.upgrades?.power|0 || 0, 0, ladd.power.length - 1),
-  reach: clamp(data.upgrades?.reach|0 || 0, 0, ladd.reach.length - 1),
-  speed: clamp(data.upgrades?.speed|0 || 0, 0, ladd.speed.length - 1),
-  burn:  clamp(data.upgrades?.burn|0  || 0, 0, ladd.burn.length  - 1),
-  claws: clamp(data.upgrades?.claws|0 || 0, 0, (ladd.claws||[]).length - 1),
-  wings: clamp(data.upgrades?.wings|0 || 0, 0, (ladd.wings||[]).length - 1),
-  regen: clamp(data.upgrades?.regen|0 || 0, 0, (ladd.regen||[]).length - 1),
-};
+      power: Math.max(0, u.power|0 || 0),
+      reach: Math.max(0, u.reach|0 || 0),
+      speed: Math.max(0, u.speed|0 || 0),
+      burn:  Math.max(0, u.burn|0  || 0),
+      claws: Math.max(0, u.claws|0 || 0),
+      wings: Math.max(0, u.wings|0 || 0),
+      regen: Math.max(0, u.regen|0 || 0),
+    };
 
     // restore walls (back into Set)
     gs.walls = new Set(Array.isArray(data.walls) ? data.walls : []);
@@ -206,6 +279,11 @@ export function load(gs) {
     gs.path = [];
     gs.justStartedAt = 0;
     gs.lastWaveEndedAt = 0;
+
+    // If we loaded from old v1, immediately re-save to v2 format
+    if (!localStorage.getItem(SAVE_KEY)) {
+      save(gs);
+    }
 
     return true;
   } catch (e) {
@@ -221,7 +299,7 @@ export function resetProgress(gs) {
   gs.wave = 1;
   gs.gold = 0;
   gs.bones = 0;
-  gs.dragon = { hpMax: 100, hp: 100 };
+  gs.dragon = { hpMax: DRAGON_DEFAULTS.hpMax, hp: DRAGON_DEFAULTS.hpMax };
   gs.upgrades = { power: 0, reach: 0, speed: 0, burn: 0, claws: 0, wings: 0, regen: 0 };
   gs.walls = new Set();
   gs.path = [];
@@ -232,5 +310,4 @@ export function resetProgress(gs) {
 }
 
 // --- (Optional) typed hints for other modules ---
-// If you keep a shared d.ts-like file, you can define a lightweight shape:
 // export type GameState = ReturnType<typeof initState>;
