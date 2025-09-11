@@ -24,7 +24,12 @@ function normNode(p) {
   const y = (p && (p.y ?? p.r)) | 0;
   return { x, y };
 }
+function isBossType(t) { return typeof t === 'string' && t.startsWith('boss:'); }
+function bossName(t) { return isBossType(t) ? t.split(':')[1] : null; }
+
 function enemyColor(type) {
+  // Handle bosses first (don't lowercase away the prefix)
+  if (isBossType(type)) return '#ff66cc'; // distinct magenta for bosses
   const t = String(type || '').toLowerCase();
   if (t === 'villager')   return '#ffffff';
   if (t === 'squire')     return '#00c853';
@@ -34,10 +39,11 @@ function enemyColor(type) {
   if (t === 'engineer')   return '#ffd54f';
   return '#ddd';
 }
+
 function inBounds(x, y) {
   return x >= 0 && y >= 0 && x < (GRID?.W ?? 24) && y < (GRID?.H ?? 16);
-
 }
+
 function drawClawFx(g, gs, exit, T) {
   const fxArr = gs.fx?.claw || [];
   for (const fx of fxArr) {
@@ -83,6 +89,22 @@ function drawWingFx(g, gs, exit, T) {
     }
     g.restore();
   }
+}
+
+function drawNameplate(g, text, x, y) {
+  if (!text) return;
+  g.save();
+  g.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+  const pad = 4;
+  const w = Math.ceil(g.measureText(text).width) + pad * 2;
+  const h = 16;
+  g.fillStyle = 'rgba(0,0,0,0.6)';
+  g.fillRect(x - w / 2, y - 28, w, h);
+  g.fillStyle = '#fff';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, x, y - 20);
+  g.restore();
 }
 
 // Try to infer ENTRY/EXIT from the path; fall back to edges if no path yet.
@@ -149,7 +171,7 @@ export function draw(providedCtx, gs) {
     g.arc(cx, cy, T * 0.35, 0, Math.PI * 2);
     g.fill();
   }
- 
+
   // FX at dragon location
   const exitCenter = tileCenter(exit.x, exit.y);
   drawClawFx(g, gs, exitCenter, T);
@@ -176,11 +198,31 @@ export function draw(providedCtx, gs) {
         continue;
       }
 
-      // Body
-      g.fillStyle = enemyColor(e.type);
-      g.beginPath();
-      g.arc(cx, cy, T * 0.25, 0, Math.PI * 2);
-      g.fill();
+      const isBoss = isBossType(e.type);
+      const name = isBoss ? (bossName(e.type) === 'Arthur' ? 'King Arthur' : bossName(e.type)) : null;
+
+      // Body (burrowed engineers drawn semi-ghosted with dashed halo)
+      const baseColor = enemyColor(e.type);
+      if (e.isBurrowing) {
+        g.save();
+        g.globalAlpha = 0.45;
+        g.fillStyle = baseColor;
+        g.beginPath();
+        g.arc(cx, cy, T * 0.25, 0, Math.PI * 2);
+        g.fill();
+        g.setLineDash([4, 3]);
+        g.strokeStyle = 'rgba(255,255,255,0.35)';
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.arc(cx, cy, T * 0.28, 0, Math.PI * 2);
+        g.stroke();
+        g.restore();
+      } else {
+        g.fillStyle = baseColor;
+        g.beginPath();
+        g.arc(cx, cy, T * 0.25, 0, Math.PI * 2);
+        g.fill();
+      }
 
       // Health bar
       const maxHP = e.maxHP ?? e.hpMax ?? e.maxHp ?? e.hp;
@@ -210,24 +252,45 @@ export function draw(providedCtx, gs) {
         g.arc(cx, cy, T * 0.33, 0, Math.PI * 2);
         g.stroke();
       }
+
+      // Dodge pips for kingsguard/bosses (safeDodgeLeft)
+      if (e.safeDodgeLeft > 0) {
+        g.save();
+        g.fillStyle = 'rgba(155, 89, 255, 0.9)'; // same family as kingsguard color
+        const pipR = 2.5;
+        const spacing = 6;
+        const baseX = cx - ((e.safeDodgeLeft - 1) * spacing) / 2;
+        const y = cy + T * 0.28;
+        for (let i = 0; i < e.safeDodgeLeft; i++) {
+          g.beginPath();
+          g.arc(baseX + i * spacing, y, pipR, 0, Math.PI * 2);
+          g.fill();
+        }
+        g.restore();
+      }
+
+      // Nameplate for bosses (Lancelot, etc., and King Arthur)
+      if (isBoss && name) {
+        drawNameplate(g, name, cx, cy);
+      }
     }
   }
 
-// Breath visualization — highlight the last N tiles from the dragon
-{
-  const ds = getDragonStats(gs);
-  const reachTiles = (ds && typeof ds.reachTiles === 'number') ? ds.reachTiles : ((ds && ds.reach) || 0);
+  // Breath visualization — highlight the last N tiles from the dragon
+  {
+    const ds = getDragonStats(gs);
+    const reachTiles = (ds && typeof ds.reachTiles === 'number') ? ds.reachTiles : ((ds && ds.reach) || 0);
 
-  if (Array.isArray(gs.path) && gs.path.length > 0 && reachTiles > 0) {
-    const endIdx = Math.max(0, gs.path.length - 2); // adjacent tile
-    const startIdx = Math.max(0, endIdx - reachTiles + 1);
+    if (Array.isArray(gs.path) && gs.path.length > 0 && reachTiles > 0) {
+      const endIdx = Math.max(0, gs.path.length - 2); // adjacent tile
+      const startIdx = Math.max(0, endIdx - reachTiles + 1);
 
-    g.fillStyle = 'rgba(255,120,50,0.15)';
-    for (let i = startIdx; i <= endIdx; i++) {
-      const n = normNode(gs.path[i]);
-      if (!inBounds(n.x, n.y)) continue;
-      g.fillRect(n.x * T, n.y * T, T - 1, T - 1);
+      g.fillStyle = 'rgba(255,120,50,0.15)';
+      for (let i = startIdx; i <= endIdx; i++) {
+        const n = normNode(gs.path[i]);
+        if (!inBounds(n.x, n.y)) continue;
+        g.fillRect(n.x * T, n.y * T, T - 1, T - 1);
+      }
     }
   }
-}
 } // ← end of draw()
