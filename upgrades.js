@@ -1,11 +1,11 @@
-// upgrades.js — builds the Upgrades panel + purchase logic
+// upgrades.js — builds the Upgrades panel + purchase logic (UNLIMITED LEVELS)
 
-import * as state from './state.js'; // for getDragonStats and ladders if needed
+import { nextUpgradeCost, UPGRADE_CONFIG } from './state.js';
 
+// Ensure numeric upgrade fields exist
 function ensureUpgrades(gs) {
   gs.upgrades = gs.upgrades || {};
   const u = gs.upgrades;
-  // ensure numeric defaults
   u.power = u.power | 0;
   u.reach = u.reach | 0;
   u.speed = u.speed | 0;
@@ -16,47 +16,51 @@ function ensureUpgrades(gs) {
   return u;
 }
 
-// Gentle cost curve: base * (lvl + 1), with low bases
-const COST_BASE = {
-  power: 10,
-  reach: 12,
-  speed: 14,
-  burn:  16,
-  claws: 14,
-  wings: 14,
-  regen: 12,
-};
+// Order + labels shown in the panel
+const ORDER = [
+  ['power', 'Power'],
+  ['speed', 'Speed'],
+  ['reach', 'Reach'],
+  ['burn',  'Burn DpS'],
+  ['claws', 'Claws'],
+  ['wings', 'Wings'],
+  ['regen', 'Regen'],
+];
+
+// Optional tiny hints to help players understand the scaling feel
+function hintFor(key) {
+  const cfg = UPGRADE_CONFIG[key] || {};
+  if ('effectGrowth' in cfg) {
+    // Multiplicative effect
+    const pct = Math.round((cfg.effectGrowth - 1) * 100);
+    return `+~${pct}%/lvl`;
+  }
+  if ('stepPerLevel' in cfg) {
+    return `+${cfg.stepPerLevel}/lvl`;
+  }
+  return '';
+}
 
 export function getUpgradeInfo(gs) {
   ensureUpgrades(gs);
-  const L = state.LADDERS || {};
-  const rows = [
-    { key: 'power', name: 'Power', max: (L.power||[]).length-1, base: COST_BASE.power },
-    { key: 'reach', name: 'Reach', max: (L.reach||[]).length-1, base: COST_BASE.reach },
-    { key: 'speed', name: 'Speed', max: (L.speed||[]).length-1, base: COST_BASE.speed },
-    { key: 'burn',  name: 'Burn DpS', max: (L.burn ||[]).length-1, base: COST_BASE.burn  },
-    { key: 'claws', name: 'Claws', max: (L.claws||[]).length-1, base: COST_BASE.claws },
-    { key: 'wings', name: 'Wings', max: (L.wings||[]).length-1, base: COST_BASE.wings },
-    { key: 'regen', name: 'Regen', max: (L.regen||[]).length-1, base: COST_BASE.regen },
-  ];
-
-  // compute lvl/cost/afford per row
-  for (let r of rows) {
-    const lvl = (gs.upgrades[r.key] | 0);
-    r.lvl = lvl;
-    r.max = r.max < 0 ? 0 : r.max;
-    r.atMax = lvl >= r.max;
-    r.cost = r.atMax ? 0 : (r.base * (lvl + 1));
-    r.canBuy = !r.atMax && (gs.gold | 0) >= r.cost;
-  }
+  const rows = ORDER.map(([key, name]) => {
+    const lvl  = gs.upgrades[key] | 0;
+    const cost = nextUpgradeCost(key, gs.upgrades);
+    const canBuy = (gs.gold | 0) >= cost;
+    return {
+      key, name, lvl, cost, canBuy,
+      atMax: false,         // unlimited — never capped
+      hint: hintFor(key),
+    };
+  });
   return rows;
 }
 
 export function buyUpgrade(gs, key) {
   ensureUpgrades(gs);
-  const info = getUpgradeInfo(gs).find(function (x) { return x.key === key; });
+  const rows = getUpgradeInfo(gs);
+  const info = rows.find(r => r.key === key);
   if (!info) return false;
-  if (info.atMax) return false;
   if ((gs.gold | 0) < info.cost) return false;
   gs.gold = (gs.gold | 0) - info.cost;
   gs.upgrades[key] = (gs.upgrades[key] | 0) + 1;
@@ -78,19 +82,20 @@ export function renderUpgrades(gs, el, helpers) {
     row.className = 'uRow';
 
     const name = document.createElement('div');
-    name.textContent = r.name + ' (Lv ' + r.lvl + (r.atMax ? ' / MAX' : '') + ')';
+    name.innerHTML = `<strong>${r.name}</strong> <small>Lv ${r.lvl}${r.hint ? ` • ${r.hint}` : ''}</small>`;
 
     const right = document.createElement('div');
     const btn = document.createElement('button');
-    btn.textContent = r.atMax ? 'Maxed' : ('Buy ' + r.cost + 'g');
-    btn.disabled = r.atMax || !r.canBuy;
+    btn.className = 'btn';
+    btn.textContent = `Buy ${r.cost}g`;
+    btn.disabled = !r.canBuy;
     btn.addEventListener('click', function () {
       if (buyUpgrade(gs, r.key)) {
-        if (toast) toast('Bought ' + r.name + ' (Lv ' + (r.lvl + 1) + ')', 900);
+        if (toast) toast(`Bought ${r.name} (Lv ${r.lvl + 1})`, 900);
         // Re-render to update costs/levels/affordability
         renderUpgrades(gs, el, helpers);
       } else {
-        if (toast) toast('Cannot buy ' + r.name, 900);
+        if (toast) toast(`Cannot buy ${r.name}`, 900);
       }
     });
 
