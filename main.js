@@ -71,48 +71,31 @@ function startWave() {
   ui.renderUI?.(gs);
 }
 
+
 function endWave() {
-  // Prevent double-invocation (which was causing 1→3→5)
   if (gs._endedThisWave) return;
   gs._endedThisWave = true;
 
   const reason = gs._endedReason || (gs.dragon?.hp <= 0 ? 'defeat' : 'victory');
 
   if (reason === 'victory') {
-    // If we just cleared the final wave, end the run with a win screen
-    if ((gs.wave | 0) >= MAX_WAVES) {
-      gs.gameOver = true;
-      gs.autoStart = false;
-      gs.mode = 'build';
-      ui.toast?.('🏆 Victory! King Arthur has fallen.');
-      gs.lastWaveEndedAt = performance.now();
-      ui.previewNextWave?.(gs);
-      ui.renderUI?.(gs);
-      return;
-    }
-
-    // ✅ Heal only on victory (and only if not final)
-    const ds = state.getDragonStats(gs); // or getDragonStats(gs) if using named import
-    const heal = ds.regenPerWave ?? 10;
-    gs.dragon.hp = Math.min(gs.dragon.hpMax, gs.dragon.hp + heal);
-
-    // Advance wave
+    // No auto-heal anymore. Player must heal using bones in build mode.
+    // Advance wave unless we finished the campaign (handled earlier in your patched main.js).
     gs.wave = (gs.wave | 0) + 1;
-    ui.toast?.(`Wave cleared! Dragon healed +${heal} HP`);
+    ui.toast?.(`Wave cleared!`, 900);
   } else {
-    // ❌ Defeat: no heal, no wave increment
     gs.gameOver = true;
     gs.autoStart = false;
     ui.toast?.('💀 Game Over');
   }
 
-  // Return to build mode (for restart / next wave)
   gs.mode = 'build';
   gs.lastWaveEndedAt = performance.now();
 
   ui.previewNextWave?.(gs);
   ui.renderUI?.(gs);
 }
+
 
 function tick(ts) {
   const dt = Math.min(0.05, (ts - lastTs) / 1000);
