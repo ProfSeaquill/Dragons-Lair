@@ -35,43 +35,43 @@ export const DRAGON_DEFAULTS = {
 // - "regenPerWave" is HP restored between waves.
 export const UPGRADE_CONFIG = {
   power: {                   // direct damage per breath tick
-    baseCost: 50,
+    baseCost: 20,
     costGrowth: 1.18,
     baseEffect: 10,          // roughly your first ladder value
     effectGrowth: 1.12,
   },
   speed: {                   // breaths per second (BPS)
-    baseCost: 75,
+    baseCost: 25,
     costGrowth: 1.20,
     baseEffect: 0.50,        // your old first entry
     effectGrowth: 1.07,      // 0.5 → 0.54 → 0.58 ... trending to 3.0+ with levels
   },
   reach: {                   // reach expressed in your existing "tiles" metric
-    baseCost: 60,
+    baseCost: 30,
     costGrowth: 1.16,
     baseEffect: 10,          // start near your old ladder (10)
-    stepPerLevel: 4,         // +4 per level (simple, readable, unlimited)
+    stepPerLevel: 3,         // +4 per level (simple, readable, unlimited)
   },
   burn: {                    // DoT DPS applied for ECON.BURN_DURATION
-    baseCost: 65,
+    baseCost: 25,
     costGrowth: 1.19,
     baseEffect: 1,           // matches ladder start
     effectGrowth: 1.15,
   },
   claws: {                   // claw AoE damage
-    baseCost: 80,
+    baseCost: 20,
     costGrowth: 1.18,
     baseEffect: 20,
     effectGrowth: 1.20,
   },
   wings: {                   // knockback distance in tiles
-    baseCost: 70,
+    baseCost: 50,
     costGrowth: 1.17,
     baseEffect: 0,
     stepPerLevel: 2,         // +2 tiles per level
   },
   regen: {                   // HP recovered between waves
-    baseCost: 50,
+    baseCost: 40,
     costGrowth: 1.15,
     baseEffect: 10,
     stepPerLevel: 2,         // +2 HP per level
