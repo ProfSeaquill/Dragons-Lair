@@ -40,10 +40,6 @@ function createEnemy(type, wave, spawnIndex = 0) {
     // Shield: hero starts with shield up (drops at melee)
     shieldUp: isHero,
 
-    // Dodge micro: kingsguard and bosses get a couple of safe dodges
-    dodge: hasDodge,
-    safeDodgeLeft: hasDodge ? 2 : 0,
-
     // Engineer burrow: starts underground, moves faster, surfaces at lastFightIdx
     isBurrowing: isEngineer ? true : false,
     burrowSpeed: isEngineer ? (s.speed * 3) : undefined,
@@ -95,7 +91,6 @@ export function tickCombat(dt, gs) {
     if (e.spawnDelay > 0) { e.spawnDelay = Math.max(0, e.spawnDelay - dt); continue; }
 
     engineerLogic(e, gs, dt);
-    kingsguardDodgeMaybe(e);
     advanceAlongPath(e, gs, dt);
 
     // Dragon claws auto-swipe adjacent enemies
@@ -162,12 +157,6 @@ function tickBurn(e, dt, gs) {
   }
 }
 
-// now works for any dodging miniboss (kingsguard or boss) via e.dodge
-function kingsguardDodgeMaybe(e) {
-  if (!e.dodge || e.safeDodgeLeft <= 0) return;
-  // small chance to micro-stall; harmless but flavorful
-  if (Math.random() < 0.02) { e.progress = 0; e.safeDodgeLeft--; }
-}
 
 function engineerLogic(e, gs, dt) {
   if (e.type !== 'engineer' || e.hp <= 0) return;
@@ -326,10 +315,7 @@ function dragonBreathFire(gs, ds) {
       e.hp -= ds.power;
       if (e.hp <= 0) {
         grantOnKillOnce(gs, e);
-      } else if (e.dodge) {
-        // allow dodgers (kingsguard/bosses) to micro-stall under direct hit, too
-        kingsguardDodgeMaybe(e);
-      }
+      } 
     }
   }
 }
