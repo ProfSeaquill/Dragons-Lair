@@ -43,7 +43,7 @@ export const UPGRADE_CONFIG = {
   speed: {                   // breaths per second (BPS)
     baseCost: 25,
     costGrowth: 1.20,
-    baseEffect: 0.50,        // your old first entry
+    baseEffect: 0.70,        // your old first entry
     effectGrowth: 1.1,      // 0.5 → 0.54 → 0.58 ... trending to 3.0+ with levels
   },
   reach: {                   // reach expressed in your existing "tiles" metric
@@ -61,7 +61,7 @@ export const UPGRADE_CONFIG = {
   claws: {                   // claw AoE damage
     baseCost: 20,
     costGrowth: 1.18,
-    baseEffect: 20,
+    baseEffect: 30,
     effectGrowth: 1.20,
   },
   wings: {                   // knockback distance in tiles
