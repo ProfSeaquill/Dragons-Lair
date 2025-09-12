@@ -253,22 +253,6 @@ export function draw(providedCtx, gs) {
         g.stroke();
       }
 
-      // Dodge pips for kingsguard/bosses (safeDodgeLeft)
-      if (e.safeDodgeLeft > 0) {
-        g.save();
-        g.fillStyle = 'rgba(155, 89, 255, 0.9)'; // same family as kingsguard color
-        const pipR = 2.5;
-        const spacing = 6;
-        const baseX = cx - ((e.safeDodgeLeft - 1) * spacing) / 2;
-        const y = cy + T * 0.28;
-        for (let i = 0; i < e.safeDodgeLeft; i++) {
-          g.beginPath();
-          g.arc(baseX + i * spacing, y, pipR, 0, Math.PI * 2);
-          g.fill();
-        }
-        g.restore();
-      }
-
       // Nameplate for bosses (Lancelot, etc., and King Arthur)
       if (isBoss && name) {
         drawNameplate(g, name, cx, cy);
