@@ -71,6 +71,28 @@ export function bindUI(gs) {
     else toast('Load not available', 900);
   });
 
+  // Heal button (spend bones → heal 1:1)
+const healBtn = document.getElementById('healBtn');
+if (healBtn) {
+  healBtn.addEventListener('click', () => {
+    if (gs.mode !== 'build') { toast('Heal only in build mode'); return; }
+    const healed = state.healWithBones(gs, Infinity);
+    if (healed > 0) toast(`Healed +${healed} HP (−${healed} bones)`, 900);
+    else toast('Nothing to heal (or no bones)', 900);
+    renderUI(gs);
+  });
+}
+
+// Keyboard shortcut: press 'H' in build mode to heal 1 HP (costs 1 bone)
+window.addEventListener('keydown', (e) => {
+  if (gs.mode !== 'build') return;
+  if (e.key === 'h' || e.key === 'H') {
+    const healed = state.healWithBones(gs, 1);
+    if (healed > 0) toast(`Healed +1 HP (−1 bone)`, 600);
+    renderUI(gs);
+  }
+});
+
   // Build-mode canvas controls
   const canvas = /** @type {HTMLCanvasElement|null} */ ($('game'));
   if (canvas) {
