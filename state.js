@@ -37,8 +37,8 @@ export const UPGRADE_CONFIG = {
   power: {                   // direct damage per breath tick
     baseCost: 20,
     costGrowth: 1.18,
-    baseEffect: 10,          // roughly your first ladder value
-    effectGrowth: 1.15,
+    baseEffect: 12,          // roughly your first ladder value
+    effectGrowth: 1.17,
   },
   speed: {                   // breaths per second (BPS)
     baseCost: 25,
@@ -56,7 +56,7 @@ export const UPGRADE_CONFIG = {
     baseCost: 25,
     costGrowth: 1.19,
     baseEffect: 1,           // matches ladder start
-    effectGrowth: 1.15,
+    effectGrowth: 1.2,
   },
   claws: {                   // claw AoE damage
     baseCost: 20,
