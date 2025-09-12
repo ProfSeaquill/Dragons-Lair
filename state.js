@@ -38,13 +38,13 @@ export const UPGRADE_CONFIG = {
     baseCost: 20,
     costGrowth: 1.18,
     baseEffect: 10,          // roughly your first ladder value
-    effectGrowth: 1.12,
+    effectGrowth: 1.15,
   },
   speed: {                   // breaths per second (BPS)
     baseCost: 25,
     costGrowth: 1.20,
     baseEffect: 0.50,        // your old first entry
-    effectGrowth: 1.07,      // 0.5 → 0.54 → 0.58 ... trending to 3.0+ with levels
+    effectGrowth: 1.1,      // 0.5 → 0.54 → 0.58 ... trending to 3.0+ with levels
   },
   reach: {                   // reach expressed in your existing "tiles" metric
     baseCost: 30,
