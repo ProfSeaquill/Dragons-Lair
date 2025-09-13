@@ -14,8 +14,8 @@ const BASE = {
 
 // 10th-wave Round Table lineup; 101st is Arthur
 const ROUND_TABLE = [
-  "Lancelot","Gawain","Percival","Galahad","Tristan",
-  "Bors","Bedivere","Gareth","Kay","Mordred"
+  "Mordred","Kay","Bors","Bedivere","Tristan",
+  "Gareth","Galahad","Percival","Gawain","Lancelot"
 ];
 
 // Global growth knobs (kept gentle; balances against unlimited upgrades)
