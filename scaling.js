@@ -31,25 +31,52 @@ function bossName(type)       { return isBossType(type) ? type.split(":")[1] : n
 function bossMultFor(type)    { return bossName(type) === "Arthur" ? ARTHUR_MULT : BOSS_MULT; }
 
 // Public: compute concrete stats for a unit at a given wave
+// Wave scaling applies to HP ONLY. Speed and other flags stay at base values.
 export function enemyStats(type, wave) {
-  // Support special boss types: 'boss:<Name>' scale from kingsguard template
-  if (isBossType(type)) {
-    const name = bossName(type);
+  const t = String(type);
+
+  // --- Boss types: 'boss:<Name>' — scale from kingsguard template
+  if (isBossType(t)) {
     const base = BASE.kingsguard;
-    const mult = bossMultFor(type);
-    const hp    = Math.round(base.hp * waveHpMult(wave) * mult);
-    const speed = +(base.speed * waveSpeedMult(wave)).toFixed(3);
+    const mult = bossMultFor(t);
+    const hp   = Math.round(base.hp * waveHpMult(wave) * mult);
+    const speed = base.speed; // ❗ no wave speed scaling
+
     return {
-      type,
+      type: t,
       hp,
       speed,
       shield: false,
       mounted: true,
       miniboss: true, // still treated as miniboss for behavior hooks
       digger: false,
-      name
+      name: bossName(t),
     };
   }
+
+  // --- Normal enemies
+  const b = BASE[t];
+  if (!b) throw new Error(`Unknown enemy type: ${t}`);
+
+  // HP scales with wave; optional miniboss HP bump if you keep that rule
+  const hp = Math.round(
+    b.hp * waveHpMult(wave) * (b.miniboss ? bossHpBonus(wave) : 1)
+  );
+
+  // ❗ No wave speed scaling — keep base speed
+  const speed = b.speed;
+
+  return {
+    type: t,
+    hp,
+    speed,
+    shield: !!b.shield,
+    mounted: !!b.mounted,
+    miniboss: !!b.miniboss,
+    digger: !!b.digger,
+  };
+}
+
 
   const b = BASE[type];
   if (!b) throw new Error(`Unknown enemy type: ${type}`);
