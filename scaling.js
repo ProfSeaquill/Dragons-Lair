@@ -18,6 +18,10 @@ const ROUND_TABLE = [
   "Gareth","Galahad","Percival","Gawain","Lancelot"
 ];
 
+// Flat reward multipliers for special enemies (no wave-based reward scaling)
+const BOSS_REWARD_MULT   = 3.0;  // generic Round Table boss
+const ARTHUR_REWARD_MULT = 6.0;  // final boss
+
 // Global growth knobs (kept gentle; balances against unlimited upgrades)
 function waveHpMult(wave)    { return 1 + 0.22 * (wave - 1) + Math.pow(1.06, wave - 1) - 1; } // soft exp + linear
 function waveSpeedMult(wave) { return 1 + 0.015 * (wave - 1); }                                // gentle speed creep
@@ -31,7 +35,8 @@ function bossName(type)       { return isBossType(type) ? type.split(":")[1] : n
 function bossMultFor(type)    { return bossName(type) === "Arthur" ? ARTHUR_MULT : BOSS_MULT; }
 
 // Public: compute concrete stats for a unit at a given wave
-// Wave scaling applies to HP ONLY. Speed and other flags stay at base values.
+// Public: compute concrete stats for a unit at a given wave
+// Wave scaling: HP ✅, Speed ✅. Nothing else scales here.
 export function enemyStats(type, wave) {
   const t = String(type);
 
@@ -39,8 +44,8 @@ export function enemyStats(type, wave) {
   if (isBossType(t)) {
     const base = BASE.kingsguard;
     const mult = bossMultFor(t);
-    const hp   = Math.round(base.hp * waveHpMult(wave) * mult);
-    const speed = base.speed; // ❗ no wave speed scaling
+    const hp    = Math.round(base.hp * waveHpMult(wave) * mult);
+    const speed = +(base.speed * waveSpeedMult(wave)).toFixed(3); // keep speed scaling
 
     return {
       type: t,
@@ -48,7 +53,7 @@ export function enemyStats(type, wave) {
       speed,
       shield: false,
       mounted: true,
-      miniboss: true, // still treated as miniboss for behavior hooks
+      miniboss: true,
       digger: false,
       name: bossName(t),
     };
@@ -58,13 +63,8 @@ export function enemyStats(type, wave) {
   const b = BASE[t];
   if (!b) throw new Error(`Unknown enemy type: ${t}`);
 
-  // HP scales with wave; optional miniboss HP bump if you keep that rule
-  const hp = Math.round(
-    b.hp * waveHpMult(wave) * (b.miniboss ? bossHpBonus(wave) : 1)
-  );
-
-  // ❗ No wave speed scaling — keep base speed
-  const speed = b.speed;
+  const hp    = Math.round(b.hp * waveHpMult(wave) * (b.miniboss ? bossHpBonus(wave) : 1));
+  const speed = +(b.speed * waveSpeedMult(wave)).toFixed(3);      // keep speed scaling
 
   return {
     type: t,
@@ -76,7 +76,6 @@ export function enemyStats(type, wave) {
     digger: !!b.digger,
   };
 }
-
 
   const b = BASE[type];
   if (!b) throw new Error(`Unknown enemy type: ${type}`);
@@ -140,24 +139,21 @@ export const ENGINEER_UNDERGROUND_IMMUNE = true; // while burrowed, ignore drago
 // Keep API compatible with your original rewardsFor(type, wave).
 const REWARD_GROWTH = 1.06; // mild multiplicative growth per wave
 
-export function rewardsFor(type, wave) {
+// --- Rewards ---
+// Flat gold/bones per kill (no wave-based reward scaling).
+export function rewardsFor(type /*, wave */) {
   const boss = isBossType(type);
   const baseKey = boss ? 'kingsguard' : type;
   const b = BASE[baseKey];
   if (!b) return { gold: 0, bones: 0 };
 
-  // Mild per-wave ramp to keep upgrades flowing
-  const waveMult = Math.pow(REWARD_GROWTH, Math.max(0, wave - 1));
-
-  // Bosses pay extra, but less than raw HP multiplier to avoid runaway economy
-  let bossPayoutMult = 1;
+  let mult = 1;
   if (boss) {
-    const m = bossMultFor(type);
-    bossPayoutMult = 0.5 * m + 0.5; // e.g. 6x HP → ~3.5x payout
+    mult = (bossName(type) === 'Arthur') ? ARTHUR_REWARD_MULT : BOSS_REWARD_MULT;
   }
 
-  const gold  = Math.max(1, Math.round(b.gold  * waveMult * bossPayoutMult));
-  const bones = Math.max(1, Math.round(b.bones * Math.pow(REWARD_GROWTH, (wave - 1) * 0.9) * bossPayoutMult));
+  const gold  = Math.max(1, Math.round(b.gold  * mult));
+  const bones = Math.max(1, Math.round(b.bones * mult));
   return { gold, bones };
 }
 
