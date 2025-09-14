@@ -1,6 +1,6 @@
 // combat.js — wave spawner + basic combat loop for maze-walk pathing
 
-import { GameState, GRID, ENTRY, EXIT, getDragonStats } from './state.js';
+import * as state from './state.js';
 import { updateEnemyDistance } from './pathing.js';
 
 // ============================
