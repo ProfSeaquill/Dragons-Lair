@@ -32,6 +32,8 @@ export function draw(ctx, gs = state.GameState) {
   // -------- Enemies / Dragon
   drawEnemies(ctx, gs);
   drawDragon(ctx, gs);
+  // -------- Bombs (engineer)
+  drawBombs(ctx, gs);
 }
 
 /* ===================== helpers ===================== */
