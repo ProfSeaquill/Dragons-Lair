@@ -1,280 +1,558 @@
-// render.js — draw grid, path, dragon, enemies, and breath zone
-// Compatible with the revised state.js (no GameState singleton).
-// Expected to be called as draw(ctx, gs) from main.js.
+// render.js — cave walls, hover edge, units, HUD adornments
 
-import { GRID, getDragonStats } from './state.js';
+import {
+  GameState, GRID, ENTRY, EXIT,
+  ensureCell, inBounds
+} from './state.js';
 
-// --- Internal helpers ---
-function getCanvas() {
-  return /** @type {HTMLCanvasElement|null} */ (document.getElementById('game'));
+const STYLE = {
+  bg: '#0e1526',
+  grid: 'rgba(255,255,255,0.05)',
+  caveWall: '#8aa0c8',
+  caveWallShadow: 'rgba(0,0,0,0.35)',
+  hoverPlace: '#6cf',
+  hoverRemove: '#f96',
+  entry: '#86efac',
+  exit: '#fca5a5',
+  dragon: '#f97316',
+  enemy: '#cbd5e1',
+  enemyBoss: '#f87171',
+  distanceArrow: 'rgba(175, 187, 220, 0.25)',
+};
+
+const FLAGS = {
+  drawGrid: true,
+  drawDistanceHints: false, // toggle to true if you want faint arrows toward exit
+};
+
+export function draw(ctx, gs = GameState) {
+  const { width: W, height: H } = ctx.canvas;
+
+  // Background
+  ctx.save();
+  ctx.fillStyle = STYLE.bg;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+
+  // Grid (subtle)
+  if (FLAGS.drawGrid) drawGrid(ctx);
+
+  // Cave walls (per-edge)
+  drawCaveEdges(ctx, gs);
+
+  // Edge hover highlight (from UI)
+  drawHoverEdge(ctx, gs);
+
+  // Entry / Exit markers
+  drawEntryExit(ctx);
+
+  // Optional: distance arrows (field “flow” preview)
+  if (FLAGS.drawDistanceHints) drawDistanceArrows(ctx, gs);
+
+  // Units
+  drawDragon(ctx, gs);
+  drawEnemies(ctx, gs);
 }
-function getCtx() {
-  const c = getCanvas();
-  return c ? c.getContext('2d') : null;
+
+/* ===================== helpers ===================== */
+
+function drawGrid(ctx) {
+  const t = GRID.tile;
+  ctx.save();
+  ctx.strokeStyle = STYLE.grid;
+  ctx.lineWidth = 1;
+  // Vertical
+  for (let x = 0; x <= GRID.cols; x++) {
+    const px = x * t + 0.5; // crisp line
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, GRID.rows * t);
+    ctx.stroke();
+  }
+  // Horizontal
+  for (let y = 0; y <= GRID.rows; y++) {
+    const py = y * t + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, py);
+    ctx.lineTo(GRID.cols * t, py);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
-function tileCenter(x, y) {
+
+function drawCaveEdges(ctx, gs) {
+  const t = GRID.tile;
+  ctx.save();
+  ctx.lineWidth = Math.max(2, Math.floor(t * 0.14));
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Soft shadow pass for depth
+  ctx.strokeStyle = STYLE.caveWallShadow;
+  forEachEdgeWall(gs, (x, y, side) => {
+    strokeEdge(ctx, x, y, side, t, 1.5);
+  });
+
+  // Main wall pass
+  ctx.strokeStyle = STYLE.caveWall;
+  forEachEdgeWall(gs, (x, y, side) => {
+    strokeEdge(ctx, x, y, side, t, 0);
+  });
+
+  ctx.restore();
+}
+
+function forEachEdgeWall(gs, fn) {
+  for (let y = 0; y < GRID.rows; y++) {
+    for (let x = 0; x < GRID.cols; x++) {
+      const rec = ensureCell(gs, x, y);
+      if (rec.N) fn(x, y, 'N');
+      if (rec.E) fn(x, y, 'E');
+      if (rec.S) fn(x, y, 'S');
+      if (rec.W) fn(x, y, 'W');
+    }
+  }
+}
+
+function strokeEdge(ctx, x, y, side, t, offset = 0) {
+  const x0 = x * t, y0 = y * t, x1 = x0 + t, y1 = y0 + t;
+  ctx.beginPath();
+  switch (side) {
+    case 'N':
+      ctx.moveTo(x0 + 4, y0 + 0.5 + offset);
+      ctx.lineTo(x1 - 4, y0 + 0.5 + offset);
+      break;
+    case 'S':
+      ctx.moveTo(x0 + 4, y1 - 0.5 + offset);
+      ctx.lineTo(x1 - 4, y1 - 0.5 + offset);
+      break;
+    case 'W':
+      ctx.moveTo(x0 + 0.5 + offset, y0 + 4);
+      ctx.lineTo(x0 + 0.5 + offset, y1 - 4);
+      break;
+    case 'E':
+      ctx.moveTo(x1 - 0.5 + offset, y0 + 4);
+      ctx.lineTo(x1 - 0.5 + offset, y1 - 4);
+      break;
+  }
+  ctx.stroke();
+}
+
+function drawHoverEdge(ctx, gs) {
+  const t = GRID.tile;
+  const h = gs.uiHoverEdge;
+  if (!h || !inBounds(h.x, h.y)) return;
+
+  const rec = ensureCell(gs, h.x, h.y);
+  const hasWall = !!rec[h.side];
+
+  ctx.save();
+  ctx.lineWidth = Math.max(3, Math.floor(t * 0.18));
+  ctx.strokeStyle = hasWall ? STYLE.hoverRemove : STYLE.hoverPlace;
+  ctx.globalAlpha = 0.95;
+  strokeEdge(ctx, h.x, h.y, h.side, t, 0);
+  ctx.restore();
+}
+
+function drawEntryExit(ctx) {
+  const t = GRID.tile;
+
+  // Entry
+  drawCellMarker(ctx, ENTRY.x, ENTRY.y, STYLE.entry);
+
+  // Exit
+  drawCellMarker(ctx, EXIT.x, EXIT.y, STYLE.exit);
+
+  function drawCellMarker(ctx, cx, cy, color) {
+    const cxpx = cx * t + t / 2;
+    const cypy = cy * t + t / 2;
+    const r = Math.max(5, Math.floor(t * 0.22));
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(cxpx, cypy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawDragon(ctx, gs) {
+  // For now: dragon is “stationed” at EXIT center.
+  const t = GRID.tile;
+  const x = EXIT.x * t + t / 2;
+  const y = EXIT.y * t + t / 2;
+
+  ctx.save();
+  ctx.shadowColor = STYLE.dragon;
+  ctx.shadowBlur = Math.max(8, Math.floor(t * 0.35));
+  ctx.fillStyle = STYLE.dragon;
+  const R = Math.max(7, Math.floor(t * 0.28));
+  ctx.beginPath();
+  ctx.arc(x, y, R, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawEnemies(ctx, gs) {
+  const t = GRID.tile;
+
+  for (const e of gs.enemies) {
+    // Position: prefer pixel coords if present (smooth), otherwise tile center
+    const cx = inBounds(e.cx | 0, e.cy | 0) ? e.cx | 0 : 0;
+    const cy = inBounds(e.cx | 0, e.cy | 0) ? e.cy | 0 : 0;
+    const center = {
+      x: (e.x != null ? e.x : (cx * t + t / 2)),
+      y: (e.y != null ? e.y : (cy * t + t / 2)),
+    };
+
+    const isBoss = !!e.miniboss || e.type?.startsWith?.('boss:');
+    const color = isBoss ? STYLE.enemyBoss : STYLE.enemy;
+    const r = Math.max(5, Math.floor(t * (isBoss ? 0.28 : 0.22)));
+
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.shadowColor = 'rgba(0,0,0,0.45)';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Facing “beak” to show dir
+    if (e.dir) {
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      const tip = dirUnit(e.dir);
+      ctx.beginPath();
+      ctx.moveTo(center.x + tip.x * r, center.y + tip.y * r);
+      ctx.lineTo(center.x + tip.x * (r + 4) - tip.y * 3, center.y + tip.y * (r + 4) + tip.x * 3);
+      ctx.lineTo(center.x + tip.x * (r + 4) + tip.y * 3, center.y + tip.y * (r + 4) - tip.x * 3);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function dirUnit(d) {
+    switch (d) {
+      case 'N': return { x: 0, y: -1 };
+      case 'S': return { x: 0, y: 1 };
+      case 'E': return { x: 1, y: 0 };
+      case 'W': return { x: -1, y: 0 };
+      default:  return { x: 0, y: 0 };
+    }
+  }
+}
+
+function drawDistanceArrows(ctx, gs) {
+  const t = GRID.tile;
+  const field = gs.distFromEntry;
+  if (!field) return;
+
+  ctx.save();
+  ctx.strokeStyle = STYLE.distanceArrow;
+  ctx.lineWidth = 1;
+
+  for (let y = 0; y < GRID.rows; y++) {
+    for (let x = 0; x < GRID.cols; x++) {
+      const here = field[y]?.[x];
+      if (here == null || !isFinite(here)) continue;
+
+      // Find neighbor with strictly smaller distance (downhill toward ENTRY)
+      let best = null, bestD = here;
+      const rec = ensureCell(gs, x, y);
+
+      const candidates = [];
+      if (!rec.N && inBounds(x, y - 1)) candidates.push({ nx: x, ny: y - 1 });
+      if (!rec.E && inBounds(x + 1, y)) candidates.push({ nx: x + 1, ny: y });
+      if (!rec.S && inBounds(x, y + 1)) candidates.push({ nx: x, ny: y + 1 });
+      if (!rec.W && inBounds(x - 1, y)) candidates.push({ nx: x - 1, ny: y });
+
+      for (const c of candidates) {
+        const d = field[c.ny]?.[c.nx];
+        if (d != null && d < bestD) { bestD = d; best = c; }
+      }
+      if (!best) continue;
+
+      // Draw a small arrow from tile center toward best neighbor
+      const cx = x * t + t / 2;
+      const cy = y * t + t / 2;
+      const bx = best.nx * t + t / 2;
+      const by = best.ny * t + t / 2;
+
+      const dx = bx - cx, dy = by - cy;
+      const L = Math.hypot(dx, dy) || 1;
+      const ux = dx / L, uy = dy / L;
+
+      const len = Math.max(6, Math.floor(t * 0.25));
+      const ex = cx + ux * len, ey = cy + uy * len;
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+    }
+  }
+
+  ctx.restore();
+}
+// render.js — cave edge rendering + hover highlight + lightweight sprites
+
+import {
+  GRID, GameState, ENTRY, EXIT, inBounds, ensureCell,
+} from './state.js';
+
+/**
+ * Public: draw the entire frame.
+ * - No reliance on a single precomputed path; uses edge walls & dist field.
+ * - Safe if enemies use either (x,y) pixels OR (cx,cy) cells.
+ */
+export function draw(ctx, gs = GameState) {
+  const { width, height } = ctx.canvas;
+
+  // -------- Background
+  ctx.clearRect(0, 0, width, height);
+  fillRect(ctx, 0, 0, width, height, '#0e1526');
+
+  // Optional: faint tiles to keep spatial readability
+  drawFaintTiles(ctx);
+
+  // -------- Entry / Exit markers
+  drawEntryExit(ctx);
+
+  // -------- Distance-field hints (tiny arrows trending "forward" away from ENTRY)
+  drawDistHints(ctx, gs);
+
+  // -------- Cave edges (walls)
+  drawEdgeWalls(ctx, gs);
+
+  // -------- Hover edge highlight (from UI)
+  drawHoverEdge(ctx, gs);
+
+  // -------- Enemies / Dragon
+  drawEnemies(ctx, gs);
+  drawDragon(ctx, gs);
+}
+
+/* ===================== helpers ===================== */
+
+function drawFaintTiles(ctx) {
+  const t = GRID.tile;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x <= GRID.cols; x++) {
+    const px = x * t + 0.5;
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, GRID.rows * t);
+  }
+  for (let y = 0; y <= GRID.rows; y++) {
+    const py = y * t + 0.5;
+    ctx.moveTo(0, py);
+    ctx.lineTo(GRID.cols * t, py);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawEntryExit(ctx) {
+  const ep = centerOf(ENTRY.x, ENTRY.y);
+  const xp = centerOf(EXIT.x, EXIT.y);
+
+  // ENTRY
+  circle(ctx, ep.x, ep.y, GRID.tile * 0.28, '#0b4', true);
+  ring(ctx, ep.x, ep.y, GRID.tile * 0.32, '#1f7');
+
+  // EXIT / Dragon lair mouth
+  circle(ctx, xp.x, xp.y, GRID.tile * 0.28, '#844', true);
+  ring(ctx, xp.x, xp.y, GRID.tile * 0.32, '#c88');
+}
+
+function drawEdgeWalls(ctx, gs) {
+  const t = GRID.tile;
+  ctx.save();
+  ctx.strokeStyle = '#9fb4d8';
+  ctx.lineWidth = Math.max(3, Math.floor(t * 0.12));
+  ctx.lineCap = 'round';
+
+  // Draw only N and W edges for each cell to avoid double-drawing,
+  // then do a pass for the outermost E/S border cells.
+  for (let y = 0; y < GRID.rows; y++) {
+    for (let x = 0; x < GRID.cols; x++) {
+      const rec = ensureCell(gs, x, y);
+      const x0 = x * t, y0 = y * t, x1 = x0 + t, y1 = y0 + t;
+
+      // North edge
+      if (rec.N) {
+        seg(ctx, x0, y0, x1, y0);
+      }
+      // West edge
+      if (rec.W) {
+        seg(ctx, x0, y0, x0, y1);
+      }
+
+      // East edge (only for last column)
+      if (x === GRID.cols - 1 && rec.E) {
+        seg(ctx, x1, y0, x1, y1);
+      }
+      // South edge (only for last row)
+      if (y === GRID.rows - 1 && rec.S) {
+        seg(ctx, x0, y1, x1, y1);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function drawHoverEdge(ctx, gs) {
+  const hover = gs.uiHoverEdge;
+  if (!hover) return;
+
+  const t = GRID.tile;
+  const x0 = hover.x * t;
+  const y0 = hover.y * t;
+  const x1 = x0 + t;
+  const y1 = y0 + t;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = Math.max(3, Math.floor(t * 0.14));
+  ctx.lineCap = 'round';
+
+  switch (hover.side) {
+    case 'N': seg(ctx, x0, y0, x1, y0); break;
+    case 'S': seg(ctx, x0, y1, x1, y1); break;
+    case 'W': seg(ctx, x0, y0, x0, y1); break;
+    case 'E': seg(ctx, x1, y0, x1, y1); break;
+  }
+  ctx.restore();
+}
+
+function drawDistHints(ctx, gs) {
+  const t = GRID.tile;
+  const dist = gs.distFromEntry;
+  if (!dist) return;
+
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  ctx.fillStyle = '#8fb3ff';
+
+  // Tiny arrow inside each cell pointing toward *increasing* distance
+  for (let y = 0; y < GRID.rows; y++) {
+    for (let x = 0; x < GRID.cols; x++) {
+      const d0 = dist?.[y]?.[x];
+      if (!isFinite(d0)) continue;
+
+      // Pick a neighbor with larger distance (moving "forward" from entry)
+      let best = null, bestD = d0;
+      // E,S,W,N order for a nice consistent flow
+      const candidates = [
+        [x + 1, y],
+        [x, y + 1],
+        [x - 1, y],
+        [x, y - 1],
+      ];
+      for (const [nx, ny] of candidates) {
+        if (!inBounds(nx, ny)) continue;
+        const dn = dist?.[ny]?.[nx];
+        if (isFinite(dn) && dn > bestD) { bestD = dn; best = { nx, ny }; }
+      }
+      if (!best) continue;
+
+      const a = centerOf(x, y);
+      const b = centerOf(best.nx, best.ny);
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const L = Math.hypot(dx, dy) || 1;
+      // short arrow
+      const ux = (dx / L) * (t * 0.22);
+      const uy = (dy / L) * (t * 0.22);
+
+      // dot body
+      circle(ctx, a.x + ux, a.y + uy, Math.max(2, t * 0.06), '#8fb3ff', true);
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawEnemies(ctx, gs) {
+  if (!Array.isArray(gs.enemies)) return;
+  const r = Math.max(3, GRID.tile * 0.22);
+
+  for (const e of gs.enemies) {
+    const p = enemyPixelPosition(e);
+    if (!p) continue;
+
+    // Body
+    circle(ctx, p.x, p.y, r, e?.shield ? '#5cf' : '#fc3', true);
+
+    // Shield ring if any
+    if (e?.shield) ring(ctx, p.x, p.y, r + 2, '#9df');
+
+    // Miniboss ring flare
+    if (e?.miniboss) ring(ctx, p.x, p.y, r + 5, '#f7a');
+  }
+}
+
+function drawDragon(ctx, gs) {
+  // If you already have a dragon sprite elsewhere, feel free to replace this.
+  const p = centerOf(EXIT.x, EXIT.y);
+  const r = Math.max(6, GRID.tile * 0.35);
+  circle(ctx, p.x, p.y, r, '#b33', true);
+  ring(ctx, p.x, p.y, r + 3, '#f88');
+}
+
+/* ===================== tiny primitives ===================== */
+
+function centerOf(cx, cy) {
   return {
-    cx: x * GRID.TILE + GRID.TILE / 2,
-    cy: y * GRID.TILE + GRID.TILE / 2,
+    x: cx * GRID.tile + GRID.tile / 2,
+    y: cy * GRID.tile + GRID.tile / 2,
   };
 }
-function normNode(p) {
-  // Support either {x,y} or {c,r}
-  const x = (p && (p.x ?? p.c)) | 0;
-  const y = (p && (p.y ?? p.r)) | 0;
-  return { x, y };
-}
-function isBossType(t) { return typeof t === 'string' && t.startsWith('boss:'); }
-function bossName(t) { return isBossType(t) ? t.split(':')[1] : null; }
 
-function enemyColor(type) {
-  // Handle bosses first (don't lowercase away the prefix)
-  if (isBossType(type)) return '#ff66cc'; // distinct magenta for bosses
-  const t = String(type || '').toLowerCase();
-  if (t === 'villager')   return '#ffffff';
-  if (t === 'squire')     return '#00c853';
-  if (t === 'hero')       return '#8fd3ff';
-  if (t === 'knight')     return '#8b5a2b';
-  if (t === 'kingsguard') return '#9b59ff';
-  if (t === 'engineer')   return '#ffd54f';
-  return '#ddd';
+function seg(ctx, x0, y0, x1, y1) {
+  ctx.beginPath();
+  ctx.moveTo(x0 + 0.5, y0 + 0.5);
+  ctx.lineTo(x1 + 0.5, y1 + 0.5);
+  ctx.stroke();
 }
 
-function inBounds(x, y) {
-  return x >= 0 && y >= 0 && x < (GRID?.W ?? 24) && y < (GRID?.H ?? 16);
+function ring(ctx, x, y, r, strokeStyle = '#fff') {
+  ctx.save();
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
-function drawClawFx(g, gs, exit, T) {
-  const fxArr = gs.fx?.claw || [];
-  for (const fx of fxArr) {
-    const life = Math.max(0, Math.min(1, fx.ttl / 0.25)); // 0..1
-    const alpha = 0.15 + 0.35 * life;
-    const radius = T * (0.55 + 0.25 * (1 - life));
-    const start = -Math.PI * (0.35 + 0.15 * (1 - life));
-    const end   =  Math.PI * (0.35 + 0.15 * (1 - life));
-    g.strokeStyle = `rgba(255,140,80,${alpha})`;
-    g.lineWidth = 3;
-    g.beginPath();
-    g.arc(exit.cx, exit.cy, radius, start, end);
-    g.stroke();
-  }
+function circle(ctx, x, y, r, fillStyle = '#fff', filled = true) {
+  ctx.save();
+  if (filled) ctx.fillStyle = fillStyle; else ctx.strokeStyle = fillStyle;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  filled ? ctx.fill() : ctx.stroke();
+  ctx.restore();
 }
 
-function drawWingFx(g, gs, exit, T) {
-  const fxArr = gs.fx?.wing || [];
-  for (const fx of fxArr) {
-    const life = Math.max(0, Math.min(1, fx.ttl / 0.35)); // 0..1
-    const alpha = 0.10 + 0.25 * life;
-    const tiles = (fx.strength || 1);
-    const widthTiles = 3; // visual width of gust
-    const w = widthTiles * T;
-    const h = (tiles * T) * (0.8 + 0.2 * life);
-
-    // rectangular gust pointing "away" from exit along negative X (left)
-    g.save();
-    g.translate(exit.cx, exit.cy);
-    g.fillStyle = `rgba(180,220,255,${alpha})`;
-    g.beginPath();
-    g.rect(-h, -w / 2, h, w);
-    g.fill();
-
-    // a few streak lines
-    g.strokeStyle = `rgba(220,240,255,${alpha + 0.05})`;
-    g.lineWidth = 2;
-    for (let i = -1; i <= 1; i++) {
-      g.beginPath();
-      g.moveTo(-h, i * (w / 4));
-      g.lineTo(-h * 0.2, i * (w / 4));
-      g.stroke();
-    }
-    g.restore();
-  }
+function fillRect(ctx, x, y, w, h, fillStyle) {
+  ctx.save();
+  ctx.fillStyle = fillStyle;
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
 }
 
-function drawNameplate(g, text, x, y) {
-  if (!text) return;
-  g.save();
-  g.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
-  const pad = 4;
-  const w = Math.ceil(g.measureText(text).width) + pad * 2;
-  const h = 16;
-  g.fillStyle = 'rgba(0,0,0,0.6)';
-  g.fillRect(x - w / 2, y - 28, w, h);
-  g.fillStyle = '#fff';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(text, x, y - 20);
-  g.restore();
+/* ===================== position helpers ===================== */
+
+function enemyPixelPosition(e) {
+  // Prefer pixel coords if provided by interpolated movement
+  if (typeof e.x === 'number' && typeof e.y === 'number') {
+    return { x: e.x, y: e.y };
+  }
+  // Otherwise fall back to cell center
+  if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
+    return centerOf(e.cx, e.cy);
+  }
+  return null;
 }
-
-// Try to infer ENTRY/EXIT from the path; fall back to edges if no path yet.
-function computeEntryExit(gs) {
-  const W = GRID.W, H = GRID.H;
-  if (Array.isArray(gs?.path) && gs.path.length > 0) {
-    const a = normNode(gs.path[0]);
-    const b = normNode(gs.path[gs.path.length - 1]);
-    return { entry: a, exit: b };
-  }
-  // Defaults: entry left-middle, exit right-middle
-  return {
-    entry: { x: 0,      y: Math.floor(H / 2) },
-    exit:  { x: W - 1,  y: Math.floor(H / 2) },
-  };
-}
-
-// --- Public: draw ---
-export function draw(providedCtx, gs) {
-  const c = getCanvas();
-  const g = providedCtx || getCtx();
-  if (!c || !g || !gs) return;
-
-  const W = GRID.W, H = GRID.H, T = GRID.TILE;
-
-  // Clear
-  g.clearRect(0, 0, c.width, c.height);
-
-  // Grid background (empty vs wall)
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const hasWall = gs.walls?.has?.(`${x},${y}`) ?? false;
-      g.fillStyle = hasWall ? '#1c253b' : '#0c1222';
-      g.fillRect(x * T, y * T, T - 1, T - 1);
-    }
-  }
-
-  // Path highlight
-  if (Array.isArray(gs.path)) {
-    g.fillStyle = 'rgba(255,255,255,0.06)';
-    for (const p of gs.path) {
-      const n = normNode(p);
-      if (!inBounds(n.x, n.y)) continue;
-      g.fillRect(n.x * T, n.y * T, T - 1, T - 1);
-    }
-  }
-
-  // Entry / Exit tiles
-  const { entry, exit } = computeEntryExit(gs);
-  if (inBounds(entry.x, entry.y)) {
-    g.fillStyle = '#3aa675';
-    g.fillRect(entry.x * T, entry.y * T, T - 1, T - 1);
-  }
-  if (inBounds(exit.x, exit.y)) {
-    g.fillStyle = '#a63a3a';
-    g.fillRect(exit.x * T, exit.y * T, T - 1, T - 1);
-  }
-
-  // Dragon (draw at EXIT)
-  if (inBounds(exit.x, exit.y)) {
-    const { cx, cy } = tileCenter(exit.x, exit.y);
-    g.fillStyle = '#e46e2e';
-    g.beginPath();
-    g.arc(cx, cy, T * 0.35, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // FX at dragon location
-  const exitCenter = tileCenter(exit.x, exit.y);
-  drawClawFx(g, gs, exitCenter, T);
-  drawWingFx(g, gs, exitCenter, T);
-
-  // Enemies
-  if (Array.isArray(gs.enemies)) {
-    for (const e of gs.enemies) {
-      if (!e || e.hp <= 0) continue;
-
-      // Position: prefer explicit (px) or (grid); fallback via pathIndex → path node center
-      let cx, cy;
-
-      if (typeof e.px === 'number' && typeof e.py === 'number') {
-        cx = e.px; cy = e.py;
-      } else if (typeof e.x === 'number' && typeof e.y === 'number') {
-        ({ cx, cy } = tileCenter(e.x, e.y));
-      } else if (Number.isFinite(e.pathIndex) && Array.isArray(gs.path) && gs.path.length > 0) {
-        const idx = Math.max(0, Math.min(gs.path.length - 1, e.pathIndex | 0));
-        const n = normNode(gs.path[idx]);
-        ({ cx, cy } = tileCenter(n.x, n.y));
-      } else {
-        // No position info; skip drawing
-        continue;
-      }
-
-      const isBoss = isBossType(e.type);
-      const name = isBoss ? (bossName(e.type) === 'Arthur' ? 'King Arthur' : bossName(e.type)) : null;
-
-      // Body (burrowed engineers drawn semi-ghosted with dashed halo)
-      const baseColor = enemyColor(e.type);
-      if (e.isBurrowing) {
-        g.save();
-        g.globalAlpha = 0.45;
-        g.fillStyle = baseColor;
-        g.beginPath();
-        g.arc(cx, cy, T * 0.25, 0, Math.PI * 2);
-        g.fill();
-        g.setLineDash([4, 3]);
-        g.strokeStyle = 'rgba(255,255,255,0.35)';
-        g.lineWidth = 1.5;
-        g.beginPath();
-        g.arc(cx, cy, T * 0.28, 0, Math.PI * 2);
-        g.stroke();
-        g.restore();
-      } else {
-        g.fillStyle = baseColor;
-        g.beginPath();
-        g.arc(cx, cy, T * 0.25, 0, Math.PI * 2);
-        g.fill();
-      }
-
-      // Health bar
-      const maxHP = e.maxHP ?? e.hpMax ?? e.maxHp ?? e.hp;
-      if (maxHP > 0) {
-        const w = 32, h = 5;
-        g.fillStyle = '#400';
-        g.fillRect(cx - w / 2, cy - (T * 0.25 + 10), w, h);
-        g.fillStyle = '#e44';
-        g.fillRect(cx - w / 2, cy - (T * 0.25 + 10), Math.max(0, w * (e.hp / maxHP)), h);
-      }
-
-      // Special effects
-      // Hero shield
-      if (String(e.type).toLowerCase() === 'hero' && (e.shieldUp === true)) {
-        g.strokeStyle = 'rgba(255, 235, 120, 0.8)';
-        g.lineWidth = 2;
-        g.beginPath();
-        g.arc(cx, cy, T * 0.30, 0, Math.PI * 2);
-        g.stroke();
-      }
-      // Burning aura
-      const burningT = (e.burning && typeof e.burning.t === 'number') ? e.burning.t : (e.burning | 0);
-      if (burningT > 0) {
-        g.strokeStyle = 'rgba(255, 120, 50, 0.7)';
-        g.lineWidth = 1;
-        g.beginPath();
-        g.arc(cx, cy, T * 0.33, 0, Math.PI * 2);
-        g.stroke();
-      }
-
-      // Nameplate for bosses (Lancelot, etc., and King Arthur)
-      if (isBoss && name) {
-        drawNameplate(g, name, cx, cy);
-      }
-    }
-  }
-
-  // Breath visualization — highlight the last N tiles from the dragon
-  {
-    const ds = getDragonStats(gs);
-    const reachTiles = (ds && typeof ds.reachTiles === 'number') ? ds.reachTiles : ((ds && ds.reach) || 0);
-
-    if (Array.isArray(gs.path) && gs.path.length > 0 && reachTiles > 0) {
-      const endIdx = Math.max(0, gs.path.length - 2); // adjacent tile
-      const startIdx = Math.max(0, endIdx - reachTiles + 1);
-
-      g.fillStyle = 'rgba(255,120,50,0.15)';
-      for (let i = startIdx; i <= endIdx; i++) {
-        const n = normNode(gs.path[i]);
-        if (!inBounds(n.x, n.y)) continue;
-        g.fillRect(n.x * T, n.y * T, T - 1, T - 1);
-      }
-    }
-  }
-} // ← end of draw()
