@@ -1,6 +1,6 @@
 // main.js — boot, game loop, UI wiring, and safe combat integration
 import * as state from './state.js';
-// ...and use state.GameState in place of GameState
+// ...and use state.state.GameState in place of state.GameState
 import { bindUI, UI } from './ui.js';
 import * as render from './render.js';
 import {
@@ -27,7 +27,7 @@ let Combat = {};
 // ---------- Boot ----------
 function boot() {
   // Load previous save if UI triggers it; we still need initial distance field
-  recomputePath(GameState);
+  recomputePath(state.GameState);
 
   // Wire UI (buttons, edge build mode, upgrades)
   bindUI();
@@ -47,11 +47,11 @@ function boot() {
 function startWave() {
   // Prefer explicit Combat.startWave, then fall back to spawnNextWave if present.
   if (typeof Combat.startWave === 'function') {
-    Combat.startWave(GameState);
+    Combat.startWave(state.GameState);
   } else if (typeof Combat.spawnNextWave === 'function') {
-    Combat.spawnNextWave(GameState);
+    Combat.spawnNextWave(state.GameState);
   } else if (typeof Combat.spawnWave === 'function') {
-    Combat.spawnWave(GameState);
+    Combat.spawnWave(state.GameState);
   }
   waveJustStartedAt = performance.now();
 }
@@ -66,7 +66,7 @@ function tick(now) {
   const dt = dtMs / 1000;
 
   update(dt);
-  render.draw(ctx, GameState);
+  render.draw(ctx, state.GameState);
 
   requestAnimationFrame(tick);
 }
@@ -75,16 +75,16 @@ function update(dt) {
   // 1) Let Combat drive game logic if available
   // Try common names in order; they are all optional.
   if (typeof Combat.update === 'function') {
-    Combat.update(GameState, dt);
+    Combat.update(state.GameState, dt);
   } else if (typeof Combat.tick === 'function') {
-    Combat.tick(GameState, dt);
+    Combat.tick(state.GameState, dt);
   } else if (typeof Combat.step === 'function') {
-    Combat.step(GameState, dt);
+    Combat.step(state.GameState, dt);
   }
 
   // 2) Fallback enemy movement using maze-walk interpolation
   // Skip if combat is already advancing pixel positions for enemies.
-  const enemies = GameState.enemies || [];
+  const enemies = state.GameState.enemies || [];
   for (const e of enemies) {
     // If combat is managing e (explicit flag), skip
     if (e.updateByCombat) continue;
@@ -95,13 +95,13 @@ function update(dt) {
       if (typeof e.pxPerSec !== 'number' && typeof e.speed !== 'number') {
         e.speed = e.speed || 2.5;
       }
-      stepEnemyInterpolated(GameState, e, dt);
-      updateEnemyDistance(GameState, e);
+      stepEnemyInterpolated(state.GameState, e, dt);
+      updateEnemyDistance(state.GameState, e);
     }
   }
 
   // 3) Auto-start waves if enabled and field is clear
-  if (GameState.autoStart) {
+  if (state.GameState.autoStart) {
     const anyAlive = enemies && enemies.length > 0;
     // Small cooldown after starting a wave to avoid immediate re-trigger
     const cool = (performance.now() - waveJustStartedAt) < 600;
