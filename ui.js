@@ -26,7 +26,7 @@ const hud = {
   upgrades: $('upgrades'),
   preview:  $('preview'),
   buildHelp: (function(){
-    const n = document.querySelector('.state.GRIDHelp');
+    const n = document.querySelector('.gridHelp');
     if (n) {
       n.textContent =
         'Build Mode: Click a TILE EDGE to add a wall (10 bones). Right-click an edge wall to remove (refund 5). Walls cannot fully block entry ↔ exit.';
