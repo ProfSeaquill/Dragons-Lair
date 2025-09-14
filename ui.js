@@ -1,10 +1,7 @@
 // ui.js — edge-wall build mode + HUD wiring
 
-import {
-  GameState, GRID, COSTS,
-  getDragonStats, saveState, loadState,
-  ensureCell, inBounds
-} from './state.js';
+import * as state from './state.js';
+
 
 import {
   toggleEdge, recomputePath
