@@ -65,7 +65,7 @@ export function update(gs = state.GameState, dt) {
 
   // 2) Enemy bookkeeping (reaching dragon, burning, deaths)
   const ds = state.getDragonStats(gs);
-  const state.EXITCx = state.EXIT.x, state.EXITCy = state.EXIT.y;
+  const exitCx = state.EXIT.x, exitCy = state.EXIT.y;
 
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
@@ -81,7 +81,7 @@ export function update(gs = state.GameState, dt) {
     }
 
     // Check contact with dragon (enemy reaches the state.EXIT cell)
-    if (e.cx === state.EXITCx && e.cy === state.EXITCy) {
+    if (e.cx === exitCx && e.cy === exitCy) {
       gs.dragonHP = Math.max(0, gs.dragonHP - SCALING.contactDamage);
       // remove this enemy
       enemies.splice(i, 1);
