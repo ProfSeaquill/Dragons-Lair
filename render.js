@@ -224,6 +224,28 @@ function fillRect(ctx, x, y, w, h, fillStyle) {
   ctx.restore();
 }
 
+
+function drawBombs(ctx, gs) {
+  if (!Array.isArray(gs.effects)) return;
+  const t = state.GRID.tile;
+  for (const fx of gs.effects) {
+    if (fx.type !== 'bomb') continue;
+    const r = Math.max(6, t * 0.22);
+    // Pulse as timer counts down
+    const pulse = 0.5 + 0.5 * Math.sin((fx.timer || 0) * 6.283);
+    circle(ctx, fx.x, fx.y, r * (0.9 + 0.2 * pulse), '#f44', true);
+    ring(ctx, fx.x, fx.y, r + 4, '#faa');
+    // Tiny timer text
+    ctx.save();
+    ctx.fillStyle = '#fff';
+    ctx.font = `${Math.max(8, (t * 0.28) | 0)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(Math.ceil(Math.max(0, fx.timer)).toString(), fx.x, fx.y);
+    ctx.restore();
+  }
+}
+
 /* ===================== position helpers ===================== */
 
 function enemyPixelPosition(e) {
