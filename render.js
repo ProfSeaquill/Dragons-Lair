@@ -1,9 +1,7 @@
 // render.js — cave walls, hover edge, units, HUD adornments
 
-import {
-  GameState, GRID, ENTRY, EXIT,
-  ensureCell, inBounds
-} from './state.js';
+import { GRID, GameState, ENTRY, EXIT, inBounds, ensureCell } from './state.js';
+
 
 const STYLE = {
   bg: '#0e1526',
@@ -296,9 +294,6 @@ function drawDistanceArrows(ctx, gs) {
 }
 // render.js — cave edge rendering + hover highlight + lightweight sprites
 
-import {
-  GRID, GameState, ENTRY, EXIT, inBounds, ensureCell,
-} from './state.js';
 
 /**
  * Public: draw the entire frame.
