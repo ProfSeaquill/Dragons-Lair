@@ -1,321 +1,228 @@
-// combat.js — wave creation, dragon breath, enemy AI, rewards (grant-on-kill)
+// combat.js — wave spawner + basic combat loop for maze-walk pathing
 
-import { getDragonStats } from './state.js';
-import { waveComposition, enemyStats, rewardsFor } from './scaling.js';
+import { GameState, GRID, ENTRY, EXIT, getDragonStats } from './state.js';
+import { updateEnemyDistance } from './pathing.js';
 
-// -------- Enemy factory --------
-function makeEnemiesForWave(wave) {
-  const comp = waveComposition(wave);
-  const list = Array.isArray(comp)
-    ? comp
-    : Object.entries(comp).map(([type, count]) => ({ type, count }));
-  const out = [];
-  for (const { type, count } of list) {
-    for (let i = 0; i < count; i++) out.push(createEnemy(type, wave, i));
-  }
-  return out;
+// ============================
+// Tunables / simple scaling
+// ============================
+
+const SCALING = {
+  baseHP: 24,             // grunt HP at wave 1
+  hpGrowth: 1.18,         // per-wave multiplicative growth
+  baseSpeed: 2.4,         // tiles/sec at wave 1
+  speedGrowth: 1.02,      // per-wave multiplicative growth
+  baseCount: 6,           // enemies at wave 1
+  countGrowth: 1.18,      // per-wave multiplicative growth
+  spawnGap: 0.6,          // seconds between spawns
+  bossEvery: 5,           // boss wave period
+  bossHpMult: 10,         // boss HP multiplier
+  bossSpeedMult: 0.85,    // bosses move a bit slower
+  goldPerKill: 5,
+  bonesPerKill: 1,
+  contactDamage: 10,      // damage to dragon when enemy reaches EXIT cell
+};
+
+// ============================
+// Module-local runtime state
+// ============================
+
+const R = {
+  spawning: false,
+  toSpawn: 0,
+  spawnTimer: 0,
+  waveActive: false,
+};
+
+// ============================
+// Public API
+// ============================
+
+export function startWave(gs = GameState) {
+  if (R.waveActive) return;
+  const n = Math.round(SCALING.baseCount * Math.pow(SCALING.countGrowth, (gs.wave - 1)));
+  R.toSpawn = Math.max(1, n);
+  R.spawnTimer = 0;
+  R.spawning = true;
+  R.waveActive = true;
 }
 
-// NOTE: do NOT lowercase type; bosses are case-sensitive (e.g. 'boss:Arthur')
-function createEnemy(type, wave, spawnIndex = 0) {
-  const t = String(type);
-  const s = enemyStats(t, wave); // scaling.js understands 'boss:<Name>'
+export const spawnNextWave = startWave; // alias for compatibility
+export const spawnWave = startWave;     // alias for compatibility
 
-  const isHero = t === 'hero';
-  const isKingsguard = t === 'kingsguard';
-  const isEngineer = t === 'engineer';
-  const hasDodge = !!s.dodge;        // kingsguard AND bosses have dodge via scaling.js
-  const isMiniboss = !!s.miniboss;   // kingsguard and bosses
+export function update(gs = GameState, dt) {
+  const enemies = gs.enemies || (gs.enemies = []);
 
-  return {
-    id: Math.random().toString(36).slice(2),
-    type: t,
-    hp: s.hp,
-    maxHP: s.hp,
-    speed: s.speed,               // tiles/sec
-    pathIndex: 0,                 // start at first node after spawn
-    progress: 0,
-    spawnDelay: spawnIndex * 0.2, // seconds stagger
+  // 1) Spawn logic
+  if (R.spawning && R.toSpawn > 0) {
+    R.spawnTimer -= dt;
+    if (R.spawnTimer <= 0) {
+      spawnOne(gs);
+      R.toSpawn--;
+      R.spawnTimer = SCALING.spawnGap;
+    }
+  }
 
-    // Shield: hero starts with shield up (drops at melee)
-    shieldUp: isHero,
+  // 2) Enemy bookkeeping (reaching dragon, burning, deaths)
+  const ds = getDragonStats(gs);
+  const exitCx = EXIT.x, exitCy = EXIT.y;
 
-    // Engineer burrow: starts underground, moves faster, surfaces at lastFightIdx
-    isBurrowing: isEngineer ? true : false,
-    burrowSpeed: isEngineer ? (s.speed * 3) : undefined,
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
 
-    burning: { dps: 0, t: 0 },
-    plantingBomb: false,
-    bombTimer: 0,                 // seconds
-    miniboss: isMiniboss,
-    __rewarded: false,            // internal: reward granted flag
+    // Keep distance cache fresh (used by shielding/ordering if you add it)
+    updateEnemyDistance(gs, e);
+
+    // Resolve burn DoT
+    if (e.burnLeft > 0 && e.burnDps > 0) {
+      const tick = Math.min(dt, e.burnLeft);
+      e.burnLeft -= tick;
+      e.hp -= e.burnDps * tick;
+    }
+
+    // Check contact with dragon (enemy reaches the EXIT cell)
+    if (e.cx === exitCx && e.cy === exitCy) {
+      gs.dragonHP = Math.max(0, gs.dragonHP - SCALING.contactDamage);
+      // remove this enemy
+      enemies.splice(i, 1);
+      continue;
+    }
+
+    // Death cleanup
+    if (e.hp <= 0) {
+      gs.gold = (gs.gold | 0) + SCALING.goldPerKill;
+      gs.bones = (gs.bones | 0) + SCALING.bonesPerKill;
+      enemies.splice(i, 1);
+      continue;
+    }
+  }
+
+  // 3) Dragon breath (auto-aim at nearest enemy)
+  if (enemies.length > 0) {
+    dragonBreathTick(gs, dt, ds);
+  }
+
+  // 4) Wave completion -> advance wave (and maybe auto-start via main.js)
+  if (R.waveActive && R.toSpawn <= 0 && enemies.length === 0) {
+    R.waveActive = false;
+    R.spawning = false;
+    gs.wave = (gs.wave | 0) + 1;
+  }
+}
+
+// ============================
+// Spawning
+// ============================
+
+function spawnOne(gs) {
+  const wave = gs.wave | 0;
+  const isBoss = (wave % SCALING.bossEvery === 0) && (R.toSpawn === Math.max(1, Math.round(SCALING.baseCount * Math.pow(SCALING.countGrowth, (wave - 1)))));
+
+  const hpBase = SCALING.baseHP * Math.pow(SCALING.hpGrowth, (wave - 1));
+  const speedTiles = SCALING.baseSpeed * Math.pow(SCALING.speedGrowth, (wave - 1));
+
+  const e = {
+    // Grid position & facing (spawn at ENTRY, try heading east by default)
+    cx: ENTRY.x,
+    cy: ENTRY.y,
+    dir: 'E',
+
+    // Movement speed (main.js will use pxPerSec or speed in tiles/sec)
+    speed: (isBoss ? speedTiles * SCALING.bossSpeedMult : speedTiles),
+    pxPerSec: undefined,   // let main derive from `speed`
+
+    // Stats
+    hp: Math.round(isBoss ? hpBase * SCALING.bossHpMult : hpBase),
+    shield: false,
+    miniboss: isBoss,
+
+    // Status
+    burnLeft: 0,
+    burnDps: 0,
+
+    // Integration flags
+    updateByCombat: false, // let main.js move via pathing interpolation
   };
+
+  gs.enemies.push(e);
 }
 
-// -------- Wave API --------
-export function makeWave(gs) {
-  gs.enemies = makeEnemiesForWave(gs.wave);
-  // normalize legacy negative pathIndex to spawnDelay-based gating
-  for (const e of gs.enemies) {
-    if (typeof e.spawnDelay !== 'number') e.spawnDelay = 0;
-    if ((e.pathIndex | 0) < 0) {
-      // -1 → 0.2s, -2 → 0.4s, etc.
-      e.spawnDelay = Math.max(e.spawnDelay, (-e.pathIndex | 0) * 0.2);
-      e.pathIndex = 0;
-      e.progress = 0;
-    }
+// ============================
+// Dragon breath (auto target)
+// ============================
+
+let fireCooldown = 0;
+
+function dragonBreathTick(gs, dt, ds) {
+  fireCooldown -= dt;
+  const firePeriod = 1 / Math.max(0.01, ds.fireRate);
+  if (fireCooldown > 0) return;
+
+  const enemies = gs.enemies;
+  if (!enemies || enemies.length === 0) return;
+
+  const dragon = {
+    x: EXIT.x * GRID.tile + GRID.tile / 2,
+    y: EXIT.y * GRID.tile + GRID.tile / 2,
+  };
+
+  // Choose target = nearest enemy by pixel distance to dragon
+  let target = null, bestD2 = Infinity, targetPos = null;
+  for (const e of enemies) {
+    const p = enemyPixelCenter(e);
+    const dx = p.x - dragon.x, dy = p.y - dragon.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) { bestD2 = d2; target = e; targetPos = p; }
   }
-  gs._breathAcc = 0;
-}
+  if (!target) return;
 
-export function tickCombat(dt, gs) {
-  // timeline + FX decay
-  gs._time = (gs._time || 0) + dt;
-  if (gs.fx) {
-    const arrs = [gs.fx.claw, gs.fx.wing];
-    for (const a of arrs) {
-      for (let i = a.length - 1; i >= 0; i--) {
-        a[i].ttl -= dt;
-        if (a[i].ttl <= 0) a.splice(i, 1);
-      }
-    }
-  }
-  if (!gs || !Array.isArray(gs.enemies) || !Array.isArray(gs.path) || gs.path.length === 0) return false;
+  // Aim vector
+  const aim = { x: targetPos.x - dragon.x, y: targetPos.y - dragon.y };
+  const len = Math.hypot(aim.x, aim.y) || 1;
+  const ux = aim.x / len, uy = aim.y / len;
 
-  dragonBreathTick(dt, gs);
+  // Cone parameters
+  const range = ds.breathRange;
+  const halfWidth = ds.breathWidth * 0.5;
+  const power = ds.breathPower;
 
-  for (const e of gs.enemies) {
-    if (e.hp <= 0) continue;
+  // Apply damage to enemies within the cone
+  for (const e of enemies) {
+    const p = enemyPixelCenter(e);
+    const rx = p.x - dragon.x, ry = p.y - dragon.y;
+    const along = rx * ux + ry * uy;
+    if (along < 0 || along > range) continue;
 
-    // spawn gating
-    if (e.spawnDelay > 0) { e.spawnDelay = Math.max(0, e.spawnDelay - dt); continue; }
+    // distance to beam centerline
+    const px = rx - ux * along;
+    const py = ry - uy * along;
+    const off = Math.hypot(px, py);
 
-    engineerLogic(e, gs, dt);
-    advanceAlongPath(e, gs, dt);
+    if (off <= halfWidth) {
+      // Shield rule could go here; for now, straight damage
+      e.hp -= power;
 
-    // Dragon claws auto-swipe adjacent enemies
-    if (e.pathIndex >= Math.max(0, gs.path.length - 2) && e.hp > 0) {
-      const { claws } = getDragonStats(gs);
-      if (claws > 0) {
-        // spawn a short swipe FX (throttled)
-        if ((gs._time - (gs._lastClawFx || 0)) > 0.25) {
-          gs._lastClawFx = gs._time;
-          gs.fx = gs.fx || { claw: [], wing: [] };
-          gs.fx.claw = gs.fx.claw || [];
-          gs.fx.claw.push({ ttl: 0.25 });
-        }
-        e.hp -= claws * dt; // small tick-based damage
-        if (e.hp <= 0) grantOnKillOnce(gs, e);
-      }
-    }
-
-    tickBurn(e, dt, gs);
-    attackDragonIfAtExit(e, gs, dt);
-  }
-
-  // Cull dead enemies (we grant rewards on kill inside tick/breath)
-  gs.enemies = gs.enemies.filter(function (e) {
-    return e && (e.hp > 0 || e.spawnDelay > 0);
-  });
-
-  // End conditions
-  var anyAlive = gs.enemies.some(function (e) { return e.hp > 0; });
-  var anyPendingSpawn = gs.enemies.some(function (e) { return e.spawnDelay > 0; });
-  var dragonDead = (gs.dragon && gs.dragon.hp <= 0);
-
-  if (dragonDead) {
-    gs._endedReason = 'defeat';
-    return true;
-  }
-  if (!anyAlive && !anyPendingSpawn) {
-    gs._endedReason = 'victory';
-    return true;
-  }
-  return false;
-}
-
-// -------- Internals --------
-function grantOnKillOnce(gs, e) {
-  if (e.__rewarded) return;
-  const r = rewardsFor(e.type, gs.wave); // scaling handles bosses & kingsguard
-  gs.gold = (gs.gold | 0) + r.gold;
-  gs.bones = (gs.bones | 0) + r.bones;
-  e.__rewarded = true;
-}
-
-function applyBurn(e, dps, duration) {
-  if (dps <= 0 || duration <= 0) return;
-  e.burning.dps = Math.max(e.burning.dps, dps);
-  e.burning.t = Math.max(e.burning.t, duration);
-}
-
-function tickBurn(e, dt, gs) {
-  if (e.burning.t > 0 && e.hp > 0) {
-    e.hp -= e.burning.dps * dt;
-    e.burning.t -= dt;
-    if (e.hp <= 0) grantOnKillOnce(gs, e);
-  }
-}
-
-
-function engineerLogic(e, gs, dt) {
-  if (e.type !== 'engineer' || e.hp <= 0) return;
-  // Engineers burrow from spawn straight to lastFightIdx while untargetable.
-  // Movement handled in advanceAlongPath(); this stays for future hooks.
-}
-
-function advanceAlongPath(e, gs, dt) {
-  if (gs.path.length === 0 || e.hp <= 0) return;
-
-  const lastFightIdx = Math.max(0, gs.path.length - 2);
-  const prevIndex = e.pathIndex | 0;
-
-  if (e.pathIndex >= lastFightIdx) {
-    if (e.type === 'hero') e.shieldUp = false; // shield stays down near dragon
-  } else {
-    // Movement: if burrowing, move faster underground; else normal
-    const spd = (e.isBurrowing && e.burrowSpeed) ? e.burrowSpeed : e.speed;
-    const tilesToAdvance = spd * dt + e.progress;
-    const whole = Math.floor(tilesToAdvance);
-    e.progress = tilesToAdvance - whole;
-
-    e.pathIndex = Math.min(e.pathIndex + whole, lastFightIdx);
-
-    // If we just reached the adjacent tile, surface + drop hero shield
-    if (e.pathIndex >= lastFightIdx) {
-      if (e.isBurrowing) { e.isBurrowing = false; e.progress = 0; }
-      if (e.type === 'hero') e.shieldUp = false;
-    }
-  }
-
-  // Wings (reworked): trigger when ANY enemy ENTERS the adjacent tile.
-  if (prevIndex < lastFightIdx && e.pathIndex >= lastFightIdx) {
-    const ds = getDragonStats(gs);
-    const wings = ds.wings | 0;
-    const cd = ds.wingCooldown || 30;
-    const now = gs._time || 0;
-    if (wings > 0 && (!gs._wingCooldownUntil || now >= gs._wingCooldownUntil)) {
-      // push back and start cooldown
-      e.pathIndex = Math.max(0, e.pathIndex - wings);
-      e.progress = 0;
-      gs._wingCooldownUntil = now + cd;
-
-      // FX pulse
-      gs.fx = gs.fx || { claw: [], wing: [] };
-      gs.fx.wing = gs.fx.wing || [];
-      gs.fx.wing.push({ ttl: 0.35, strength: wings });
-
-      // Cancel any bomb planting attempt
-      if (e.type === 'engineer') {
-        e.plantingBomb = false;
-        e.bombTimer = 10.0;
+      // Optional burn application
+      if (ds.burnDPS > 0 && ds.burnDuration > 0) {
+        e.burnDps = ds.burnDPS;
+        e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
       }
     }
   }
 
-  // After movement and possible wing push, handle adjacency behaviors (bomb/chip)
-  attackDragonIfAtExit(e, gs, dt);
+  fireCooldown = firePeriod;
 }
 
-function attackDragonIfAtExit(e, gs, dt) {
-  if (e.hp <= 0) return;
-  if (!Array.isArray(gs.path) || gs.path.length === 0) return;
+// ============================
+// Helpers
+// ============================
 
-  const lastFightIdx = Math.max(0, gs.path.length - 2);
-  if (e.pathIndex < lastFightIdx) return;
-
-  // Engineer bomb planting (Wings already handled on entry in advanceAlongPath)
-  if (e.type === 'engineer') {
-    if (!e.plantingBomb) {
-      e.plantingBomb = true;
-      e.bombTimer = (typeof e.bombTimer === 'number') ? e.bombTimer : 10.0;
-    } else {
-      e.bombTimer -= dt;
-      if (e.bombTimer <= 0) {
-        gs.dragon.hp -= 30;
-        e.hp = 0;
-        grantOnKillOnce(gs, e);
-      }
-    }
-    return;
+function enemyPixelCenter(e) {
+  if (typeof e.x === 'number' && typeof e.y === 'number') {
+    return { x: e.x, y: e.y };
   }
-
-  // Small generic chip damage (engineer excluded because it uses bombs)
-  if (Math.random() < 0.02) {
-    gs.dragon.hp -= dmgForType(e.type);
-  }
-
-  // Hero keeps shield down while at the dragon
-  if (e.type === 'hero') e.shieldUp = false;
-}
-
-function dmgForType(t) {
-  const k = String(t);
-  if (k === 'villager') return 1;
-  if (k === 'squire') return 2;
-  if (k === 'hero') return 4;
-  if (k === 'knight') return 3;
-  if (k === 'kingsguard') return 6;
-  if (k.startsWith('boss:')) return 8; // bosses hit hardest
-  if (k === 'engineer') return 0;
-  return 1;
-}
-
-// -------- Dragon breath --------
-function dragonBreathTick(dt, gs) {
-  const ds = getDragonStats(gs); // {power, reachTiles, breathsPerSec, burnDps, burnDuration}
-  const period = 1 / Math.max(0.0001, ds.breathsPerSec || ds.speed || 1.0);
-  gs._breathAcc = (gs._breathAcc || 0) + dt;
-
-  while (gs._breathAcc >= period) {
-    gs._breathAcc -= period;
-    dragonBreathFire(gs, ds);
-  }
-}
-
-function dragonBreathFire(gs, ds) {
-  const reachTiles = ds.reachTiles ?? ds.reach ?? 0;
-  if (reachTiles <= 0 || !Array.isArray(gs.path) || gs.path.length === 0) return;
-
-  // Breath originates at the dragon and goes backward along the path
-  const endIdx = Math.max(0, gs.path.length - 2); // we stop enemies on the tile before dragon
-  const startIdx = Math.max(0, endIdx - reachTiles + 1);
-
-  // Active, spawned enemies within the breath corridor [startIdx .. endIdx]
-  const targets = (gs.enemies || [])
-    .filter(e => e.hp > 0 && !e.isBurrowing && (e.spawnDelay || 0) <= 0 && e.pathIndex >= startIdx && e.pathIndex <= endIdx)
-    .sort((a, b) => a.pathIndex - b.pathIndex); // ascending: entry → dragon
-
-  if (targets.length === 0) return;
-
-  // Pick the shielding hero nearest to the dragon (highest pathIndex in the slice)
-  const shieldingHero = targets
-    .filter(x => x.type === 'hero' && x.shieldUp && x.hp > 0)
-    .reduce((best, cur) => (!best || cur.pathIndex > best.pathIndex ? cur : best), null);
-
-  for (const e of targets) {
-    // Burn always applies
-    applyBurn(e, ds.burnDps, ds.burnDuration);
-
-    // Power may be blocked
-    let canPower = true;
-
-    // The hero itself is immune while shieldUp
-    if (e.type === 'hero' && e.shieldUp) {
-      canPower = false;
-    }
-
-    // Units "behind" the shielding hero (toward ENTRY) are protected.
-    // Since pathIndex increases toward the dragon, "behind" means strictly LESS than hero's index.
-    if (shieldingHero && e !== shieldingHero && e.pathIndex < shieldingHero.pathIndex) {
-      canPower = false;
-    }
-
-    if (canPower) {
-      e.hp -= ds.power;
-      if (e.hp <= 0) {
-        grantOnKillOnce(gs, e);
-      } 
-    }
-  }
+  return {
+    x: e.cx * GRID.tile + GRID.tile / 2,
+    y: e.cy * GRID.tile + GRID.tile / 2,
+  };
 }
