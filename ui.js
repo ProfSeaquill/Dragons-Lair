@@ -26,7 +26,7 @@ const hud = {
   upgrades: $('upgrades'),
   preview:  $('preview'),
   buildHelp: (function(){
-    const n = document.querySelector('.gridHelp');
+    const n = document.querySelector('.state.GRIDHelp');
     if (n) {
       n.textContent =
         'Build Mode: Click a TILE EDGE to add a wall (10 bones). Right-click an edge wall to remove (refund 5). Walls cannot fully block entry ↔ exit.';
@@ -36,7 +36,7 @@ const hud = {
 };
 
 // For render.js (optional): we expose a hover highlight for edges
-GameState.uiHoverEdge = null;  // {x,y,side} or null
+state.GameState.uiHoverEdge = null;  // {x,y,side} or null
 
 // ---------- Public API ----------
 export function bindUI() {
@@ -45,7 +45,7 @@ export function bindUI() {
   renderUpgradesPanel();
   refreshHUD();
   // Recompute distance field once (safe even if already called in main)
-  recomputePath(GameState);
+  recomputePath(state.GameState);
 
   // Tell boot overlay we're good
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
@@ -53,8 +53,8 @@ export function bindUI() {
 
 // Call when amounts change (gold/bones/HP/wave etc.)
 export function refreshHUD() {
-  const gs = GameState;
-  const ds = getDragonStats(gs);
+  const gs = state.GameState;
+  const ds = state.getDragonStats(gs);
   if (hud.wave)  hud.wave.textContent  = String(gs.wave | 0);
   if (hud.gold)  hud.gold.textContent  = String(gs.gold | 0);
   if (hud.bones) hud.bones.textContent = String(gs.bones | 0);
@@ -75,19 +75,19 @@ function tell(s, color = '') {
 
 // ---------- Buttons / HUD wiring ----------
 function wireButtons() {
-  const gs = GameState;
+  const gs = state.GameState;
 
   if (hud.healBtn) {
     hud.healBtn.addEventListener('click', () => {
-      const ds = getDragonStats(gs);
+      const ds = state.getDragonStats(gs);
       if (gs.dragonHP >= ds.maxHP) { tell('HP already full'); return; }
       if (gs.bones <= 0) { tell('Not enough bones'); return; }
-      // Heal: 1 HP per 1 bone (COSTS.healPerBone)
+      // Heal: 1 HP per 1 bone (state.COSTS.healPerBone)
       const deficit = ds.maxHP - gs.dragonHP;
-      const possible = Math.min(deficit, Math.max(0, gs.bones * COSTS.healPerBone));
-      const bonesToSpend = Math.ceil(possible / COSTS.healPerBone);
+      const possible = Math.min(deficit, Math.max(0, gs.bones * state.COSTS.healPerBone));
+      const bonesToSpend = Math.ceil(possible / state.COSTS.healPerBone);
       gs.bones -= bonesToSpend;
-      gs.dragonHP = Math.min(ds.maxHP, gs.dragonHP + bonesToSpend * COSTS.healPerBone);
+      gs.dragonHP = Math.min(ds.maxHP, gs.dragonHP + bonesToSpend * state.COSTS.healPerBone);
       refreshHUD();
       tell(`Healed ${bonesToSpend} HP`);
     });
@@ -111,7 +111,7 @@ function wireButtons() {
 
   if (hud.save) {
     hud.save.addEventListener('click', () => {
-      if (saveState(gs)) tell('Saved', '#8f8');
+      if (state.saveState(gs)) tell('Saved', '#8f8');
       else tell('Save failed', '#f88');
     });
   }
@@ -133,7 +133,7 @@ function wireButtons() {
 function renderUpgradesPanel() {
   const root = hud.upgrades;
   if (!root) return;
-  const infos = getUpgradeInfo(GameState);
+  const infos = getUpgradeInfo(state.GameState);
   root.innerHTML = '';
   infos.forEach(info => {
     const row = document.createElement('div');
@@ -146,10 +146,10 @@ function renderUpgradesPanel() {
     small.textContent = info.desc || '';
     btn.className = 'btn';
     btn.textContent = `Buy ${info.cost}g`;
-    btn.disabled = GameState.gold < info.cost;
+    btn.disabled = state.GameState.gold < info.cost;
 
     btn.addEventListener('click', () => {
-      const ok = buyUpgrade(GameState, info.key);
+      const ok = buyUpgrade(state.GameState, info.key);
       if (ok) {
         renderUpgradesPanel();
         refreshHUD();
@@ -181,12 +181,12 @@ function wireCanvasEdgeBuild() {
 
   cv.addEventListener('mousemove', (e) => {
     const hover = edgeHitTest(cv, e);
-    GameState.uiHoverEdge = hover; // for render highlight
+    state.GameState.uiHoverEdge = hover; // for render highlight
     // Optional tiny tooltip via msg:
     if (hover) {
-      const hasWall = edgeHasWall(GameState, hover.x, hover.y, hover.side);
+      const hasWall = edgeHasWall(state.GameState, hover.x, hover.y, hover.side);
       const verb = hasWall ? 'Remove' : 'Place';
-      const cost = hasWall ? `(+${COSTS.edgeRefund} bones)` : `(${COSTS.edgeWall} bones)`;
+      const cost = hasWall ? `(+${state.COSTS.edgeRefund} bones)` : `(${state.COSTS.edgeWall} bones)`;
       tell(`${verb} wall: (${hover.x},${hover.y}) ${hover.side} ${cost}`, '#9cf');
     } else if (hud.msg && hud.msg.textContent && hud.msg.textContent.startsWith('Place wall:')) {
       // clear soft msg
@@ -195,7 +195,7 @@ function wireCanvasEdgeBuild() {
   });
 
   cv.addEventListener('mouseleave', () => {
-    GameState.uiHoverEdge = null;
+    state.GameState.uiHoverEdge = null;
   });
 
   cv.addEventListener('mousedown', (e) => {
@@ -206,13 +206,13 @@ function wireCanvasEdgeBuild() {
     const remove = (e.button === 2);        // right = remove
     if (!place && !remove) return;
 
-    const hasWall = edgeHasWall(GameState, hover.x, hover.y, hover.side);
+    const hasWall = edgeHasWall(state.GameState, hover.x, hover.y, hover.side);
 
     // If attempting to place but it already exists, ignore; likewise remove if none
     if (place && hasWall) return;
     if (remove && !hasWall) return;
 
-    const res = toggleEdge(GameState, hover.x, hover.y, hover.side, place);
+    const res = toggleEdge(state.GameState, hover.x, hover.y, hover.side, place);
     if (!res.ok) {
       tell(`❌ ${res.reason || 'Action blocked'}`, '#f88');
       return;
@@ -220,7 +220,7 @@ function wireCanvasEdgeBuild() {
 
     refreshHUD();
     const verb = place ? 'Placed' : 'Removed';
-    const delta = place ? `(-${COSTS.edgeWall})` : `(+${COSTS.edgeRefund})`;
+    const delta = place ? `(-${state.COSTS.edgeWall})` : `(+${state.COSTS.edgeRefund})`;
     tell(`${verb} wall ${delta}`, place ? '#8f8' : '#8f8');
   });
 }
@@ -233,10 +233,10 @@ function edgeHitTest(canvas, evt) {
   const mx = (evt.clientX - rect.left) * scaleX;
   const my = (evt.clientY - rect.top) * scaleY;
 
-  const t = GRID.tile;
+  const t = state.GRID.tile;
   const cx = Math.floor(mx / t);
   const cy = Math.floor(my / t);
-  if (!inBounds(cx, cy)) return null;
+  if (!state.inBounds(cx, cy)) return null;
 
   const lx = mx - cx * t; // local x within tile
   const ly = my - cy * t; // local y within tile
@@ -266,7 +266,7 @@ function edgeHitTest(canvas, evt) {
 }
 
 function edgeHasWall(gs, x, y, side) {
-  const rec = ensureCell(gs, x, y);
+  const rec = state.ensureCell(gs, x, y);
   return !!rec?.[side];
 }
 
