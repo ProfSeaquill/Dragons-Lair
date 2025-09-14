@@ -26,12 +26,12 @@ export const DRAGON_DEFAULTS = {
 
 // --- Unlimited Upgrades: cost/effect formulas ---
 export const UPGRADE_CONFIG = {
-  power: {  baseCost: 20, costGrowth: 1.18, baseEffect: 12,  effectGrowth: 1.4 },
+  power: {  baseCost: 20, costGrowth: 1.20, baseEffect: 12,  effectGrowth: 1.4 },
   speed: {  baseCost: 25, costGrowth: 1.20, baseEffect: 0.7, effectGrowth: 1.1 }, // breaths/sec
-  reach: {  baseCost: 35, costGrowth: 1.16, baseEffect: 10,  stepPerLevel: 3 },    // tiles
-  burn:  {  baseCost: 25, costGrowth: 1.19, baseEffect: 1,   effectGrowth: 1.15 },
-  claws: {  baseCost: 20, costGrowth: 1.18, baseEffect: 30,  effectGrowth: 1.20 },
-  wings: {  baseCost: 40, costGrowth: 1.17, baseEffect: 1,   stepPerLevel: 2 },
+  reach: {  baseCost: 35, costGrowth: 1.20, baseEffect: 10,  stepPerLevel: 3 },    // tiles
+  burn:  {  baseCost: 25, costGrowth: 1.2, baseEffect: 1,   effectGrowth: 1.15 },
+  claws: {  baseCost: 20, costGrowth: 1.5, baseEffect: 30,  effectGrowth: 1.20 },
+  wings: {  baseCost: 40, costGrowth: 1.5, baseEffect: 1,   stepPerLevel: 2 },
   // NOTE: regen removed
 };
 
