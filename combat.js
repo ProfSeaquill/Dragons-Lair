@@ -20,7 +20,7 @@ const SCALING = {
   bossSpeedMult: 0.85,    // bosses move a bit slower
   goldPerKill: 5,
   bonesPerKill: 1,
-  contactDamage: 10,      // damage to dragon when enemy reaches EXIT cell
+  contactDamage: 10,      // damage to dragon when enemy reaches state.EXIT cell
 };
 
 // ============================
@@ -38,7 +38,7 @@ const R = {
 // Public API
 // ============================
 
-export function startWave(gs = GameState) {
+export function startWave(gs = state.GameState) {
   if (R.waveActive) return;
   const n = Math.round(SCALING.baseCount * Math.pow(SCALING.countGrowth, (gs.wave - 1)));
   R.toSpawn = Math.max(1, n);
@@ -50,7 +50,7 @@ export function startWave(gs = GameState) {
 export const spawnNextWave = startWave; // alias for compatibility
 export const spawnWave = startWave;     // alias for compatibility
 
-export function update(gs = GameState, dt) {
+export function update(gs = state.GameState, dt) {
   const enemies = gs.enemies || (gs.enemies = []);
 
   // 1) Spawn logic
@@ -64,8 +64,8 @@ export function update(gs = GameState, dt) {
   }
 
   // 2) Enemy bookkeeping (reaching dragon, burning, deaths)
-  const ds = getDragonStats(gs);
-  const exitCx = EXIT.x, exitCy = EXIT.y;
+  const ds = state.getDragonStats(gs);
+  const state.EXITCx = state.EXIT.x, state.EXITCy = state.EXIT.y;
 
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
@@ -80,8 +80,8 @@ export function update(gs = GameState, dt) {
       e.hp -= e.burnDps * tick;
     }
 
-    // Check contact with dragon (enemy reaches the EXIT cell)
-    if (e.cx === exitCx && e.cy === exitCy) {
+    // Check contact with dragon (enemy reaches the state.EXIT cell)
+    if (e.cx === state.EXITCx && e.cy === state.EXITCy) {
       gs.dragonHP = Math.max(0, gs.dragonHP - SCALING.contactDamage);
       // remove this enemy
       enemies.splice(i, 1);
@@ -122,9 +122,9 @@ function spawnOne(gs) {
   const speedTiles = SCALING.baseSpeed * Math.pow(SCALING.speedGrowth, (wave - 1));
 
   const e = {
-    // Grid position & facing (spawn at ENTRY, try heading east by default)
-    cx: ENTRY.x,
-    cy: ENTRY.y,
+    // state.GRID position & facing (spawn at state.ENTRY, try heading east by default)
+    cx: state.ENTRY.x,
+    cy: state.ENTRY.y,
     dir: 'E',
 
     // Movement speed (main.js will use pxPerSec or speed in tiles/sec)
@@ -162,8 +162,8 @@ function dragonBreathTick(gs, dt, ds) {
   if (!enemies || enemies.length === 0) return;
 
   const dragon = {
-    x: EXIT.x * GRID.tile + GRID.tile / 2,
-    y: EXIT.y * GRID.tile + GRID.tile / 2,
+    x: state.EXIT.x * state.GRID.tile + state.GRID.tile / 2,
+    y: state.EXIT.y * state.GRID.tile + state.GRID.tile / 2,
   };
 
   // Choose target = nearest enemy by pixel distance to dragon
@@ -222,7 +222,7 @@ function enemyPixelCenter(e) {
     return { x: e.x, y: e.y };
   }
   return {
-    x: e.cx * GRID.tile + GRID.tile / 2,
-    y: e.cy * GRID.tile + GRID.tile / 2,
+    x: e.cx * state.GRID.tile + state.GRID.tile / 2,
+    y: e.cy * state.GRID.tile + state.GRID.tile / 2,
   };
 }
