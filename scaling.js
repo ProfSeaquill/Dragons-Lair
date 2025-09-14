@@ -35,7 +35,6 @@ function bossName(type)       { return isBossType(type) ? type.split(":")[1] : n
 function bossMultFor(type)    { return bossName(type) === "Arthur" ? ARTHUR_MULT : BOSS_MULT; }
 
 // Public: compute concrete stats for a unit at a given wave
-// Public: compute concrete stats for a unit at a given wave
 // Wave scaling: HP ✅, Speed ✅. Nothing else scales here.
 export function enemyStats(type, wave) {
   const t = String(type);
@@ -76,6 +75,7 @@ export function enemyStats(type, wave) {
     digger: !!b.digger,
   };
 }
+
 
   const b = BASE[type];
   if (!b) throw new Error(`Unknown enemy type: ${type}`);
