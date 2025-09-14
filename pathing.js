@@ -8,36 +8,36 @@ import * as state from './state.js';
  * ========================= */
 
 /**
- * Recompute gs.distFromEntry[y][x] as the shortest step distance from ENTRY,
+ * Recompute gs.distFromEntry[y][x] as the shortest step distance from state.ENTRY,
  * traversing only through OPEN edges.
  * Infinity means unreachable.
  */
-export function recomputeDistanceField(gs = GameState) {
-  const W = GRID.cols, H = GRID.rows;
-  const dist = makeScalarField(W, H, Infinity);
+export function recomputeDistanceField(gs = state.GameState) {
+  const W = state.GRID.cols, H = state.GRID.rows;
+  const dist = state.makeScalarField(W, H, Infinity);
   const qx = new Array(W * H);
   const qy = new Array(W * H);
   let qh = 0, qt = 0;
 
-  if (!inBounds(ENTRY.x, ENTRY.y)) {
+  if (!state.inBounds(state.ENTRY.x, state.ENTRY.y)) {
     gs.distFromEntry = dist;
     return dist;
   }
 
-  dist[ENTRY.y][ENTRY.x] = 0;
-  qx[qt] = ENTRY.x; qy[qt] = ENTRY.y; qt++;
+  dist[state.ENTRY.y][state.ENTRY.x] = 0;
+  qx[qt] = state.ENTRY.x; qy[qt] = state.ENTRY.y; qt++;
 
   while (qh < qt) {
     const x = qx[qh], y = qy[qh]; qh++;
     const d = dist[y][x] + 1;
     // Explore via open edges
-    if (isOpen(gs, x, y, 'N')) pushIfBetter(x, y - 1);
-    if (isOpen(gs, x, y, 'E')) pushIfBetter(x + 1, y);
-    if (isOpen(gs, x, y, 'S')) pushIfBetter(x, y + 1);
-    if (isOpen(gs, x, y, 'W')) pushIfBetter(x - 1, y);
+    if (state.isOpen(gs, x, y, 'N')) pushIfBetter(x, y - 1);
+    if (state.isOpen(gs, x, y, 'E')) pushIfBetter(x + 1, y);
+    if (state.isOpen(gs, x, y, 'S')) pushIfBetter(x, y + 1);
+    if (state.isOpen(gs, x, y, 'W')) pushIfBetter(x - 1, y);
 
     function pushIfBetter(nx, ny) {
-      if (!inBounds(nx, ny)) return;
+      if (!state.inBounds(nx, ny)) return;
       if (d < dist[ny][nx]) {
         dist[ny][nx] = d;
         qx[qt] = nx; qy[qt] = ny; qt++;
@@ -54,7 +54,7 @@ export function recomputeDistanceField(gs = GameState) {
  * ========================= */
 
 /**
- * Quick BFS to check if EXIT remains reachable from ENTRY under an edge toggle.
+ * Quick BFS to check if state.EXIT remains reachable from state.ENTRY under an edge toggle.
  * We simulate the toggle in-memory (not applied) and test connectivity.
  * Returns true if toggle WOULD disconnect entry↔exit (i.e., should be blocked).
  */
@@ -63,7 +63,7 @@ export function wouldDisconnectEntryAndExit(gs, x, y, side, placeWall) {
   const snap = snapshotEdgePair(gs, x, y, side);
   if (!applyEdgeSim(gs, x, y, side, !!placeWall)) return true;
 
-  const ok = isReachable(gs, ENTRY.x, ENTRY.y, EXIT.x, EXIT.y);
+  const ok = isReachable(gs, state.ENTRY.x, state.ENTRY.y, state.EXIT.x, state.EXIT.y);
 
   // Revert sim
   restoreEdgePair(gs, x, y, side, snap);
@@ -71,8 +71,8 @@ export function wouldDisconnectEntryAndExit(gs, x, y, side, placeWall) {
 }
 
 function isReachable(gs, sx, sy, tx, ty) {
-  if (!inBounds(sx, sy) || !inBounds(tx, ty)) return false;
-  const W = GRID.cols, H = GRID.rows;
+  if (!state.inBounds(sx, sy) || !state.inBounds(tx, ty)) return false;
+  const W = state.GRID.cols, H = state.GRID.rows;
   const seen = new Uint8Array(W * H);
   const qx = new Array(W * H), qy = new Array(W * H);
   let qh = 0, qt = 0;
@@ -84,15 +84,15 @@ function isReachable(gs, sx, sy, tx, ty) {
     const x = qx[qh], y = qy[qh]; qh++;
     if (x === tx && y === ty) return true;
 
-    if (isOpen(gs, x, y, 'N')) push(x, y - 1);
-    if (isOpen(gs, x, y, 'E')) push(x + 1, y);
-    if (isOpen(gs, x, y, 'S')) push(x, y + 1);
-    if (isOpen(gs, x, y, 'W')) push(x - 1, y);
+    if (state.isOpen(gs, x, y, 'N')) push(x, y - 1);
+    if (state.isOpen(gs, x, y, 'E')) push(x + 1, y);
+    if (state.isOpen(gs, x, y, 'S')) push(x, y + 1);
+    if (state.isOpen(gs, x, y, 'W')) push(x - 1, y);
   }
   return false;
 
   function push(nx, ny) {
-    if (!inBounds(nx, ny)) return;
+    if (!state.inBounds(nx, ny)) return;
     const idx = ny * W + nx;
     if (seen[idx]) return;
     seen[idx] = 1;
@@ -101,24 +101,24 @@ function isReachable(gs, sx, sy, tx, ty) {
 }
 
 function snapshotEdgePair(gs, x, y, side) {
-  const here = ensureCell(gs, x, y);
+  const here = state.ensureCell(gs, x, y);
   const { nx, ny, opp } = neighborFor(x, y, side);
-  if (!inBounds(nx, ny)) return null;
-  const there = ensureCell(gs, nx, ny);
+  if (!state.inBounds(nx, ny)) return null;
+  const there = state.ensureCell(gs, nx, ny);
   return { side, opp, x, y, nx, ny, a: here[side], b: there[opp] };
 }
 function restoreEdgePair(gs, x, y, side, snap) {
   if (!snap) return;
-  const here = ensureCell(gs, x, y);
-  const there = ensureCell(gs, snap.nx, snap.ny);
+  const here = state.ensureCell(gs, x, y);
+  const there = state.ensureCell(gs, snap.nx, snap.ny);
   here[side] = snap.a;
   there[snap.opp] = snap.b;
 }
 function applyEdgeSim(gs, x, y, side, hasWall) {
   const { nx, ny, opp } = neighborFor(x, y, side);
-  if (!inBounds(nx, ny)) return false;
-  const here = ensureCell(gs, x, y);
-  const there = ensureCell(gs, nx, ny);
+  if (!state.inBounds(nx, ny)) return false;
+  const here = state.ensureCell(gs, x, y);
+  const there = state.ensureCell(gs, nx, ny);
   here[side] = !!hasWall;
   there[opp] = !!hasWall;
   return true;
@@ -145,10 +145,10 @@ function neighborFor(x, y, side) {
  * Returns { ok:boolean, reason?:string }
  */
 export function toggleEdge(gs, x, y, side, place = true) {
-  if (!inBounds(x, y)) return { ok: false, reason: 'Out of bounds' };
+  if (!state.inBounds(x, y)) return { ok: false, reason: 'Out of bounds' };
 
   // If placing, guard on affordability
-  if (place && !canAffordEdge(gs, true)) {
+  if (place && !state.canAffordEdge(gs, true)) {
     return { ok: false, reason: 'Not enough bones' };
   }
 
@@ -158,12 +158,12 @@ export function toggleEdge(gs, x, y, side, place = true) {
   }
 
   // Apply
-  const applied = setEdgeWall(gs, x, y, side, !!place);
+  const applied = state.setEdgeWall(gs, x, y, side, !!place);
   if (!applied) return { ok: false, reason: 'Invalid neighbor' };
 
   // Spend / refund
-  if (place) spendBones(gs, COSTS.edgeWall);
-  else refundBones(gs, COSTS.edgeRefund);
+  if (place) state.spendBones(gs, state.COSTS.edgeWall);
+  else state.refundBones(gs, state.COSTS.edgeRefund);
 
   // Update distance field so UI/logic stay in sync
   recomputeDistanceField(gs);
@@ -176,7 +176,7 @@ export function toggleEdge(gs, x, y, side, place = true) {
  * ========================= */
 
 /**
- * For enemies, we assume grid-centric movement with facing.
+ * For enemies, we assume state.GRID-centric movement with facing.
  * Enemy fields expected/maintained here:
  *   e.cx, e.cy         // current cell coords (integers)
  *   e.dir              // 'N'|'E'|'S'|'W' current heading
@@ -194,7 +194,7 @@ const BACK  = { N: 'S', S: 'N', E: 'W', W: 'E' };
  * Update e.distFromEntry from gs.distFromEntry (call each tick or after cell advance).
  */
 export function updateEnemyDistance(gs, e) {
-  if (inBounds(e.cx, e.cy)) {
+  if (state.inBounds(e.cx, e.cy)) {
     e.distFromEntry = gs.distFromEntry[e.cy][e.cx];
   } else {
     e.distFromEntry = Infinity;
@@ -223,7 +223,7 @@ export function chooseNextDirection(gs, e) {
   for (const dir of order) {
     if (top.tried.has(dir)) continue;        // already tried from this cell
     top.tried.add(dir);
-    if (isOpen(gs, e.cx, e.cy, dir)) {
+    if (state.isOpen(gs, e.cx, e.cy, dir)) {
       return dir;
     }
   }
@@ -237,8 +237,8 @@ export function chooseNextDirection(gs, e) {
     return dir ?? BACK[e.dir]; // safe fallback
   }
 
-  // Stuck at ENTRY or isolated: try any open edge to avoid deadlock
-  const neigh = neighborsByEdges(gs, e.cx, e.cy);
+  // Stuck at state.ENTRY or isolated: try any open edge to avoid deadlock
+  const neigh = state.neighborsByEdges(gs, e.cx, e.cy);
   if (neigh.length) {
     const n = neigh[0];
     return directionFromTo(e.cx, e.cy, n.x, n.y) || e.dir;
@@ -268,13 +268,13 @@ function directionFromTo(x0, y0, x1, y1) {
 }
 
 /**
- * Advance enemy by one grid step (instant cell hop).
+ * Advance enemy by one state.GRID step (instant cell hop).
  * If you prefer pixel interpolation, wire `stepEnemyInterpolated` instead.
  */
 export function advanceEnemyOneCell(gs, e) {
   const dir = chooseNextDirection(gs, e);
   const { nx, ny } = stepFrom(e.cx, e.cy, dir);
-  if (!inBounds(nx, ny)) return; // clamp
+  if (!state.inBounds(nx, ny)) return; // clamp
 
   // Move and keep stack breadcrumbs
   e.cx = nx; e.cy = ny; e.dir = dir;
@@ -293,8 +293,8 @@ function stepFrom(x, y, dir) {
 }
 
 /**
- * Optional helper for pixel-smooth movement along grid centers.
- * Expects e.x/e.y in pixels, e.speed in tiles/sec (or pixels/sec if you pass GRID.tile-scaled).
+ * Optional helper for pixel-smooth movement along state.GRID centers.
+ * Expects e.x/e.y in pixels, e.speed in tiles/sec (or pixels/sec if you pass state.GRID.tile-scaled).
  * - Locks targets to tile centers, walks center→center following maze-walk choices.
  */
 export function stepEnemyInterpolated(gs, e, dtSec) {
@@ -310,7 +310,7 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
   const dy = e.ty - e.y;
   const dist = Math.hypot(dx, dy);
 
-  const pxPerSec = (e.pxPerSec != null) ? e.pxPerSec : (e.speed * GRID.tile);
+  const pxPerSec = (e.pxPerSec != null) ? e.pxPerSec : (e.speed * state.GRID.tile);
   const step = pxPerSec * dtSec;
 
   if (dist <= step) {
@@ -344,8 +344,8 @@ function chooseNextTarget(gs, e) {
 
 function tileCenter(cx, cy) {
   return {
-    x: cx * GRID.tile + GRID.tile / 2,
-    y: cy * GRID.tile + GRID.tile / 2,
+    x: cx * state.GRID.tile + state.GRID.tile / 2,
+    y: cy * state.GRID.tile + state.GRID.tile / 2,
   };
 }
 
@@ -366,7 +366,7 @@ function directionFromDelta(dx, dy) {
  * Call this on boot and after any edge toggle.
  * (Wrapper kept for drop-in replacement of older recomputePath APIs.)
  */
-export function recomputePath(gs = GameState) {
+export function recomputePath(gs = state.GameState) {
   return recomputeDistanceField(gs);
 }
 
@@ -374,7 +374,7 @@ export function recomputePath(gs = GameState) {
  * Utility for UI hover/preview: list of open neighbors from a cell.
  */
 export function openNeighbors(gs, x, y) {
-  return neighborsByEdges(gs, x, y);
+  return state.neighborsByEdges(gs, x, y);
 }
 
 /**
@@ -384,7 +384,7 @@ export function openNeighbors(gs, x, y) {
 export function downhillNeighborTowardExit(gs, x, y) {
   const here = gs.distFromEntry?.[y]?.[x] ?? Infinity;
   let best = null, bestD = here;
-  const neigh = neighborsByEdges(gs, x, y);
+  const neigh = state.neighborsByEdges(gs, x, y);
   for (const n of neigh) {
     const d = gs.distFromEntry[n.y][n.x];
     if (d < bestD) { bestD = d; best = n; }
