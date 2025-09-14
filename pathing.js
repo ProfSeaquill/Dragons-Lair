@@ -1,11 +1,7 @@
 // pathing.js — edge-walls pathing & maze-walk AI
 
-import {
-  GRID, ENTRY, EXIT, COSTS, GameState,
-  inBounds, ensureCell, isOpen, neighborsByEdges, setEdgeWall,
-  makeScalarField, canAffordEdge, spendBones, refundBones,
-  tileKey,
-} from './state.js';
+import * as state from './state.js';
+
 
 /* =========================
  * Distance Field (BFS)
