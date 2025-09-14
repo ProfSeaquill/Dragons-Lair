@@ -1,235 +1,277 @@
-// ui.js — UI wiring, HUD rendering, wave preview, and build-mode controls
+// ui.js — edge-wall build mode + HUD wiring
 
-import { GRID, ECON } from './state.js';           // expects { W, H, TILE } and wall costs
-import * as state from './state.js';                // optional: save/load, getDragonStats()
-import * as scaling from './scaling.js';            // waveComposition(wave) for preview
-import * as pathing from './pathing.js';            // toggleWall(gs,x,y,place), recomputePath(gs)
-import * as upgrades from './upgrades.js';          // upgrade panel builder
+import {
+  GameState, GRID, COSTS,
+  getDragonStats, saveState, loadState,
+  ensureCell, inBounds
+} from './state.js';
 
-// --- Local helpers ---
-const $ = (id) => /** @type {HTMLElement|null} */ (document.getElementById(id));
+import {
+  toggleEdge, recomputePath
+} from './pathing.js';
 
-let lastToastId = 0;
-function setText(id, v) { const el = $(id); if (el) el.textContent = String(v); }
+import { getUpgradeInfo, buyUpgrade } from './upgrades.js';
 
-function canvasToGrid(canvas, clientX, clientY) {
-  const rect = canvas.getBoundingClientRect();
-  const x = Math.floor(((clientX - rect.left) / rect.width) * canvas.width);
-  const y = Math.floor(((clientY - rect.top) / rect.height) * canvas.height);
-
-  // Tile size: infer if not provided
-  const tileW = (typeof GRID?.TILE === 'number' && GRID.TILE > 0)
-    ? GRID.TILE
-    : Math.floor(canvas.width / (GRID?.W || 24)); // default 24 cols
-  const tileH = (typeof GRID?.TILE === 'number' && GRID.TILE > 0)
-    ? GRID.TILE
-    : Math.floor(canvas.height / (GRID?.H || 16)); // default 16 rows
-
-  const gx = Math.floor(x / tileW);
-  const gy = Math.floor(y / tileH);
-  return { gx, gy };
-}
-
-// --- Public: toast ---
-export function toast(msg, ms = 1400) {
-  const el = $('msg');
-  if (!el) return;
-  const myId = ++lastToastId;
-  el.textContent = String(msg);
-  el.style.opacity = '1';
-  setTimeout(() => {
-    if (myId === lastToastId) {
-      el.style.opacity = '.0';
-      // delay clearing text a bit so fade-out looks nicer
-      setTimeout(() => { if (myId === lastToastId) el.textContent = ''; }, 250);
+// ---------- DOM helpers ----------
+const $ = (id) => document.getElementById(id);
+const hud = {
+  wave:    $('wave'),
+  hp:      $('dragonHP'),
+  gold:    $('gold'),
+  bones:   $('bones'),
+  msg:     $('msg'),
+  healBtn: $('healBtn'),
+  start:   $('startBtn'),
+  auto:    $('autoStart'),
+  save:    $('saveBtn'),
+  load:    $('loadBtn'),
+  canvas:  $('game'),
+  upgrades: $('upgrades'),
+  preview:  $('preview'),
+  buildHelp: (function(){
+    const n = document.querySelector('.gridHelp');
+    if (n) {
+      n.textContent =
+        'Build Mode: Click a TILE EDGE to add a wall (10 bones). Right-click an edge wall to remove (refund 5). Walls cannot fully block entry ↔ exit.';
     }
-  }, ms);
+    return n;
+  })(),
+};
+
+// For render.js (optional): we expose a hover highlight for edges
+GameState.uiHoverEdge = null;  // {x,y,side} or null
+
+// ---------- Public API ----------
+export function bindUI() {
+  wireButtons();
+  wireCanvasEdgeBuild();
+  renderUpgradesPanel();
+  refreshHUD();
+  // Recompute distance field once (safe even if already called in main)
+  recomputePath(GameState);
+
+  // Tell boot overlay we're good
+  window.dispatchEvent(new CustomEvent('dl-boot-ok'));
 }
 
-// --- Public: bind UI once ---
-export function bindUI(gs) {
-  // Auto-start checkbox
-  const auto = /** @type {HTMLInputElement|null} */ ($('autoStart'));
-  if (auto) {
-    auto.checked = !!gs.autoStart;
-    auto.addEventListener('change', () => {
-      gs.autoStart = !!auto.checked;
-      toast(gs.autoStart ? 'Auto-start: ON' : 'Auto-start: OFF', 900);
+// Call when amounts change (gold/bones/HP/wave etc.)
+export function refreshHUD() {
+  const gs = GameState;
+  const ds = getDragonStats(gs);
+  if (hud.wave)  hud.wave.textContent  = String(gs.wave | 0);
+  if (hud.gold)  hud.gold.textContent  = String(gs.gold | 0);
+  if (hud.bones) hud.bones.textContent = String(gs.bones | 0);
+  if (hud.hp)    hud.hp.textContent    = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
+  if (hud.auto)  hud.auto.checked      = !!gs.autoStart;
+}
+
+// Lightweight message banner
+function tell(s, color = '') {
+  if (!hud.msg) return;
+  hud.msg.textContent = String(s);
+  hud.msg.style.color = color || '';
+  if (s) {
+    clearTimeout(tell._t);
+    tell._t = setTimeout(() => { if (hud.msg.textContent === s) hud.msg.textContent = ''; }, 2500);
+  }
+}
+
+// ---------- Buttons / HUD wiring ----------
+function wireButtons() {
+  const gs = GameState;
+
+  if (hud.healBtn) {
+    hud.healBtn.addEventListener('click', () => {
+      const ds = getDragonStats(gs);
+      if (gs.dragonHP >= ds.maxHP) { tell('HP already full'); return; }
+      if (gs.bones <= 0) { tell('Not enough bones'); return; }
+      // Heal: 1 HP per 1 bone (COSTS.healPerBone)
+      const deficit = ds.maxHP - gs.dragonHP;
+      const possible = Math.min(deficit, Math.max(0, gs.bones * COSTS.healPerBone));
+      const bonesToSpend = Math.ceil(possible / COSTS.healPerBone);
+      gs.bones -= bonesToSpend;
+      gs.dragonHP = Math.min(ds.maxHP, gs.dragonHP + bonesToSpend * COSTS.healPerBone);
+      refreshHUD();
+      tell(`Healed ${bonesToSpend} HP`);
     });
   }
 
-  // Save / Load (defensive: only if state exposes these)
-  const saveBtn = $('saveBtn');
-  if (saveBtn) saveBtn.addEventListener('click', () => {
-    if (typeof state.save === 'function') { state.save(gs); toast('Saved'); }
-    else toast('Save not available', 900);
-  });
-
-  const loadBtn = $('loadBtn');
-  if (loadBtn) loadBtn.addEventListener('click', () => {
-    if (typeof state.load === 'function') { state.load(gs); toast('Loaded'); }
-    else toast('Load not available', 900);
-  });
-
-  // Heal button (spend bones → heal 1:1)
-const healBtn = document.getElementById('healBtn');
-if (healBtn) {
-  healBtn.addEventListener('click', () => {
-    if (gs.mode !== 'build') { toast('Heal only in build mode'); return; }
-    const healed = state.healWithBones(gs, Infinity);
-    if (healed > 0) toast(`Healed +${healed} HP (−${healed} bones)`, 900);
-    else toast('Nothing to heal (or no bones)', 900);
-    renderUI(gs);
-  });
-}
-
-// Keyboard shortcut: press 'H' in build mode to heal 1 HP (costs 1 bone)
-window.addEventListener('keydown', (e) => {
-  if (gs.mode !== 'build') return;
-  if (e.key === 'h' || e.key === 'H') {
-    const healed = state.healWithBones(gs, 1);
-    if (healed > 0) toast(`Healed +1 HP (−1 bone)`, 600);
-    renderUI(gs);
-  }
-});
-
-  // Build-mode canvas controls
-  const canvas = /** @type {HTMLCanvasElement|null} */ ($('game'));
-  if (canvas) {
-    // Left click: place wall (cost handled in toggleWall/pathing)
-    canvas.addEventListener('click', (e) => {
-      if (gs.mode !== 'build') return;
-      const { gx, gy } = canvasToGrid(canvas, e.clientX, e.clientY);
-      if (!inBounds(gx, gy)) return;
-
-      const placed = tryToggleWall(gs, gx, gy, true);
-      if (placed === 'blocked') toast('Placement would block path', 1000);
-      else if (placed === 'no-bones') toast(`Not enough bones (${ECON.WALL_COST})`, 1000);
-      else if (placed === 'ok') toast('Wall placed', 650);
-      else if (placed === 'occupied') toast('Tile already a wall', 900);
-    });
-
-    // Right click: remove wall (refund handled in toggleWall/pathing)
-    canvas.addEventListener('contextmenu', (e) => {
-      if (gs.mode !== 'build') return;
-      e.preventDefault();
-      const { gx, gy } = canvasToGrid(canvas, e.clientX, e.clientY);
-      if (!inBounds(gx, gy)) return;
-
-      const removed = tryToggleWall(gs, gx, gy, false);
-      if (removed === 'ok') toast(`Wall removed (+${ECON.WALL_REFUND})`, 650);
-      else if (removed === 'empty') toast('No wall here', 900);
+  if (hud.start) {
+    hud.start.addEventListener('click', () => {
+      // Fire a custom event so main/combat can listen without tight coupling
+      window.dispatchEvent(new CustomEvent('dl-start-wave'));
+      tell('Wave starting…');
     });
   }
 
-  // Upgrades panel
-  renderUpgrades(gs);
-}
-
-function inBounds(x, y) {
-  const W = GRID?.W ?? 24;
-  const H = GRID?.H ?? 16;
-  return x >= 0 && y >= 0 && x < W && y < H;
-}
-
-function tryToggleWall(gs, gx, gy, place) {
-  // Expectation: pathing.toggleWall(gs, gx, gy, place) returns one of:
-  // 'ok' | 'blocked' | 'no-bones' | 'occupied' | 'empty'
-  if (typeof pathing.toggleWall === 'function') {
-    const res = pathing.toggleWall(gs, gx, gy, place);
-    // If toggle succeeded, recompute path (some implementations do this internally)
-    if (res === 'ok' && typeof pathing.recomputePath === 'function') {
-      pathing.recomputePath(gs);
-    }
-    return res;
+  if (hud.auto) {
+    hud.auto.addEventListener('change', (e) => {
+      gs.autoStart = !!e.target.checked;
+      refreshHUD();
+      tell(gs.autoStart ? 'Auto-start ON' : 'Auto-start OFF');
+    });
   }
 
-  // Fallback no-op if pathing not ready
-  return 'blocked';
+  if (hud.save) {
+    hud.save.addEventListener('click', () => {
+      if (saveState(gs)) tell('Saved', '#8f8');
+      else tell('Save failed', '#f88');
+    });
+  }
+
+  if (hud.load) {
+    hud.load.addEventListener('click', () => {
+      if (loadState()) {
+        recomputePath(gs);
+        refreshHUD();
+        tell('Loaded', '#8f8');
+      } else {
+        tell('No save found', '#f88');
+      }
+    });
+  }
 }
 
-// --- Public: HUD/UI refresh (cheap, safe to call every frame) ---
-export function renderUI(gs) {
-  setText('wave', gs.wave ?? 1);
-  setText('dragonHP', Math.ceil(gs.dragon?.hp ?? 100));
-  setText('gold', Math.floor(gs.gold ?? 0));
-  if (typeof gs._uiLastGold !== 'number' || gs._uiLastGold !== (gs.gold|0)) {
-    gs._uiLastGold = (gs.gold|0);
-    const box = document.getElementById('upgrades');
-    if (box && typeof upgrades.renderUpgrades === 'function') {
-      upgrades.renderUpgrades(gs, box, { toast });
-    }
-  }
-  setText('bones', Math.floor(gs.bones ?? 0));
-
-  // Keep Auto-start checkbox in sync if toggled programmatically
-  const auto = /** @type {HTMLInputElement|null} */ ($('autoStart'));
-  if (auto && auto.checked !== !!gs.autoStart) auto.checked = !!gs.autoStart;
-}
-
-// --- Public: wave preview panel ---
-export function previewNextWave(gs) {
-  const el = $('preview');
-  if (!el) return;
-  el.innerHTML = '';
-
-  if (typeof scaling.waveComposition !== 'function') {
-    el.textContent = 'Wave data unavailable';
-    return;
-  }
-
-  const comp = scaling.waveComposition(gs.wave ?? 1, gs); // allow (wave, gs)
-  if (!comp || (Array.isArray(comp) && comp.length === 0)) {
-    el.textContent = '—';
-    return;
-  }
-
-  // Normalize composition to an array of { type, count }
-  const list = Array.isArray(comp)
-    ? comp
-    : Object.entries(comp).map(([type, count]) => ({ type, count }));
-
-  const frag = document.createDocumentFragment();
-  list.forEach(({ type, count }) => {
+// ---------- Upgrades panel ----------
+function renderUpgradesPanel() {
+  const root = hud.upgrades;
+  if (!root) return;
+  const infos = getUpgradeInfo(GameState);
+  root.innerHTML = '';
+  infos.forEach(info => {
     const row = document.createElement('div');
     row.className = 'uRow';
     const name = document.createElement('div');
-    name.textContent = prettyName(type);
-    const qty = document.createElement('small');
-    qty.textContent = `x${count}`;
-    row.appendChild(name);
-    row.appendChild(qty);
-    frag.appendChild(row);
+    const btn = document.createElement('button');
+    const small = document.createElement('small');
+
+    name.textContent = `${info.title} (Lv ${info.level})`;
+    small.textContent = info.desc || '';
+    btn.className = 'btn';
+    btn.textContent = `Buy ${info.cost}g`;
+    btn.disabled = GameState.gold < info.cost;
+
+    btn.addEventListener('click', () => {
+      const ok = buyUpgrade(GameState, info.key);
+      if (ok) {
+        renderUpgradesPanel();
+        refreshHUD();
+        tell(`Upgraded ${info.title}`);
+      } else {
+        tell('Not enough gold');
+      }
+    });
+
+    const left = document.createElement('div');
+    left.style.display = 'flex';
+    left.style.flexDirection = 'column';
+    left.appendChild(name);
+    if (info.desc) left.appendChild(small);
+
+    row.appendChild(left);
+    row.appendChild(btn);
+    root.appendChild(row);
   });
-  el.appendChild(frag);
 }
 
-// --- Upgrades rendering (optional; guarded) ---
-function renderUpgrades(gs) {
-  const box = $('upgrades');
-  if (!box) return;
+// ---------- Canvas Edge Build Mode ----------
+function wireCanvasEdgeBuild() {
+  const cv = hud.canvas;
+  if (!cv) return;
 
-  if (typeof upgrades.renderUpgrades === 'function') {
-    upgrades.renderUpgrades(gs, box, { toast });
-    return;
-  }
+  // Prevent default context menu for right-click remove
+  cv.addEventListener('contextmenu', (e) => e.preventDefault());
 
-  // Otherwise, show a minimal hint so the panel isn't empty
-  box.innerHTML = `<div style="opacity:.8;font-size:12px">Upgrades UI provided by <code>upgrades.js</code>.</div>`;
+  cv.addEventListener('mousemove', (e) => {
+    const hover = edgeHitTest(cv, e);
+    GameState.uiHoverEdge = hover; // for render highlight
+    // Optional tiny tooltip via msg:
+    if (hover) {
+      const hasWall = edgeHasWall(GameState, hover.x, hover.y, hover.side);
+      const verb = hasWall ? 'Remove' : 'Place';
+      const cost = hasWall ? `(+${COSTS.edgeRefund} bones)` : `(${COSTS.edgeWall} bones)`;
+      tell(`${verb} wall: (${hover.x},${hover.y}) ${hover.side} ${cost}`, '#9cf');
+    } else if (hud.msg && hud.msg.textContent && hud.msg.textContent.startsWith('Place wall:')) {
+      // clear soft msg
+      hud.msg.textContent = '';
+    }
+  });
+
+  cv.addEventListener('mouseleave', () => {
+    GameState.uiHoverEdge = null;
+  });
+
+  cv.addEventListener('mousedown', (e) => {
+    const hover = edgeHitTest(cv, e);
+    if (!hover) return;
+
+    const place = (e.button === 0);         // left = place
+    const remove = (e.button === 2);        // right = remove
+    if (!place && !remove) return;
+
+    const hasWall = edgeHasWall(GameState, hover.x, hover.y, hover.side);
+
+    // If attempting to place but it already exists, ignore; likewise remove if none
+    if (place && hasWall) return;
+    if (remove && !hasWall) return;
+
+    const res = toggleEdge(GameState, hover.x, hover.y, hover.side, place);
+    if (!res.ok) {
+      tell(`❌ ${res.reason || 'Action blocked'}`, '#f88');
+      return;
+    }
+
+    refreshHUD();
+    const verb = place ? 'Placed' : 'Removed';
+    const delta = place ? `(-${COSTS.edgeWall})` : `(+${COSTS.edgeRefund})`;
+    tell(`${verb} wall ${delta}`, place ? '#8f8' : '#8f8');
+  });
 }
 
-function prettyName(type) {
-  if (!type) return 'Unknown';
-  const raw = String(type);
+// Returns {x,y,side} or null
+function edgeHitTest(canvas, evt) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const mx = (evt.clientX - rect.left) * scaleX;
+  const my = (evt.clientY - rect.top) * scaleY;
 
-  // Boss prettifier: 'boss:Lancelot' → 'Lancelot', 'boss:Arthur' → 'King Arthur'
-  if (raw.startsWith('boss:')) {
-    const name = raw.split(':')[1] || 'Boss';
-    return name === 'Arthur' ? 'King Arthur' : name;
-  }
+  const t = GRID.tile;
+  const cx = Math.floor(mx / t);
+  const cy = Math.floor(my / t);
+  if (!inBounds(cx, cy)) return null;
 
-  // Simple prettifier: "kingsguard" -> "Kingsguard", "squire_fast" -> "Squire Fast"
-  return raw
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (m) => m.toUpperCase());
+  const lx = mx - cx * t; // local x within tile
+  const ly = my - cy * t; // local y within tile
+  const edgePad = Math.max(4, Math.floor(t * 0.12)); // clickable region thickness
+
+  // Determine closest edge if within pad
+  let side = null, dist = Infinity;
+
+  // Top (N)
+  const dN = ly;
+  if (dN <= edgePad && dN < dist) { side = 'N'; dist = dN; }
+
+  // Bottom (S)
+  const dS = t - ly;
+  if (dS <= edgePad && dS < dist) { side = 'S'; dist = dS; }
+
+  // Left (W)
+  const dW = lx;
+  if (dW <= edgePad && dW < dist) { side = 'W'; dist = dW; }
+
+  // Right (E)
+  const dE = t - lx;
+  if (dE <= edgePad && dE < dist) { side = 'E'; dist = dE; }
+
+  if (!side) return null;
+  return { x: cx, y: cy, side };
 }
+
+function edgeHasWall(gs, x, y, side) {
+  const rec = ensureCell(gs, x, y);
+  return !!rec?.[side];
+}
+
+// Optional: expose a tiny API for main/render to update HUD externally
+export const UI = { refreshHUD, tell };
