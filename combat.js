@@ -133,6 +133,11 @@ export function startWave(gs = state.GameState) {
   R.waveActive = true;
 }
 
+// At top-level, alongside the other exports:
+export function previewWaveList(wave) {
+  return planWaveList(wave).slice(); // shallow copy
+}
+
 export const spawnNextWave = startWave;
 export const spawnWave = startWave;
 export { update as tick, update as step }; // compat aliases
