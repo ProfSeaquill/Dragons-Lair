@@ -1,123 +1,120 @@
-// main.js — Dragon’s Lair bootstrap & game loop (fixed wave increment + 101-wave cap)
+// main.js — boot, game loop, UI wiring, and safe combat integration
 
-import * as state from './state.js';
-import * as ui from './ui.js';
+import { GameState } from './state.js';
+import { bindUI, UI } from './ui.js';
 import * as render from './render.js';
-import * as pathing from './pathing.js';
-import * as combat from './combat.js';
-import { getDragonStats, MAX_WAVES } from './state.js';
+import {
+  recomputePath,
+  stepEnemyInterpolated,
+  updateEnemyDistance,
+} from './pathing.js';
 
-let gs = null;
-let ctx = null;
-let rafId = 0;
-let lastTs = 0;
+// ---------- Canvas / Context ----------
+const canvas = document.getElementById('game');
+if (!canvas) throw new Error('Canvas #game not found');
+const ctx = canvas.getContext('2d');
 
+// ---------- Combat (optional, dynamic) ----------
+let Combat = {};
+(async () => {
+  try {
+    Combat = await import('./combat.js');
+  } catch (e) {
+    console.warn('[main] combat.js not found or failed to load; running without it.', e);
+  }
+})();
+
+// ---------- Boot ----------
 function boot() {
-  const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('game'));
-  if (!canvas) { console.error('[DL] <canvas id="game"> not found'); return; }
-  ctx = canvas.getContext('2d');
-  if (!ctx) { console.error('[DL] 2D context not available'); return; }
+  // Load previous save if UI triggers it; we still need initial distance field
+  recomputePath(GameState);
 
-  gs = (state.initState ? state.initState() : (state.GameState ? state.GameState() : null));
-  if (!gs) gs = { mode: 'build', wave: 1, gold: 0, bones: 0, autoStart: false, enemies: [], path: [] };
+  // Wire UI (buttons, edge build mode, upgrades)
+  bindUI();
 
-  if (gs.mode !== 'combat') gs.mode = 'build';
-  if (typeof gs.autoStart !== 'boolean') gs.autoStart = false;
+  // Listen for UI start signal (keeps main decoupled from UI internals)
+  window.addEventListener('dl-start-wave', () => {
+    startWave();
+  });
 
-  pathing.recomputePath?.(gs);
-
-  ui.bindUI?.(gs);
-  ui.previewNextWave?.(gs);
-  ui.renderUI?.(gs);
-
-  // Button wiring (no inline fallback needed)
-  document.getElementById('startBtn')?.addEventListener('click', onStartWave);
-
-  lastTs = performance.now();
-  rafId = requestAnimationFrame(tick);
-
-  window.__GS__ = gs;
-  console.log('[DL] boot complete');
-
-  try { window.dispatchEvent(new CustomEvent('dl-boot-ok')); } catch (_){}
-}
-
-function onStartWave() {
-  if (!gs || gs.mode !== 'build') return;
-  startWave();
+  // Kick off loop
+  lastT = performance.now();
+  requestAnimationFrame(tick);
+  // Tell boot overlay we're good
+  window.dispatchEvent(new CustomEvent('dl-boot-ok'));
 }
 
 function startWave() {
-  // Block starting beyond the campaign cap
-  if ((gs.wave | 0) > MAX_WAVES) {
-    ui.toast?.('🏁 Run complete — you already beat King Arthur!');
-    return;
+  // Prefer explicit Combat.startWave, then fall back to spawnNextWave if present.
+  if (typeof Combat.startWave === 'function') {
+    Combat.startWave(GameState);
+  } else if (typeof Combat.spawnNextWave === 'function') {
+    Combat.spawnNextWave(GameState);
+  } else if (typeof Combat.spawnWave === 'function') {
+    Combat.spawnWave(GameState);
   }
-
-  if (!gs.path || !gs.path.length) {
-    pathing.recomputePath?.(gs);
-    if (!gs.path || !gs.path.length) { console.warn('[DL] startWave blocked: no valid path'); return; }
-  }
-
-  // 🔧 reset end-of-wave flags for the new wave
-  gs._endedReason = null;
-  gs._endedThisWave = false;
-
-  combat.makeWave?.(gs);
-  gs.mode = 'combat';
-  gs._endedReason = null;
-  gs._endedThisWave = false;
-  gs.justStartedAt = performance.now();
-  ui.renderUI?.(gs);
+  waveJustStartedAt = performance.now();
 }
 
+// ---------- Loop ----------
+let lastT = 0;
+let waveJustStartedAt = 0;
 
-function endWave() {
-  if (gs._endedThisWave) return;
-  gs._endedThisWave = true;
+function tick(now) {
+  const dtMs = Math.max(0, now - lastT);
+  lastT = now;
+  const dt = dtMs / 1000;
 
-  const reason = gs._endedReason || (gs.dragon?.hp <= 0 ? 'defeat' : 'victory');
+  update(dt);
+  render.draw(ctx, GameState);
 
-  if (reason === 'victory') {
-    // No auto-heal anymore. Player must heal using bones in build mode.
-    // Advance wave unless we finished the campaign (handled earlier in your patched main.js).
-    gs.wave = (gs.wave | 0) + 1;
-    ui.toast?.(`Wave cleared!`, 900);
-  } else {
-    gs.gameOver = true;
-    gs.autoStart = false;
-    ui.toast?.('💀 Game Over');
-  }
-
-  gs.mode = 'build';
-  gs.lastWaveEndedAt = performance.now();
-
-  ui.previewNextWave?.(gs);
-  ui.renderUI?.(gs);
+  requestAnimationFrame(tick);
 }
 
+function update(dt) {
+  // 1) Let Combat drive game logic if available
+  // Try common names in order; they are all optional.
+  if (typeof Combat.update === 'function') {
+    Combat.update(GameState, dt);
+  } else if (typeof Combat.tick === 'function') {
+    Combat.tick(GameState, dt);
+  } else if (typeof Combat.step === 'function') {
+    Combat.step(GameState, dt);
+  }
 
-function tick(ts) {
-  const dt = Math.min(0.05, (ts - lastTs) / 1000);
-  lastTs = ts;
+  // 2) Fallback enemy movement using maze-walk interpolation
+  // Skip if combat is already advancing pixel positions for enemies.
+  const enemies = GameState.enemies || [];
+  for (const e of enemies) {
+    // If combat is managing e (explicit flag), skip
+    if (e.updateByCombat) continue;
 
-  if (gs.mode === 'combat') {
-    let finished = false;
-    try { finished = !!combat.tickCombat?.(dt, gs); } catch (e) { console.error('[DL] tickCombat error:', e); }
-    if (finished) endWave();
-  } else {
-    if (gs.autoStart && !gs.gameOver) {
-      const now = performance.now();
-      const guard = (!gs.justStartedAt || now - gs.justStartedAt > 200) &&
-                    (!gs.lastWaveEndedAt || now - gs.lastWaveEndedAt > 200);
-      if (guard) startWave();
+    // If the enemy has cell coords (cx,cy) and a speed, we can move it smoothly.
+    // If speed isn't set, treat 2.5 tiles/sec as a sane default for grunts.
+    if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
+      if (typeof e.pxPerSec !== 'number' && typeof e.speed !== 'number') {
+        e.speed = e.speed || 2.5;
+      }
+      stepEnemyInterpolated(GameState, e, dt);
+      updateEnemyDistance(GameState, e);
     }
   }
 
-  render.draw?.(ctx, gs);
-  ui.renderUI?.(gs);
-  rafId = requestAnimationFrame(tick);
+  // 3) Auto-start waves if enabled and field is clear
+  if (GameState.autoStart) {
+    const anyAlive = enemies && enemies.length > 0;
+    // Small cooldown after starting a wave to avoid immediate re-trigger
+    const cool = (performance.now() - waveJustStartedAt) < 600;
+    if (!anyAlive && !cool) {
+      startWave();
+    }
+  }
+
+  // 4) Keep HUD in sync if gold/bones/hp might change outside UI handlers
+  if (UI && typeof UI.refreshHUD === 'function') {
+    UI.refreshHUD();
+  }
 }
 
-if (import.meta?.hot?.dispose) import.meta.hot.dispose(() => cancelAnimationFrame(rafId));
+// ---------- Go ----------
 boot();
