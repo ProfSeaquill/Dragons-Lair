@@ -19,6 +19,8 @@
       .uRow { display:flex; align-items:center; justify-content:space-between; margin:6px 0; gap:8px; }
       .uRow small { opacity:.8; }
       .gridHelp { font-size:12px; opacity:.8; }
+      /* optional: make focus rings visible for a11y */
+      .btn:focus, input:focus { outline: 2px solid #6aa2ff; outline-offset: 2px; }
     </style>
   </head>
   <body>
@@ -39,8 +41,7 @@
       <div id="leftCol">
         <canvas id="game" width="768" height="512"></canvas>
         <div class="panel gridHelp">
-          Build Mode: Click empty tiles to add walls (10 bones). Walls cannot fully block the path.
-          Right-click a wall to remove (refund 5 bones).
+          Build Mode: Click a TILE EDGE to add a wall (10 bones). Right-click an edge wall to remove (refund 5). Walls cannot fully block entry ↔ exit.
         </div>
       </div>
       <div id="rightCol">
@@ -55,36 +56,35 @@
       </div>
     </div>
 
-<div id="bootStatus" style="position:fixed;left:8px;bottom:8px;background:#300;padding:6px 10px;border:1px solid #933;border-radius:8px;font:12px/1.2 system-ui;display:none;z-index:99999"></div>
-<script>
-  (function () {
-    var box = document.getElementById('bootStatus');
-    function show(msg){ if(!box) return; box.style.display='block'; box.textContent=String(msg); }
-    window.addEventListener('error', function (e) { show('Error: ' + (e.message || e.error)); });
-    window.addEventListener('unhandledrejection', function (e) { show('Promise: ' + (e.reason && e.reason.message || e.reason)); });
-    window.addEventListener('dl-boot-ok', function () { if (box) box.style.display = 'none'; });
-  })();
-</script>
-    
-    <!-- Let main.js own all wiring; no inline GameState or custom events here -->
-    <script type="module" src="./main.js?"></script>
-  
-  <script>
-  window.addEventListener("error", (event) => {
-    const msg = document.getElementById("msg");
-    if (msg) {
-      msg.textContent = "⚠️ " + event.message;
-      msg.style.color = "orange";
-    }
-  });
+    <div id="bootStatus" style="position:fixed;left:8px;bottom:8px;background:#300;padding:6px 10px;border:1px solid #933;border-radius:8px;font:12px/1.2 system-ui;display:none;z-index:99999"></div>
+    <script>
+      (function () {
+        var box = document.getElementById('bootStatus');
+        function show(msg){ if(!box) return; box.style.display='block'; box.textContent=String(msg); }
+        window.addEventListener('error', function (e) { show('Error: ' + (e.message || e.error)); });
+        window.addEventListener('unhandledrejection', function (e) { show('Promise: ' + (e.reason && e.reason.message || e.reason)); });
+        window.addEventListener('dl-boot-ok', function () { if (box) box.style.display = 'none'; });
+      })();
+    </script>
 
-  window.addEventListener("unhandledrejection", (event) => {
-    const msg = document.getElementById("msg");
-    if (msg) {
-      msg.textContent = "⚠️ Promise error: " + (event.reason?.message || event.reason);
-      msg.style.color = "orange";
-    }
-  });
-</script>
+    <!-- Let main.js own all wiring; no inline GameState or custom events here -->
+    <script type="module" src="./main.js"></script>
+
+    <script>
+      window.addEventListener("error", (event) => {
+        const msg = document.getElementById("msg");
+        if (msg) {
+          msg.textContent = "⚠️ " + event.message;
+          msg.style.color = "orange";
+        }
+      });
+      window.addEventListener("unhandledrejection", (event) => {
+        const msg = document.getElementById("msg");
+        if (msg) {
+          msg.textContent = "⚠️ Promise error: " + (event.reason?.message || event.reason);
+          msg.style.color = "orange";
+        }
+      });
+    </script>
   </body>
 </html>
