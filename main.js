@@ -1,6 +1,6 @@
 // main.js — boot, game loop, UI wiring, and safe combat integration
-
-import { GameState } from './state.js';
+import * as state from './state.js';
+// ...and use state.GameState in place of GameState
 import { bindUI, UI } from './ui.js';
 import * as render from './render.js';
 import {
