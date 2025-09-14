@@ -1,120 +1,228 @@
-// main.js — boot, game loop, UI wiring, and safe combat integration
+// combat.js — wave spawner + basic combat loop for maze-walk pathing
 
-import { GameState } from './state.js';
-import { bindUI, UI } from './ui.js';
-import * as render from './render.js';
-import {
-  recomputePath,
-  stepEnemyInterpolated,
-  updateEnemyDistance,
-} from './pathing.js';
+import { GameState, GRID, ENTRY, EXIT, getDragonStats } from './state.js';
+import { updateEnemyDistance } from './pathing.js';
 
-// ---------- Canvas / Context ----------
-const canvas = document.getElementById('game');
-if (!canvas) throw new Error('Canvas #game not found');
-const ctx = canvas.getContext('2d');
+// ============================
+// Tunables / simple scaling
+// ============================
 
-// ---------- Combat (optional, dynamic) ----------
-let Combat = {};
-(async () => {
-  try {
-    Combat = await import('./combat.js');
-  } catch (e) {
-    console.warn('[main] combat.js not found or failed to load; running without it.', e);
-  }
-})();
+const SCALING = {
+  baseHP: 24,             // grunt HP at wave 1
+  hpGrowth: 1.18,         // per-wave multiplicative growth
+  baseSpeed: 2.4,         // tiles/sec at wave 1
+  speedGrowth: 1.02,      // per-wave multiplicative growth
+  baseCount: 6,           // enemies at wave 1
+  countGrowth: 1.18,      // per-wave multiplicative growth
+  spawnGap: 0.6,          // seconds between spawns
+  bossEvery: 5,           // boss wave period
+  bossHpMult: 10,         // boss HP multiplier
+  bossSpeedMult: 0.85,    // bosses move a bit slower
+  goldPerKill: 5,
+  bonesPerKill: 1,
+  contactDamage: 10,      // damage to dragon when enemy reaches EXIT cell
+};
 
-// ---------- Boot ----------
-function boot() {
-  // Load previous save if UI triggers it; we still need initial distance field
-  recomputePath(GameState);
+// ============================
+// Module-local runtime state
+// ============================
 
-  // Wire UI (buttons, edge build mode, upgrades)
-  bindUI();
+const R = {
+  spawning: false,
+  toSpawn: 0,
+  spawnTimer: 0,
+  waveActive: false,
+};
 
-  // Listen for UI start signal (keeps main decoupled from UI internals)
-  window.addEventListener('dl-start-wave', () => {
-    startWave();
-  });
+// ============================
+// Public API
+// ============================
 
-  // Kick off loop
-  lastT = performance.now();
-  requestAnimationFrame(tick);
-  // Tell boot overlay we're good
-  window.dispatchEvent(new CustomEvent('dl-boot-ok'));
+export function startWave(gs = GameState) {
+  if (R.waveActive) return;
+  const n = Math.round(SCALING.baseCount * Math.pow(SCALING.countGrowth, (gs.wave - 1)));
+  R.toSpawn = Math.max(1, n);
+  R.spawnTimer = 0;
+  R.spawning = true;
+  R.waveActive = true;
 }
 
-function startWave() {
-  // Prefer explicit Combat.startWave, then fall back to spawnNextWave if present.
-  if (typeof Combat.startWave === 'function') {
-    Combat.startWave(GameState);
-  } else if (typeof Combat.spawnNextWave === 'function') {
-    Combat.spawnNextWave(GameState);
-  } else if (typeof Combat.spawnWave === 'function') {
-    Combat.spawnWave(GameState);
-  }
-  waveJustStartedAt = performance.now();
-}
+export const spawnNextWave = startWave; // alias for compatibility
+export const spawnWave = startWave;     // alias for compatibility
 
-// ---------- Loop ----------
-let lastT = 0;
-let waveJustStartedAt = 0;
+export function update(gs = GameState, dt) {
+  const enemies = gs.enemies || (gs.enemies = []);
 
-function tick(now) {
-  const dtMs = Math.max(0, now - lastT);
-  lastT = now;
-  const dt = dtMs / 1000;
-
-  update(dt);
-  render.draw(ctx, GameState);
-
-  requestAnimationFrame(tick);
-}
-
-function update(dt) {
-  // 1) Let Combat drive game logic if available
-  // Try common names in order; they are all optional.
-  if (typeof Combat.update === 'function') {
-    Combat.update(GameState, dt);
-  } else if (typeof Combat.tick === 'function') {
-    Combat.tick(GameState, dt);
-  } else if (typeof Combat.step === 'function') {
-    Combat.step(GameState, dt);
+  // 1) Spawn logic
+  if (R.spawning && R.toSpawn > 0) {
+    R.spawnTimer -= dt;
+    if (R.spawnTimer <= 0) {
+      spawnOne(gs);
+      R.toSpawn--;
+      R.spawnTimer = SCALING.spawnGap;
+    }
   }
 
-  // 2) Fallback enemy movement using maze-walk interpolation
-  // Skip if combat is already advancing pixel positions for enemies.
-  const enemies = GameState.enemies || [];
+  // 2) Enemy bookkeeping (reaching dragon, burning, deaths)
+  const ds = getDragonStats(gs);
+  const exitCx = EXIT.x, exitCy = EXIT.y;
+
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+
+    // Keep distance cache fresh (used by shielding/ordering if you add it)
+    updateEnemyDistance(gs, e);
+
+    // Resolve burn DoT
+    if (e.burnLeft > 0 && e.burnDps > 0) {
+      const tick = Math.min(dt, e.burnLeft);
+      e.burnLeft -= tick;
+      e.hp -= e.burnDps * tick;
+    }
+
+    // Check contact with dragon (enemy reaches the EXIT cell)
+    if (e.cx === exitCx && e.cy === exitCy) {
+      gs.dragonHP = Math.max(0, gs.dragonHP - SCALING.contactDamage);
+      // remove this enemy
+      enemies.splice(i, 1);
+      continue;
+    }
+
+    // Death cleanup
+    if (e.hp <= 0) {
+      gs.gold = (gs.gold | 0) + SCALING.goldPerKill;
+      gs.bones = (gs.bones | 0) + SCALING.bonesPerKill;
+      enemies.splice(i, 1);
+      continue;
+    }
+  }
+
+  // 3) Dragon breath (auto-aim at nearest enemy)
+  if (enemies.length > 0) {
+    dragonBreathTick(gs, dt, ds);
+  }
+
+  // 4) Wave completion -> advance wave (and maybe auto-start via main.js)
+  if (R.waveActive && R.toSpawn <= 0 && enemies.length === 0) {
+    R.waveActive = false;
+    R.spawning = false;
+    gs.wave = (gs.wave | 0) + 1;
+  }
+}
+
+// ============================
+// Spawning
+// ============================
+
+function spawnOne(gs) {
+  const wave = gs.wave | 0;
+  const isBoss = (wave % SCALING.bossEvery === 0) && (R.toSpawn === Math.max(1, Math.round(SCALING.baseCount * Math.pow(SCALING.countGrowth, (wave - 1)))));
+
+  const hpBase = SCALING.baseHP * Math.pow(SCALING.hpGrowth, (wave - 1));
+  const speedTiles = SCALING.baseSpeed * Math.pow(SCALING.speedGrowth, (wave - 1));
+
+  const e = {
+    // Grid position & facing (spawn at ENTRY, try heading east by default)
+    cx: ENTRY.x,
+    cy: ENTRY.y,
+    dir: 'E',
+
+    // Movement speed (main.js will use pxPerSec or speed in tiles/sec)
+    speed: (isBoss ? speedTiles * SCALING.bossSpeedMult : speedTiles),
+    pxPerSec: undefined,   // let main derive from `speed`
+
+    // Stats
+    hp: Math.round(isBoss ? hpBase * SCALING.bossHpMult : hpBase),
+    shield: false,
+    miniboss: isBoss,
+
+    // Status
+    burnLeft: 0,
+    burnDps: 0,
+
+    // Integration flags
+    updateByCombat: false, // let main.js move via pathing interpolation
+  };
+
+  gs.enemies.push(e);
+}
+
+// ============================
+// Dragon breath (auto target)
+// ============================
+
+let fireCooldown = 0;
+
+function dragonBreathTick(gs, dt, ds) {
+  fireCooldown -= dt;
+  const firePeriod = 1 / Math.max(0.01, ds.fireRate);
+  if (fireCooldown > 0) return;
+
+  const enemies = gs.enemies;
+  if (!enemies || enemies.length === 0) return;
+
+  const dragon = {
+    x: EXIT.x * GRID.tile + GRID.tile / 2,
+    y: EXIT.y * GRID.tile + GRID.tile / 2,
+  };
+
+  // Choose target = nearest enemy by pixel distance to dragon
+  let target = null, bestD2 = Infinity, targetPos = null;
   for (const e of enemies) {
-    // If combat is managing e (explicit flag), skip
-    if (e.updateByCombat) continue;
+    const p = enemyPixelCenter(e);
+    const dx = p.x - dragon.x, dy = p.y - dragon.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) { bestD2 = d2; target = e; targetPos = p; }
+  }
+  if (!target) return;
 
-    // If the enemy has cell coords (cx,cy) and a speed, we can move it smoothly.
-    // If speed isn't set, treat 2.5 tiles/sec as a sane default for grunts.
-    if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
-      if (typeof e.pxPerSec !== 'number' && typeof e.speed !== 'number') {
-        e.speed = e.speed || 2.5;
+  // Aim vector
+  const aim = { x: targetPos.x - dragon.x, y: targetPos.y - dragon.y };
+  const len = Math.hypot(aim.x, aim.y) || 1;
+  const ux = aim.x / len, uy = aim.y / len;
+
+  // Cone parameters
+  const range = ds.breathRange;
+  const halfWidth = ds.breathWidth * 0.5;
+  const power = ds.breathPower;
+
+  // Apply damage to enemies within the cone
+  for (const e of enemies) {
+    const p = enemyPixelCenter(e);
+    const rx = p.x - dragon.x, ry = p.y - dragon.y;
+    const along = rx * ux + ry * uy;
+    if (along < 0 || along > range) continue;
+
+    // distance to beam centerline
+    const px = rx - ux * along;
+    const py = ry - uy * along;
+    const off = Math.hypot(px, py);
+
+    if (off <= halfWidth) {
+      // Shield rule could go here; for now, straight damage
+      e.hp -= power;
+
+      // Optional burn application
+      if (ds.burnDPS > 0 && ds.burnDuration > 0) {
+        e.burnDps = ds.burnDPS;
+        e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
       }
-      stepEnemyInterpolated(GameState, e, dt);
-      updateEnemyDistance(GameState, e);
     }
   }
 
-  // 3) Auto-start waves if enabled and field is clear
-  if (GameState.autoStart) {
-    const anyAlive = enemies && enemies.length > 0;
-    // Small cooldown after starting a wave to avoid immediate re-trigger
-    const cool = (performance.now() - waveJustStartedAt) < 600;
-    if (!anyAlive && !cool) {
-      startWave();
-    }
-  }
-
-  // 4) Keep HUD in sync if gold/bones/hp might change outside UI handlers
-  if (UI && typeof UI.refreshHUD === 'function') {
-    UI.refreshHUD();
-  }
+  fireCooldown = firePeriod;
 }
 
-// ---------- Go ----------
-boot();
+// ============================
+// Helpers
+// ============================
+
+function enemyPixelCenter(e) {
+  if (typeof e.x === 'number' && typeof e.y === 'number') {
+    return { x: e.x, y: e.y };
+  }
+  return {
+    x: e.cx * GRID.tile + GRID.tile / 2,
+    y: e.cy * GRID.tile + GRID.tile / 2,
+  };
+}
