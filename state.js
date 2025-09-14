@@ -1,250 +1,276 @@
-// state.js — constants, GameState factory, persistence, and derived stats (UNLIMITED UPGRADES, BONES HEAL)
+// state.js — per-edge wall model + core game state + helpers
 
-// --- Grid & economy constants ---
+// ===== Grid & Entry/Exit =====
 export const GRID = {
-  W: 24,
-  H: 16,
-  TILE: 32,
+  cols: 24,
+  rows: 16,
+  tile: 32,
 };
 
-export const ECON = {
-  WALL_COST: 10,
-  WALL_REFUND: 5,
-  BURN_DURATION: 3.0, // seconds DoT lasts
-  HEAL_PER_BONE: 1,   // << 1 HP per bone
+// Entry at left mid, Exit at right mid (can be adjusted in pathing later)
+export const ENTRY = { x: 0, y: Math.floor(GRID.rows / 2) };
+export const EXIT  = { x: GRID.cols - 1, y: Math.floor(GRID.rows / 2) };
+
+// ===== Economy / Costs (kept minimal; upgrades can extend) =====
+export const COSTS = {
+  edgeWall: 10,     // bones to place an edge wall
+  edgeRefund: 5,    // bones refunded on removal
+  healPerBone: 1,   // 1 HP per 1 bone
 };
 
-// Campaign cap for victory gate
-export const MAX_WAVES = 101;
-
-// --- Dragon defaults ---
-export const DRAGON_DEFAULTS = {
-  clawCooldown: 5,
-  wingCooldown: 30,
-  hpMax: 100,
+// ===== Base Dragon Stats (lightweight; upgraded via upgrades in getDragonStats) =====
+const DRAGON_BASE = {
+  maxHP: 100,
+  breathPower: 10,
+  breathRange: 6 * GRID.tile,
+  breathWidth: GRID.tile * 0.9,
+  burnDPS: 0,           // can be modified via upgrades
+  burnDuration: 0,      // seconds
+  fireRate: 1.0,        // shots/sec
 };
 
-// --- Unlimited Upgrades: cost/effect formulas ---
-export const UPGRADE_CONFIG = {
-  power: {  baseCost: 20, costGrowth: 1.20, baseEffect: 12,  effectGrowth: 1.4 },
-  speed: {  baseCost: 25, costGrowth: 1.20, baseEffect: 0.7, effectGrowth: 1.1 }, // breaths/sec
-  reach: {  baseCost: 35, costGrowth: 1.20, baseEffect: 10,  stepPerLevel: 3 },    // tiles
-  burn:  {  baseCost: 25, costGrowth: 1.2, baseEffect: 1,   effectGrowth: 1.15 },
-  claws: {  baseCost: 20, costGrowth: 1.5, baseEffect: 30,  effectGrowth: 1.20 },
-  wings: {  baseCost: 40, costGrowth: 1.5, baseEffect: 1,   stepPerLevel: 2 },
-  // NOTE: regen removed
+// ===== Game State =====
+// We export a *single* mutable object so other modules can import & mutate it.
+export const GameState = {
+  version: 2,           // bump when migrating saves
+  wave: 1,
+  gold: 0,
+  bones: 0,
+  dragonHP: DRAGON_BASE.maxHP,
+  autoStart: false,
+
+  // Simulation containers (kept generic so other modules won’t crash)
+  enemies: [],
+  projectiles: [],
+  effects: [],
+
+  // Upgrades bag (key -> level)
+  upgrades: {},
+
+  // New: per-cell edge walls (true = wall present on that side)
+  // Map key = "x,y" -> {N:boolean,E:boolean,S:boolean,W:boolean}
+  cellWalls: new Map(),
+
+  // New: scalar field for pathing/ordering (BFS distance from ENTRY)
+  distFromEntry: makeScalarField(GRID.cols, GRID.rows, Infinity),
+
+  // RNG / misc hooks
+  seed: 0,
 };
 
-// Compute the price for the NEXT level (given current level)
-export function upgradeCost(kind, level) {
-  const cfg = UPGRADE_CONFIG[kind];
-  if (!cfg) return Number.POSITIVE_INFINITY;
-  return Math.floor(cfg.baseCost * Math.pow(cfg.costGrowth, level));
+// ===== Utility: Field allocation =====
+export function makeScalarField(w, h, fill = 0) {
+  const a = new Array(h);
+  for (let y = 0; y < h; y++) {
+    const row = new Array(w);
+    for (let x = 0; x < w; x++) row[x] = fill;
+    a[y] = row;
+  }
+  return a;
 }
 
-// Convenience for UI: price using gs.upgrades
-export function nextUpgradeCost(kind, upgrades) {
-  const lvl = (upgrades && upgrades[kind]) | 0;
-  return upgradeCost(kind, lvl);
+// ===== Helpers: keys, bounds =====
+export const tileKey = (x, y) => `${x},${y}`;
+
+export function inBounds(x, y) {
+  return x >= 0 && x < GRID.cols && y >= 0 && y < GRID.rows;
 }
 
-// --- Helpers ---
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-
-// --- GameState factory ---
-export function initState() {
-  const gs = {
-    mode: 'build',
-    wave: 1,
-
-    gold: 0,
-    bones: 0,
-
-    dragon: {
-      hpMax: DRAGON_DEFAULTS.hpMax,
-      hp: DRAGON_DEFAULTS.hpMax,
-    },
-
-    fx: { claw: [], wing: [] },
-    _time: 0,
-    _lastClawFx: 0,
-
-    gameOver: false,
-    _endedReason: null,
-    _endedThisWave: false,
-
-    upgrades: {
-      power: 0,
-      reach: 0,
-      speed: 0,
-      burn: 0,
-      claws: 0,
-      wings: 0,
-      // regen removed
-    },
-
-    walls: new Set(),
-    path: [],
-
-    enemies: [],
-    autoStart: false,
-    justStartedAt: 0,
-    lastWaveEndedAt: 0,
-  };
-  return gs;
+// ===== Per-Cell Edge Accessors =====
+/**
+ * Ensure a cell wall record exists and return it.
+ * Initializes as all-open (no walls) when first created.
+ */
+export function ensureCell(gs, x, y) {
+  const k = tileKey(x, y);
+  let rec = gs.cellWalls.get(k);
+  if (!rec) {
+    rec = { N: false, E: false, S: false, W: false };
+    gs.cellWalls.set(k, rec);
+  }
+  return rec;
 }
 
-// --- Derived stats from upgrades ---
+/**
+ * Checks if movement from (x,y) to a given side is open (no wall and in-bounds).
+ * side ∈ {'N','E','S','W'}
+ */
+export function isOpen(gs, x, y, side) {
+  if (!inBounds(x, y)) return false;
+  const here = ensureCell(gs, x, y);
+
+  // Local edge must be open
+  if (here[side] === true) return false;
+
+  // Neighbor must exist and its opposite edge must be open
+  let nx = x, ny = y, opp;
+  switch (side) {
+    case 'N': ny = y - 1; opp = 'S'; break;
+    case 'S': ny = y + 1; opp = 'N'; break;
+    case 'E': nx = x + 1; opp = 'W'; break;
+    case 'W': nx = x - 1; opp = 'E'; break;
+    default: return false;
+  }
+  if (!inBounds(nx, ny)) return false;
+  const there = ensureCell(gs, nx, ny);
+  return there[opp] === false;
+}
+
+/**
+ * Returns neighbors you can step into via open edges.
+ * Each entry: { x, y, side } meaning “from (cx,cy) move through 'side' into this neighbor”.
+ */
+export function neighborsByEdges(gs, cx, cy) {
+  const out = [];
+  if (isOpen(gs, cx, cy, 'N')) out.push({ x: cx, y: cy - 1, side: 'N' });
+  if (isOpen(gs, cx, cy, 'E')) out.push({ x: cx + 1, y: cy, side: 'E' });
+  if (isOpen(gs, cx, cy, 'S')) out.push({ x: cx, y: cy + 1, side: 'S' });
+  if (isOpen(gs, cx, cy, 'W')) out.push({ x: cx - 1, y: cy, side: 'W' });
+  return out;
+}
+
+/**
+ * Symmetrically set or clear an edge wall between (x,y) and its neighbor in 'side'.
+ * Does *not* perform connectivity checks — call your pathing guard before using.
+ */
+export function setEdgeWall(gs, x, y, side, hasWall) {
+  if (!inBounds(x, y)) return false;
+  const here = ensureCell(gs, x, y);
+  let nx = x, ny = y, opp;
+  switch (side) {
+    case 'N': ny = y - 1; opp = 'S'; break;
+    case 'S': ny = y + 1; opp = 'N'; break;
+    case 'E': nx = x + 1; opp = 'W'; break;
+    case 'W': nx = x - 1; opp = 'E'; break;
+    default: return false;
+  }
+  if (!inBounds(nx, ny)) return false;
+
+  const there = ensureCell(gs, nx, ny);
+  here[side] = !!hasWall;
+  there[opp] = !!hasWall;
+  return true;
+}
+
+// ===== Dragon Stats with upgrades applied =====
 export function getDragonStats(gs) {
-  const u = (gs && gs.upgrades) ? gs.upgrades : {};
-  const lv = (k) => (u[k] | 0);
-
-  const powEff  = (k, base, growth) => base * Math.pow(growth, lv(k));
-  const stepEff = (k, base, step)   => base + step * lv(k);
-
-  const power         = Math.round(powEff('power', UPGRADE_CONFIG.power.baseEffect, UPGRADE_CONFIG.power.effectGrowth));
-  const breathsPerSec = +(powEff('speed', UPGRADE_CONFIG.speed.baseEffect, UPGRADE_CONFIG.speed.effectGrowth)).toFixed(3);
-  const reachTiles    = Math.round(stepEff('reach', UPGRADE_CONFIG.reach.baseEffect, UPGRADE_CONFIG.reach.stepPerLevel));
-  const burnDps       = Math.round(powEff('burn',  UPGRADE_CONFIG.burn.baseEffect,  UPGRADE_CONFIG.burn.effectGrowth));
-  const claws         = Math.round(powEff('claws', UPGRADE_CONFIG.claws.baseEffect, UPGRADE_CONFIG.claws.effectGrowth));
-  const wings         = Math.round(stepEff('wings', UPGRADE_CONFIG.wings.baseEffect, UPGRADE_CONFIG.wings.stepPerLevel));
+  const u = gs?.upgrades || {};
+  const powMult   = 1 + 0.15 * (u.power || 0);
+  const rateMult  = 1 + 0.10 * (u.rate  || 0);
+  const rangeMult = 1 + 0.05 * (u.range || 0);
+  const burnMult  = 1 + 0.15 * (u.burn  || 0);
 
   return {
-    power,
-    reachTiles,
-    breathsPerSec,
-    burnDps,
-    burnDuration: ECON.BURN_DURATION,
-    claws,
-    wings,
-    // regen removed
-    clawCooldown: DRAGON_DEFAULTS.clawCooldown,
-    wingCooldown: DRAGON_DEFAULTS.wingCooldown,
+    maxHP: DRAGON_BASE.maxHP + 10 * (u.hp || 0),
+    breathPower: DRAGON_BASE.breathPower * powMult,
+    breathRange: DRAGON_BASE.breathRange * rangeMult,
+    breathWidth: DRAGON_BASE.breathWidth,
+    burnDPS: DRAGON_BASE.burnDPS * burnMult,
+    burnDuration: DRAGON_BASE.burnDuration + 0.5 * (u.burn || 0),
+    fireRate: DRAGON_BASE.fireRate * rateMult,
   };
 }
 
-// --- Healing with bones ---
-export function healWithBones(gs, maxBones = Infinity) {
-  if (!gs?.dragon) return 0;
-  const need = Math.max(0, gs.dragon.hpMax - gs.dragon.hp);
-  if (need <= 0) return 0;
-  const availableBones = gs.bones | 0;
-  const per = ECON.HEAL_PER_BONE | 0 || 1;
-  const maxByBones = Math.floor(availableBones * per);
-  const heal = Math.min(need, maxByBones, maxBones|0 === Infinity ? need : (maxBones|0));
-  if (heal <= 0) return 0;
+// ===== Saving / Loading (with migration from legacy tile-walls) =====
+const LS_KEY = 'dragons-lair-save';
 
-  // consume bones first
-  const bonesToSpend = Math.ceil(heal / per);
-  gs.bones = Math.max(0, availableBones - bonesToSpend);
-  gs.dragon.hp = Math.min(gs.dragon.hpMax, gs.dragon.hp + heal);
-  return heal;
-}
-
-// --- Currency helpers ---
-export function addGold(gs, amount) {
-  gs.gold = Math.max(0, (gs.gold|0) + (amount|0));
-}
-export function addBones(gs, amount) {
-  gs.bones = Math.max(0, (gs.bones|0) + (amount|0));
-}
-
-// --- Wall helpers ---
-export function hasWall(gs, x, y) { return gs.walls.has(key(x, y)); }
-export function placeWall(gs, x, y) { gs.walls.add(key(x, y)); }
-export function removeWall(gs, x, y) { gs.walls.delete(key(x, y)); }
-function key(x, y) { return `${x},${y}`; }
-
-// --- Persistence (localStorage) ---
-const SAVE_KEY = 'dl_save_v2b'; // bump because regen removed
-
-export function save(gs) {
+export function saveState(gs) {
+  // Serialize Map as array of [k, v]
+  const cellWallsArr = Array.from(gs.cellWalls.entries());
+  const data = {
+    version: gs.version,
+    wave: gs.wave,
+    gold: gs.gold,
+    bones: gs.bones,
+    dragonHP: gs.dragonHP,
+    autoStart: gs.autoStart,
+    upgrades: gs.upgrades,
+    seed: gs.seed,
+    cellWalls: cellWallsArr,
+    // We omit distFromEntry; recompute after load.
+  };
   try {
-    const data = {
-      wave: gs.wave|0,
-      gold: gs.gold|0,
-      bones: gs.bones|0,
-      dragon: {
-        hpMax: gs.dragon?.hpMax|0 ?? DRAGON_DEFAULTS.hpMax,
-        hp: clamp(gs.dragon?.hp|0 ?? DRAGON_DEFAULTS.hpMax, 0, gs.dragon?.hpMax|0 ?? DRAGON_DEFAULTS.hpMax),
-      },
-      upgrades: {
-        power: gs.upgrades?.power|0 ?? 0,
-        reach: gs.upgrades?.reach|0 ?? 0,
-        speed: gs.upgrades?.speed|0 ?? 0,
-        burn:  gs.upgrades?.burn|0  ?? 0,
-        claws: gs.upgrades?.claws|0 ?? 0,
-        wings: gs.upgrades?.wings|0 ?? 0,
-      },
-      walls: Array.from(gs.walls ?? []).slice(0, 5000),
-    };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
     return true;
   } catch (e) {
-    console.warn('[DL] save failed', e);
+    console.warn('saveState failed:', e);
     return false;
   }
 }
 
-export function load(gs) {
-  // Load latest; if missing, try older keys and migrate
-  const KEYS = ['dl_save_v2b', 'dl_save_v2', 'dl_save_v1'];
-  let raw = null, keyUsed = null;
-  for (const k of KEYS) { raw = localStorage.getItem(k); if (raw) { keyUsed = k; break; } }
-  if (!raw) return false;
-
+export function loadState() {
   try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
     const data = JSON.parse(raw);
 
-    gs.wave = clamp(data.wave|0 || 1, 1, 10_000);
-    gs.gold = Math.max(0, data.gold|0 || 0);
-    gs.bones = Math.max(0, data.bones|0 || 0);
+    // Shallow restore
+    GameState.wave      = data.wave ?? GameState.wave;
+    GameState.gold      = data.gold ?? GameState.gold;
+    GameState.bones     = data.bones ?? GameState.bones;
+    GameState.dragonHP  = data.dragonHP ?? GameState.dragonHP;
+    GameState.autoStart = data.autoStart ?? GameState.autoStart;
+    GameState.upgrades  = data.upgrades ?? {};
+    GameState.seed      = data.seed ?? 0;
 
-    const hpMax = clamp((data.dragon?.hpMax|0) || DRAGON_DEFAULTS.hpMax, 1, 1_000_000);
-    let hp = clamp((data.dragon?.hp|0) || hpMax, 0, hpMax);
-    gs.dragon = { hpMax, hp };
+    // Migration:
+    // v0/1 saves may have had gs.walls: Set<"x,y"> fully-blocked tiles.
+    // If present, turn those into all-four edge walls. Otherwise, load cellWalls map.
+    GameState.cellWalls = new Map();
+    if (Array.isArray(data.cellWalls)) {
+      // v2 format
+      for (const [k, v] of data.cellWalls) {
+        // sanitize
+        const rec = {
+          N: !!v?.N, E: !!v?.E, S: !!v?.S, W: !!v?.W
+        };
+        GameState.cellWalls.set(k, rec);
+      }
+    } else if (Array.isArray(data.walls)) {
+      // legacy: an array of tile keys that were fully blocked
+      for (const k of data.walls) {
+        const [sx, sy] = k.split(','); const x = +sx, y = +sy;
+        if (!inBounds(x, y)) continue;
+        setEdgeWall(GameState, x, y, 'N', true);
+        setEdgeWall(GameState, x, y, 'E', true);
+        setEdgeWall(GameState, x, y, 'S', true);
+        setEdgeWall(GameState, x, y, 'W', true);
+      }
+    }
 
-    // Upgrades: drop any legacy regen
-    const u = (data.upgrades || {});
-    gs.upgrades = {
-      power: Math.max(0, u.power|0 || 0),
-      reach: Math.max(0, u.reach|0 || 0),
-      speed: Math.max(0, u.speed|0 || 0),
-      burn:  Math.max(0, u.burn|0  || 0),
-      claws: Math.max(0, u.claws|0 || 0),
-      wings: Math.max(0, u.wings|0 || 0),
-    };
-
-    gs.walls = new Set(Array.isArray(data.walls) ? data.walls : []);
-
-    gs.mode = 'build';
-    gs.enemies = [];
-    gs.path = [];
-    gs.justStartedAt = 0;
-    gs.lastWaveEndedAt = 0;
-
-    // Re-save into new key if we loaded old format
-    if (keyUsed !== SAVE_KEY) save(gs);
+    // Fresh distance field (recomputed by pathing on boot/toggle)
+    GameState.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
 
     return true;
   } catch (e) {
-    console.warn('[DL] load failed', e);
+    console.warn('loadState failed:', e);
     return false;
   }
 }
 
-// --- Utilities ---
-export function resetProgress(gs) {
-  gs.mode = 'build';
+// ===== Convenience Reset (optional) =====
+export function resetState(gs = GameState) {
   gs.wave = 1;
   gs.gold = 0;
   gs.bones = 0;
-  gs.dragon = { hpMax: DRAGON_DEFAULTS.hpMax, hp: DRAGON_DEFAULTS.hpMax };
-  gs.upgrades = { power: 0, reach: 0, speed: 0, burn: 0, claws: 0, wings: 0 };
-  gs.walls = new Set();
-  gs.path = [];
-  gs.enemies = [];
+  gs.dragonHP = DRAGON_BASE.maxHP;
   gs.autoStart = false;
-  gs.justStartedAt = 0;
-  gs.lastWaveEndedAt = 0;
+  gs.enemies = [];
+  gs.projectiles = [];
+  gs.effects = [];
+  gs.upgrades = {};
+  gs.cellWalls = new Map();
+  gs.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
+  gs.seed = 0;
+}
+
+// ===== Econ helpers used by UI (optional, non-breaking) =====
+export function canAffordEdge(gs, place = true) {
+  return place ? gs.bones >= COSTS.edgeWall : true;
+}
+export function spendBones(gs, amt) {
+  gs.bones = Math.max(0, (gs.bones | 0) - (amt | 0));
+}
+export function refundBones(gs, amt) {
+  gs.bones = (gs.bones | 0) + (amt | 0);
 }
