@@ -1,90 +1,121 @@
-// upgrades.js — builds the Upgrades panel + purchase logic (UNLIMITED LEVELS; REGEN REMOVED)
+// upgrades.js — simple gold-based upgrades that feed into getDragonStats()
 
-import { nextUpgradeCost, UPGRADE_CONFIG } from './state.js';
+import { GameState } from './state.js';
 
-function ensureUpgrades(gs) {
-  gs.upgrades = gs.upgrades || {};
-  const u = gs.upgrades;
-  u.power = u.power | 0;
-  u.reach = u.reach | 0;
-  u.speed = u.speed | 0;
-  u.burn  = u.burn  | 0;
-  u.claws = u.claws | 0;
-  u.wings = u.wings | 0;
-  return u;
-}
-
-const ORDER = [
-  ['power', 'Power'],
-  ['speed', 'Speed'],
-  ['reach', 'Reach'],
-  ['burn',  'Burn DpS'],
-  ['claws', 'Claws'],
-  ['wings', 'Wings'],
-  // regen removed
+/**
+ * Upgrade definitions:
+ * - key:      string used in gs.upgrades[key] (level integer, default 0)
+ * - title:    display name
+ * - base:     base gold cost at level 0 -> 1
+ * - mult:     geometric cost growth per level
+ * - max:      optional hard cap (undefined = no cap)
+ * - desc(lv): optional function describing the effect at current level
+ *
+ * Effects are applied in state.getDragonStats(gs), which reads gs.upgrades.
+ */
+export const UPGRADE_DEFS = [
+  {
+    key: 'power',
+    title: 'Fire Power',
+    base: 60,
+    mult: 1.35,
+    max: 25,
+    desc: (lv) => `+15% breath damage per level (Lv ${lv})`,
+  },
+  {
+    key: 'rate',
+    title: 'Fire Rate',
+    base: 80,
+    mult: 1.35,
+    max: 20,
+    desc: (lv) => `+10% shots/sec per level (Lv ${lv})`,
+  },
+  {
+    key: 'range',
+    title: 'Flame Range',
+    base: 50,
+    mult: 1.28,
+    max: 20,
+    desc: (lv) => `+5% range per level (Lv ${lv})`,
+  },
+  {
+    key: 'burn',
+    title: 'Burn DoT',
+    base: 90,
+    mult: 1.35,
+    max: 15,
+    desc: (lv) => `+15% burn DPS & +0.5s duration per level (Lv ${lv})`,
+  },
+  {
+    key: 'hp',
+    title: 'Dragon Hearts',
+    base: 100,
+    mult: 1.45,
+    max: 30,
+    desc: (lv) => `+10 max HP per level (Lv ${lv})`,
+  },
 ];
 
-function hintFor(key) {
-  const cfg = UPGRADE_CONFIG[key] || {};
-  if ('effectGrowth' in cfg) {
-    const pct = Math.round((cfg.effectGrowth - 1) * 100);
-    return `+~${pct}%/lvl`;
+/** Utility: get current level (safe 0 default) */
+function lvl(gs, key) {
+  return Math.max(0, (gs.upgrades?.[key] | 0));
+}
+
+/** Cost function (geometric) for going from level L -> L+1 */
+function costFor(def, level) {
+  // clamp level for cost growth (no negative)
+  const L = Math.max(0, level);
+  return Math.round(def.base * Math.pow(def.mult, L));
+}
+
+/**
+ * Public: returns array of { key, title, level, cost, max, desc }
+ * for UI rendering.
+ */
+export function getUpgradeInfo(gs = GameState) {
+  return UPGRADE_DEFS.map(def => {
+    const level = lvl(gs, def.key);
+    const capped = (def.max != null) && level >= def.max;
+    return {
+      key: def.key,
+      title: def.title,
+      level,
+      cost: capped ? 'MAX' : costFor(def, level),
+      max: def.max,
+      desc: typeof def.desc === 'function' ? def.desc(level) : (def.desc || ''),
+      isMax: capped,
+    };
+  });
+}
+
+/**
+ * Public: attempt to buy upgrade by key.
+ * - Deducts gold if affordable.
+ * - Increments gs.upgrades[key].
+ * - Returns true/false.
+ */
+export function buyUpgrade(gs = GameState, key) {
+  const def = UPGRADE_DEFS.find(d => d.key === key);
+  if (!def) return false;
+
+  const level = lvl(gs, key);
+  if (def.max != null && level >= def.max) return false;
+
+  const price = costFor(def, level);
+  if ((gs.gold | 0) < price) return false;
+
+  gs.gold = (gs.gold | 0) - price;
+  gs.upgrades = gs.upgrades || {};
+  gs.upgrades[key] = level + 1;
+
+  // Optional: nudge dragonHP up when max HP increases (quality-of-life)
+  if (key === 'hp') {
+    // Let main/combat clamp to new max on next tick; or do a soft top-up:
+    // (commented out by default; uncomment if you prefer auto-heal-on-HP-up)
+    // const { getDragonStats } = await import('./state.js');  // avoid cycle
+    // const ds = getDragonStats(gs);
+    // gs.dragonHP = Math.min(ds.maxHP, gs.dragonHP + 10);
   }
-  if ('stepPerLevel' in cfg) return `+${cfg.stepPerLevel}/lvl`;
-  return '';
-}
 
-export function getUpgradeInfo(gs) {
-  ensureUpgrades(gs);
-  return ORDER.map(([key, name]) => {
-    const lvl  = gs.upgrades[key] | 0;
-    const cost = nextUpgradeCost(key, gs.upgrades);
-    return { key, name, lvl, cost, canBuy: (gs.gold|0) >= cost, atMax: false, hint: hintFor(key) };
-  });
-}
-
-export function buyUpgrade(gs, key) {
-  ensureUpgrades(gs);
-  const info = getUpgradeInfo(gs).find(r => r.key === key);
-  if (!info) return false;
-  if ((gs.gold | 0) < info.cost) return false;
-  gs.gold = (gs.gold | 0) - info.cost;
-  gs.upgrades[key] = (gs.upgrades[key] | 0) + 1;
   return true;
-}
-
-export function renderUpgrades(gs, el, helpers) {
-  ensureUpgrades(gs);
-  if (!el) return;
-  const toast = helpers && helpers.toast;
-  const rows = getUpgradeInfo(gs);
-
-  while (el.firstChild) el.removeChild(el.firstChild);
-
-  rows.forEach(function (r) {
-    const row = document.createElement('div');
-    row.className = 'uRow';
-
-    const name = document.createElement('div');
-    name.innerHTML = `<strong>${r.name}</strong> <small>Lv ${r.lvl}${r.hint ? ` • ${r.hint}` : ''}</small>`;
-
-    const right = document.createElement('div');
-    const btn = document.createElement('button');
-    btn.className = 'btn';
-    btn.textContent = `Buy ${r.cost}g`;
-    btn.disabled = !r.canBuy;
-    btn.addEventListener('click', function () {
-      if (buyUpgrade(gs, r.key)) {
-        if (toast) toast(`Bought ${r.name} (Lv ${r.lvl + 1})`, 900);
-        renderUpgrades(gs, el, helpers);
-      } else {
-        if (toast) toast(`Cannot buy ${r.name}`, 900);
-      }
-    });
-
-    right.appendChild(btn);
-    row.appendChild(name);
-    row.appendChild(right);
-    el.appendChild(row);
-  });
 }
