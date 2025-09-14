@@ -1,7 +1,6 @@
 // render.js — cave walls, hover edge, units, HUD adornments
 
-import { GRID, GameState, ENTRY, EXIT, inBounds, ensureCell } from './state.js';
-
+import * as state from './state.js';
 
 const STYLE = {
   bg: '#0e1526',
