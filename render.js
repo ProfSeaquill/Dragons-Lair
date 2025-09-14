@@ -22,7 +22,7 @@ const FLAGS = {
   drawDistanceHints: false, // toggle to true if you want faint arrows toward exit
 };
 
-export function draw(ctx, gs = GameState) {
+export function draw(ctx, gs = state.GameState) {
   const { width: W, height: H } = ctx.canvas;
 
   // Background
@@ -102,7 +102,7 @@ function drawCaveEdges(ctx, gs) {
 function forEachEdgeWall(gs, fn) {
   for (let y = 0; y < GRID.rows; y++) {
     for (let x = 0; x < GRID.cols; x++) {
-      const rec = ensureCell(gs, x, y);
+      const rec = state.ensureCell(gs, x, y);
       if (rec.N) fn(x, y, 'N');
       if (rec.E) fn(x, y, 'E');
       if (rec.S) fn(x, y, 'S');
@@ -138,9 +138,9 @@ function strokeEdge(ctx, x, y, side, t, offset = 0) {
 function drawHoverEdge(ctx, gs) {
   const t = GRID.tile;
   const h = gs.uiHoverEdge;
-  if (!h || !inBounds(h.x, h.y)) return;
+  if (!h || !state.inBounds(h.x, h.y)) return;
 
-  const rec = ensureCell(gs, h.x, h.y);
+  const rec = state.ensureCell(gs, h.x, h.y);
   const hasWall = !!rec[h.side];
 
   ctx.save();
@@ -155,10 +155,10 @@ function drawEntryExit(ctx) {
   const t = GRID.tile;
 
   // Entry
-  drawCellMarker(ctx, ENTRY.x, ENTRY.y, STYLE.entry);
+  drawCellMarker(ctx, state.ENTRY.x, state.ENTRY.y, STYLE.entry);
 
   // Exit
-  drawCellMarker(ctx, EXIT.x, EXIT.y, STYLE.exit);
+  drawCellMarker(ctx, state.EXIT.x, state.EXIT.y, STYLE.exit);
 
   function drawCellMarker(ctx, cx, cy, color) {
     const cxpx = cx * t + t / 2;
@@ -174,10 +174,10 @@ function drawEntryExit(ctx) {
 }
 
 function drawDragon(ctx, gs) {
-  // For now: dragon is “stationed” at EXIT center.
+  // For now: dragon is “stationed” at state.EXIT center.
   const t = GRID.tile;
-  const x = EXIT.x * t + t / 2;
-  const y = EXIT.y * t + t / 2;
+  const x = state.EXIT.x * t + t / 2;
+  const y = state.EXIT.y * t + t / 2;
 
   ctx.save();
   ctx.shadowColor = STYLE.dragon;
@@ -195,8 +195,8 @@ function drawEnemies(ctx, gs) {
 
   for (const e of gs.enemies) {
     // Position: prefer pixel coords if present (smooth), otherwise tile center
-    const cx = inBounds(e.cx | 0, e.cy | 0) ? e.cx | 0 : 0;
-    const cy = inBounds(e.cx | 0, e.cy | 0) ? e.cy | 0 : 0;
+    const cx = state.inBounds(e.cx | 0, e.cy | 0) ? e.cx | 0 : 0;
+    const cy = state.inBounds(e.cx | 0, e.cy | 0) ? e.cy | 0 : 0;
     const center = {
       x: (e.x != null ? e.x : (cx * t + t / 2)),
       y: (e.y != null ? e.y : (cy * t + t / 2)),
@@ -253,15 +253,15 @@ function drawDistanceArrows(ctx, gs) {
       const here = field[y]?.[x];
       if (here == null || !isFinite(here)) continue;
 
-      // Find neighbor with strictly smaller distance (downhill toward ENTRY)
+      // Find neighbor with strictly smaller distance (downhill toward state.ENTRY)
       let best = null, bestD = here;
-      const rec = ensureCell(gs, x, y);
+      const rec = state.ensureCell(gs, x, y);
 
       const candidates = [];
-      if (!rec.N && inBounds(x, y - 1)) candidates.push({ nx: x, ny: y - 1 });
-      if (!rec.E && inBounds(x + 1, y)) candidates.push({ nx: x + 1, ny: y });
-      if (!rec.S && inBounds(x, y + 1)) candidates.push({ nx: x, ny: y + 1 });
-      if (!rec.W && inBounds(x - 1, y)) candidates.push({ nx: x - 1, ny: y });
+      if (!rec.N && state.inBounds(x, y - 1)) candidates.push({ nx: x, ny: y - 1 });
+      if (!rec.E && state.inBounds(x + 1, y)) candidates.push({ nx: x + 1, ny: y });
+      if (!rec.S && state.inBounds(x, y + 1)) candidates.push({ nx: x, ny: y + 1 });
+      if (!rec.W && state.inBounds(x - 1, y)) candidates.push({ nx: x - 1, ny: y });
 
       for (const c of candidates) {
         const d = field[c.ny]?.[c.nx];
@@ -299,7 +299,7 @@ function drawDistanceArrows(ctx, gs) {
  * - No reliance on a single precomputed path; uses edge walls & dist field.
  * - Safe if enemies use either (x,y) pixels OR (cx,cy) cells.
  */
-export function draw(ctx, gs = GameState) {
+export function draw(ctx, gs = state.GameState) {
   const { width, height } = ctx.canvas;
 
   // -------- Background
@@ -312,7 +312,7 @@ export function draw(ctx, gs = GameState) {
   // -------- Entry / Exit markers
   drawEntryExit(ctx);
 
-  // -------- Distance-field hints (tiny arrows trending "forward" away from ENTRY)
+  // -------- Distance-field hints (tiny arrows trending "forward" away from state.ENTRY)
   drawDistHints(ctx, gs);
 
   // -------- Cave edges (walls)
@@ -349,14 +349,14 @@ function drawFaintTiles(ctx) {
 }
 
 function drawEntryExit(ctx) {
-  const ep = centerOf(ENTRY.x, ENTRY.y);
-  const xp = centerOf(EXIT.x, EXIT.y);
+  const ep = centerOf(state.ENTRY.x, state.ENTRY.y);
+  const xp = centerOf(state.EXIT.x, state.EXIT.y);
 
-  // ENTRY
+  // state.ENTRY
   circle(ctx, ep.x, ep.y, GRID.tile * 0.28, '#0b4', true);
   ring(ctx, ep.x, ep.y, GRID.tile * 0.32, '#1f7');
 
-  // EXIT / Dragon lair mouth
+  // state.EXIT / Dragon lair mouth
   circle(ctx, xp.x, xp.y, GRID.tile * 0.28, '#844', true);
   ring(ctx, xp.x, xp.y, GRID.tile * 0.32, '#c88');
 }
@@ -372,7 +372,7 @@ function drawEdgeWalls(ctx, gs) {
   // then do a pass for the outermost E/S border cells.
   for (let y = 0; y < GRID.rows; y++) {
     for (let x = 0; x < GRID.cols; x++) {
-      const rec = ensureCell(gs, x, y);
+      const rec = state.ensureCell(gs, x, y);
       const x0 = x * t, y0 = y * t, x1 = x0 + t, y1 = y0 + t;
 
       // North edge
@@ -446,7 +446,7 @@ function drawDistHints(ctx, gs) {
         [x, y - 1],
       ];
       for (const [nx, ny] of candidates) {
-        if (!inBounds(nx, ny)) continue;
+        if (!state.inBounds(nx, ny)) continue;
         const dn = dist?.[ny]?.[nx];
         if (isFinite(dn) && dn > bestD) { bestD = dn; best = { nx, ny }; }
       }
@@ -489,7 +489,7 @@ function drawEnemies(ctx, gs) {
 
 function drawDragon(ctx, gs) {
   // If you already have a dragon sprite elsewhere, feel free to replace this.
-  const p = centerOf(EXIT.x, EXIT.y);
+  const p = centerOf(state.EXIT.x, state.EXIT.y);
   const r = Math.max(6, GRID.tile * 0.35);
   circle(ctx, p.x, p.y, r, '#b33', true);
   ring(ctx, p.x, p.y, r + 3, '#f88');
