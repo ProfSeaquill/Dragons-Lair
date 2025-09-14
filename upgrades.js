@@ -17,7 +17,7 @@ export const UPGRADE_DEFS = [
   {
     key: 'power',
     title: 'Fire Power',
-    base: 60,
+    base: 20,
     mult: 1.35,
     max: 25,
     desc: (lv) => `+15% breath damage per level (Lv ${lv})`,
@@ -25,7 +25,7 @@ export const UPGRADE_DEFS = [
   {
     key: 'rate',
     title: 'Fire Rate',
-    base: 80,
+    base: 25,
     mult: 1.35,
     max: 20,
     desc: (lv) => `+10% shots/sec per level (Lv ${lv})`,
@@ -33,7 +33,7 @@ export const UPGRADE_DEFS = [
   {
     key: 'range',
     title: 'Flame Range',
-    base: 50,
+    base: 30,
     mult: 1.28,
     max: 20,
     desc: (lv) => `+5% range per level (Lv ${lv})`,
@@ -41,18 +41,10 @@ export const UPGRADE_DEFS = [
   {
     key: 'burn',
     title: 'Burn DoT',
-    base: 90,
+    base: 22,
     mult: 1.35,
     max: 15,
     desc: (lv) => `+15% burn DPS & +0.5s duration per level (Lv ${lv})`,
-  },
-  {
-    key: 'hp',
-    title: 'Dragon Hearts',
-    base: 100,
-    mult: 1.45,
-    max: 30,
-    desc: (lv) => `+10 max HP per level (Lv ${lv})`,
   },
 ];
 
