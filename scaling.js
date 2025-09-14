@@ -1,6 +1,5 @@
 // scaling.js — wave sizes, HP/speed curves, and simple wave planning
 
-import { GRID } from './state.js';
 
 /**
  * Central knobs for progression. These mirror the defaults used in combat.js.
