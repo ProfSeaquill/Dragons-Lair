@@ -79,36 +79,79 @@ function makeEnemy(type, wave) {
   }
 }
 
-// Wave composition policy.
-// - Boss waves (every 10): 1 boss + a mix of tough adds.
-// - Miniboss waves (every 5 not 10): 1 kingsguard + mix.
-// - Normal waves: mostly villagers/squires, some knights, rare hero/engineer.
+// Wave composition policy (respecting appearance thresholds):
+// - Wave 1: all Villagers
+// - Boss waves (every 10): 1 boss + tough adds (no Heroes <11, no Engineers <21)
+// - Miniboss waves (every 5, not 10): 1 kingsguard + mixed adds (same thresholds)
+// - Normal waves: deterministic mix by wave, gated by thresholds
 function planWaveList(wave) {
   const count = waveCountFor(wave);
+
+  // Hard rule: wave 1 is all Villagers
+  if (wave === 1) {
+    return Array.from({ length: count }, () => 'villager');
+  }
+
   const isBoss = (wave % FLAGS.bossEvery === 0);
   const isMini = !isBoss && (wave % FLAGS.kingsguardEvery === 0);
 
-  const list = [];
-  if (isBoss) {
-    list.push('boss');
-    // tougher entourage
-    for (let i = 1; i < count; i++) {
-      list.push(i % 4 === 0 ? 'knight' : (i % 6 === 0 ? 'hero' : 'squire'));
-    }
-  } else if (isMini) {
-    list.push('kingsguard');
-    for (let i = 1; i < count; i++) {
-      list.push(i % 5 === 0 ? 'knight' : (i % 7 === 0 ? 'hero' : (i % 6 === 0 ? 'engineer' : 'villager')));
-    }
-  } else {
-    for (let i = 0; i < count; i++) {
-      if (i % 9 === 0) list.push('engineer');
-      else if (i % 7 === 0) list.push('hero');
-      else if (i % 3 === 0) list.push('knight');
-      else if (i % 2 === 0) list.push('squire');
-      else list.push('villager');
+  // Helpers for gating types by wave
+  const can = {
+    villager:  true,
+    squire:    wave >= 2,   // show up early
+    knight:    wave >= 6,
+    hero:      wave >= 11,  // per your rule
+    engineer:  wave >= 21,  // per your rule
+    kingsguard:true,
+    boss:      true,
+  };
+
+  // Build an ordered “preference list” with simple weights via modulo pattern
+  // (deterministic; avoids RNG so preview matches actual spawns)
+  function addNormalMix(n, out) {
+    for (let i = 0; i < n; i++) {
+      let type = 'villager';
+      if (can.engineer && i % 9 === 0)        type = 'engineer';
+      else if (can.hero && i % 7 === 0)       type = 'hero';
+      else if (can.knight && i % 3 === 0)     type = 'knight';
+      else if (can.squire && i % 2 === 0)     type = 'squire';
+      out.push(type);
     }
   }
+
+  const list = [];
+
+  if (isBoss) {
+    // 1 boss + heavier entourage
+    list.push('boss');
+    const adds = Math.max(0, count - 1);
+    for (let i = 0; i < adds; i++) {
+      // Favor knight/squire; allow hero only if wave >=11; never engineer <21
+      let type = 'squire';
+      if (can.knight && i % 2 === 0) type = 'knight';
+      if (can.hero && i % 5 === 0)   type = 'hero';
+      list.push(type);
+    }
+    return list;
+  }
+
+  if (isMini) {
+    // 1 kingsguard + mixed adds
+    list.push('kingsguard');
+    const adds = Math.max(0, count - 1);
+    for (let i = 0; i < adds; i++) {
+      let type = 'villager';
+      if (can.knight && i % 3 === 0) type = 'knight';
+      else if (can.squire && i % 2 === 0) type = 'squire';
+      if (can.hero && i % 6 === 0)   type = 'hero';
+      if (can.engineer && i % 8 === 0) type = 'engineer';
+      list.push(type);
+    }
+    return list;
+  }
+
+  // Normal waves
+  addNormalMix(count, list);
   return list;
 }
 
