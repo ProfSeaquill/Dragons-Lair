@@ -149,6 +149,20 @@ function update(dt) {
 
   // 4) HUD sync
   if (UI && typeof UI.refreshHUD === 'function') UI.refreshHUD();
+
+  // --- Effects update (tick & cleanup)
+{
+  const arr = state.GameState.effects || [];
+  for (const fx of arr) {
+    if (!fx) continue;
+    if (fx.t == null) fx.t = 0;
+    if (fx.dur == null) fx.dur = 0.6;
+
+    fx.t += dt;
+    if (fx.t >= fx.dur) fx.dead = true;
+  }
+  state.GameState.effects = arr.filter(fx => !fx.dead);
+}
 }
 
 // ---------- Go ----------
