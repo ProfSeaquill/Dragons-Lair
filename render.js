@@ -183,17 +183,39 @@ function drawDistHints(ctx, gs) {
 function drawEnemies(ctx, gs) {
   if (!Array.isArray(gs.enemies)) return;
   const r = Math.max(3, state.GRID.tile * 0.22);
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
   for (const e of gs.enemies) {
     const p = enemyPixelPosition(e);
     if (!p) continue;
 
-    const fill = colorForEnemy(e);
-    circle(ctx, p.x, p.y, r, fill, true);
+    // body
+    const bodyColor = e?.shield ? '#5cf' : '#fc3';
+    circle(ctx, p.x, p.y, r, bodyColor, true);
+    if (e?.shield)   ring(ctx, p.x, p.y, r + 2, '#9df');
+    if (e?.miniboss) ring(ctx, p.x, p.y, r + 5, '#f7a');
 
-    // Visual accents
-    if (e?.shield)   ring(ctx, p.x, p.y, r + 2, '#9df'); // hero’s shield ring
-    if (e?.miniboss) ring(ctx, p.x, p.y, r + 5, '#f7a'); // miniboss halo
+    // conditional HP bar (only after recent damage)
+    if (e.showHpUntil && now < e.showHpUntil && e.maxHp > 0) {
+      const t = state.GRID.tile;
+      const barW = Math.max(18, t * 0.8);
+      const barH = Math.max(3,  t * 0.10);
+      const x = p.x - barW / 2;
+      const y = p.y - r - 6 - barH; // just above the unit
+
+      // fade out as it expires
+      const life = Math.max(0, e.showHpUntil - now) / 1000; // 0..1s
+      const alpha = Math.min(1, life * 1.2); // quick fade
+
+      const ratio = Math.max(0, Math.min(1, e.hp / e.maxHp));
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      // back
+      fillRect(ctx, x, y, barW, barH, 'rgba(0,0,0,0.6)');
+      // front
+      fillRect(ctx, x + 1, y + 1, (barW - 2) * ratio, barH - 2, '#4ade80'); // green
+      ctx.restore();
+    }
   }
 }
 
