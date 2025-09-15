@@ -3,8 +3,6 @@
 import * as state from './state.js';
 import { toggleEdge, recomputePath } from './pathing.js';
 import { getUpgradeInfo, buyUpgrade } from './upgrades.js';
-// at the bottom of ui.js (or right after refreshHUD is declared)
-export const UI = { refreshHUD, tell };
 
 // ---------- DOM helpers ----------
 const $ = (id) => document.getElementById(id);
