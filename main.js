@@ -14,15 +14,8 @@ const canvas = document.getElementById('game');
 if (!canvas) throw new Error('Canvas #game not found');
 const ctx = canvas.getContext('2d');
 
-// ---------- Combat (optional, dynamic) ----------
-let Combat = {};
-(async () => {
-  try {
-    Combat = await import('./combat.js');
-  } catch (e) {
-    console.warn('[main] combat.js not found or failed to load; running without it.', e);
-  }
-})();
+// ---------- Combat (static import so Start Wave is always ready) ----------
+import * as Combat from './combat.js';
 
 // ---------- Boot ----------
 function boot() {
