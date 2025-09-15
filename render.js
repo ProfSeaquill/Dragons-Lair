@@ -1,4 +1,4 @@
-// render.js — cave edge rendering + hover highlight + lightweight sprites
+x/ render.js — cave edge rendering + hover highlight + lightweight sprites
 
 import * as state from './state.js';
 
@@ -227,8 +227,8 @@ function drawEnemies(ctx, gs) {
       const ratio = Math.max(0, Math.min(1, e.hp / e.maxHp));
       ctx.save();
       ctx.globalAlpha = alpha;
-      fillRect(ctx, x, y, barW, barH, 'rgba(0,0,0,0.6)');              // back
-      fillRect(ctx, x + 1, y + 1, (barW - 2) * ratio, barH - 2, '#4ade80'); // front
+      ctx.fillRect(x, y, barW, barH, 'rgba(0,0,0,0.6)');              // back
+      ctx.fillRect(x + 1, y + 1, (barW - 2) * ratio, barH - 2, '#4ade80'); // front
       ctx.restore();
     }
   }
