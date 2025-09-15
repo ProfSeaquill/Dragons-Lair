@@ -106,15 +106,11 @@ function drawFaintTiles(ctx) {
 
 function drawEntryExit(ctx) {
   const ep = centerOf(state.ENTRY.x, state.ENTRY.y);
-  const xp = centerOf(state.EXIT.x, state.EXIT.y);
-
-  // ENTRY
+  // ENTRY only (keep it green)
   circle(ctx, ep.x, ep.y, state.GRID.tile * 0.28, '#0b4', true);
   ring(ctx, ep.x, ep.y, state.GRID.tile * 0.32, '#1f7');
 
-  // EXIT / Dragon lair mouth
-  circle(ctx, xp.x, xp.y, state.GRID.tile * 0.28, '#844', true);
-  ring(ctx, xp.x, xp.y, state.GRID.tile * 0.32, '#c88');
+  // No EXIT marker — the dragon sprite is the only thing at exit now
 }
 
 function drawEdgeWalls(ctx, gs) {
@@ -254,8 +250,6 @@ function drawDragon(ctx, gs) {
   // Dragon sprite
   if (dragonReady) {
     ctx.drawImage(dragonImg, p.x - half, p.y - half, size, size);
-  } else {
-    circle(ctx, p.x, p.y, size * 0.4, '#b33', true);
   }
 
   // Mouth fire overlay (while attacking)
