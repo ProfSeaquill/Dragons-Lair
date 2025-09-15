@@ -11,6 +11,12 @@ dragonImg.onload = () => { dragonReady = true; };
 // Adjust the filename if yours differs
 dragonImg.src = './assets/dragon_idle.png';
 
+
+// --- Fire sprite sheet ---
+const fireImg = new Image();
+fireImg.src = './assets/fire_breath.png';
+let fireReady = false;
+fireImg.onload = () => { fireReady = true; };
 /**
  * Public: draw the entire frame.
  * - Uses edge walls & distance field (no single precomputed path).
