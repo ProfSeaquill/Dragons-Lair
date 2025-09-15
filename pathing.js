@@ -334,6 +334,22 @@ export function openNeighbors(gs, x, y) {
   return state.neighborsByEdges(gs, x, y);
 }
 
+// Returns a list of open cells starting from EXIT and walking toward ENTRY,
+// following the distance field downhill (i.e., away from the dragon).
+export function raycastOpenCellsFromExit(gs, maxSteps) {
+  const out = [];
+  let cx = state.EXIT.x, cy = state.EXIT.y;
+
+  for (let i = 0; i < maxSteps; i++) {
+    // Choose the neighbor that DECREASES distFromEntry (toward ENTRY)
+    const n = downhillNeighborTowardExit(gs, cx, cy);
+    if (!n) break;
+    out.push({ x: n.x, y: n.y, from: n.side });  // keep side for orientation
+    cx = n.x; cy = n.y;
+  }
+  return out;
+}
+
 /** Greedy hint (if you need it elsewhere). */
 export function downhillNeighborTowardExit(gs, x, y) {
   const D = gs.distToExit;
