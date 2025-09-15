@@ -21,7 +21,7 @@ export const COSTS = {
 // ===== Base Dragon Stats (lightweight; upgraded via upgrades in getDragonStats) =====
 const DRAGON_BASE = {
   maxHP: 100,
-  breathPower: 500,
+  breathPower: 50,
   breathRange: 8 * GRID.tile,
   breathWidth: GRID.tile * 0.9,
   burnDPS: 1,           // can be modified via upgrades
