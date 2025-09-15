@@ -14,9 +14,9 @@ dragonImg.src = './assets/dragon_idle.png';
 
 // --- Fire sprite sheet ---
 const fireImg = new Image();
-fireImg.src = './assets/fire_breath.png';
 let fireReady = false;
 fireImg.onload = () => { fireReady = true; };
+fireImg.src = './assets/fire_breath.png'; // 4 frames wide, 1 row
 /**
  * Public: draw the entire frame.
  * - Uses edge walls & distance field (no single precomputed path).
@@ -225,20 +225,28 @@ function drawDragon(ctx, gs) {
     circle(ctx, p.x, p.y, size * 0.4, '#b33', true);
   }
 
-  // Fire overlay if attacking
-  if (state.Dragon.attacking && fireReady) {
-    const frameCount = 4;
-    const frame = Math.floor((state.Dragon.attackTimer * 10) % frameCount);
-    const fw = fireImg.width / frameCount;
-    const fh = fireImg.height;
+// ----- Fire overlay while attacking -----
+const fx = gs.dragonFX;
+if (fx && fx.attacking && fireReady) {
+  const frameCount = 4;
+  const fw = fireImg.width / frameCount;
+  const fh = fireImg.height;
 
-    ctx.drawImage(
-      fireImg,
-      frame * fw, 0, fw, fh,            // source
-      p.x + half - 8, p.y - 16, fw, fh  // destination (offset mouth)
-    );
-  }
-}
+  // Simple frame advance: map anim progress 0..dur to 0..frameCount-1
+  const progress = Math.min(1, fx.t / Math.max(0.001, fx.dur));
+  const frame = Math.floor(progress * (frameCount - 1));
+
+  // Position: offset a bit from dragon center toward the mouth
+  const size = Math.round(state.GRID.tile * 1.0);
+  const p = centerOf(state.EXIT.x, state.EXIT.y);
+  const mouthX = p.x + Math.round(state.GRID.tile * 0.6);
+  const mouthY = p.y - Math.round(state.GRID.tile * 0.15);
+
+  ctx.drawImage(
+    fireImg,
+    frame * fw, 0, fw, fh,          // source rect
+    mouthX, mouthY - fh / 2, fw, fh // dest near the mouth
+  )Fire}
 
 /* ===================== tiny primitives ===================== */
 
