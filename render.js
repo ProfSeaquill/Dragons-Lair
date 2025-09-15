@@ -8,15 +8,30 @@ import * as state from './state.js';
 const dragonImg = new Image();
 let dragonReady = false;
 dragonImg.onload = () => { dragonReady = true; };
-// Adjust the filename if yours differs
 dragonImg.src = './assets/dragon_idle.png';
 
-
-// --- Fire sprite sheet ---
+/* -----------------------------------------------------------
+ * FIRE (mouth) — sprite sheet animation
+ * Expect a single-row sheet. Set frameCount to match your asset.
+ * --------------------------------------------------------- */
 const fireImg = new Image();
 let fireReady = false;
+const FIRE_FRAMES = 12; // <-- set to 12 once your sheet is 12 frames
 fireImg.onload = () => { fireReady = true; };
-fireImg.src = './assets/fire_breath.png'; // 4 frames wide, 1 row
+fireImg.src = './assets/fire_breath.png'; // 12 frames wide, 1 row
+
+/* -----------------------------------------------------------
+ * FLAME STRIPS (corridor fire) — optional textures
+ * Leave commented if you don't have the files yet; fallback will draw.
+ * --------------------------------------------------------- */
+const fireStripH = new Image();
+const fireStripV = new Image();
+let fireHReady = false, fireVReady = false;
+fireStripH.onload = () => fireHReady = true;
+fireStripV.onload = () => fireVReady = true;
+// fireStripH.src = './assets/fire_strip_h.png';
+// fireStripV.src = './assets/fire_strip_v.png';
+
 /**
  * Public: draw the entire frame.
  * - Uses edge walls & distance field (no single precomputed path).
@@ -50,6 +65,9 @@ export function draw(ctx, gs = state.GameState) {
   // -------- Enemies / Dragon
   drawEnemies(ctx, gs);
   drawDragon(ctx, gs);
+
+  // -------- Corridor fire (traveling flame)
+  drawFlameWaves(ctx, gs);
 
   // -------- Bombs (engineer)
   drawBombs(ctx, gs);
@@ -201,39 +219,19 @@ function drawEnemies(ctx, gs) {
       const barW = Math.max(18, t * 0.8);
       const barH = Math.max(3,  t * 0.10);
       const x = p.x - barW / 2;
-      const y = p.y - r - 6 - barH; // just above the unit
+      const y = p.y - r - 6 - barH;
 
-      // fade out as it expires
       const life = Math.max(0, e.showHpUntil - now) / 1000; // 0..1s
-      const alpha = Math.min(1, life * 1.2); // quick fade
+      const alpha = Math.min(1, life * 1.2);
 
       const ratio = Math.max(0, Math.min(1, e.hp / e.maxHp));
       ctx.save();
       ctx.globalAlpha = alpha;
-      // back
-      fillRect(ctx, x, y, barW, barH, 'rgba(0,0,0,0.6)');
-      // front
-      fillRect(ctx, x + 1, y + 1, (barW - 2) * ratio, barH - 2, '#4ade80'); // green
+      fillRect(ctx, x, y, barW, barH, 'rgba(0,0,0,0.6)');              // back
+      fillRect(ctx, x + 1, y + 1, (barW - 2) * ratio, barH - 2, '#4ade80'); // front
       ctx.restore();
     }
   }
-}
-
-// Map enemy types to colors (mirrors UI preview colors)
-const ENEMY_COLORS = {
-  villager:   '#9acd32',
-  squire:     '#7fd1ff',
-  knight:     '#ffd166',
-  hero:       '#ff6b6b',
-  engineer:   '#c084fc',
-  kingsguard: '#ffa8a8',
-  boss:       '#f4a261',
-};
-
-function colorForEnemy(e) {
-  if (e && typeof e.color === 'string') return e.color;
-  if (e && ENEMY_COLORS[e.type]) return ENEMY_COLORS[e.type];
-  return e?.shield ? '#5cf' : '#fc3';
 }
 
 function drawDragon(ctx, gs) {
@@ -241,45 +239,34 @@ function drawDragon(ctx, gs) {
   const size = Math.round(state.GRID.tile * 2);
   const half = size / 2;
 
+  // Dragon sprite
   if (dragonReady) {
     ctx.drawImage(dragonImg, p.x - half, p.y - half, size, size);
   } else {
     circle(ctx, p.x, p.y, size * 0.4, '#b33', true);
   }
 
-// ----- Fire overlay while attacking -----
-const fx = gs.dragonFX;
-if (fx && fx.attacking && fireReady) {
-  const frameCount = 4;
-  const fw = fireImg.width / frameCount;
-  const fh = fireImg.height;
+  // Mouth fire overlay (while attacking)
+  const fx = gs.dragonFX;
+  if (fx && fx.attacking && fireReady) {
+    const fw = fireImg.width / FIRE_FRAMES;
+    const fh = fireImg.height;
 
-  // Simple frame advance: map anim progress 0..dur to 0..frameCount-1
-  const progress = Math.min(1, fx.t / Math.max(0.001, fx.dur));
-  const frame = Math.floor(progress * (frameCount - 1));
+    const progress = Math.min(1, fx.t / Math.max(0.001, fx.dur));
+    const frame = Math.floor(progress * (FIRE_FRAMES - 1));
 
-  // Position: offset a bit from dragon center toward the mouth
-  const size = Math.round(state.GRID.tile * 1.0);
-  const p = centerOf(state.EXIT.x, state.EXIT.y);
-  const mouthX = p.x + Math.round(state.GRID.tile * 0.6);
-  const mouthY = p.y - Math.round(state.GRID.tile * 0.15);
+    const mouthX = p.x + Math.round(state.GRID.tile * 0.6);
+    const mouthY = p.y - Math.round(state.GRID.tile * 0.15);
 
-  ctx.drawImage(
-    fireImg,
-    frame * fw, 0, fw, fh,          // source rect
-    mouthX, mouthY - fh / 2, fw, fh // dest near the mouth
-  )Fire}
+    ctx.drawImage(
+      fireImg,
+      frame * fw, 0, fw, fh,             // source rect
+      mouthX, mouthY - fh / 2, fw, fh    // dest near mouth
+    );
+  }
+}
 
-  // --- Flame strip textures (optional; fallback if missing)
-const fireStripH = new Image();
-const fireStripV = new Image();
-let fireHReady = false, fireVReady = false;
-fireStripH.onload = () => fireHReady = true;
-fireStripV.onload = () => fireVReady = true;
-// If you add these files, uncomment the next two lines:
-// fireStripH.src = './assets/fire_strip_h.png';
-// fireStripV.src = './assets/fire_strip_v.png';
-
+/* -------- Traveling corridor fire (Option 1) -------- */
 function drawFlameWaves(ctx, gs) {
   const tsize = state.GRID.tile;
   const waves = gs.effects || [];
@@ -294,7 +281,7 @@ function drawFlameWaves(ctx, gs) {
     for (let i = start; i <= end; i++) {
       const seg = fx.path[i];
       if (!seg) continue;
-      const p = centerOf(seg.x, seg.y);
+      const c = centerOf(seg.x, seg.y);
       const age = end - i;                         // 0 = freshest
       const alpha = Math.max(0, 1 - age / tailLen);
 
@@ -305,20 +292,19 @@ function drawFlameWaves(ctx, gs) {
       ctx.save();
       ctx.globalAlpha = alpha * 0.95;
 
-      // Prefer texture strips if available; else draw a simple gradient
       if (horiz && fireHReady) {
-        ctx.drawImage(fireStripH, p.x - w/2, p.y - h/2, w, h);
+        ctx.drawImage(fireStripH, c.x - w/2, c.y - h/2, w, h);
       } else if (!horiz && fireVReady) {
-        ctx.drawImage(fireStripV, p.x - w/2, p.y - h/2, w, h);
+        ctx.drawImage(fireStripV, c.x - w/2, c.y - h/2, w, h);
       } else {
         // Fallback: soft rounded “flame segment”
-        const grd = ctx.createLinearGradient(p.x - w/2, p.y, p.x + w/2, p.y);
+        const grd = ctx.createLinearGradient(c.x - w/2, c.y, c.x + w/2, c.y);
         grd.addColorStop(0.00, 'rgba(255,255,255,0.85)');
         grd.addColorStop(0.25, 'rgba(255,220,120,0.85)');
         grd.addColorStop(0.60, 'rgba(255,120,30,0.80)');
         grd.addColorStop(1.00, 'rgba(200,40,10,0.60)');
         ctx.fillStyle = grd;
-        roundRect(ctx, p.x - w/2, p.y - h/2, w, h, Math.min(10, h/3));
+        roundRect(ctx, c.x - w/2, c.y - h/2, w, h, Math.min(10, h/3));
         ctx.fill();
       }
 
@@ -327,17 +313,15 @@ function drawFlameWaves(ctx, gs) {
   }
 }
 
-  function drawBombs(ctx, gs) {
+function drawBombs(ctx, gs) {
   if (!Array.isArray(gs.effects)) return;
   const t = state.GRID.tile;
   for (const fx of gs.effects) {
     if (fx.type !== 'bomb') continue;
     const r = Math.max(6, t * 0.22);
-    // Pulse as timer counts down
     const pulse = 0.5 + 0.5 * Math.sin((fx.timer || 0) * 6.283);
     circle(ctx, fx.x, fx.y, r * (0.9 + 0.2 * pulse), '#f44', true);
-    ring(ctx, fx.x, fy = fx.y, r + 4, '#faa');
-    // Tiny timer text
+    ring(ctx, fx.x, fx.y, r + 4, '#faa'); // <- fixed typo (fx.y)
     ctx.save();
     ctx.fillStyle = '#fff';
     ctx.font = `${Math.max(8, (t * 0.28) | 0)}px monospace`;
@@ -393,13 +377,6 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x,   y+h, x,   y,   rr);
   ctx.arcTo(x,   y,   x+w, y,   rr);
   ctx.closePath();
-}
-  
-function fillRect(ctx, x, y, w, h, fillStyle) {
-  ctx.save();
-  ctx.fillStyle = fillStyle;
-  ctx.fillRect(x, y, w, h);
-  ctx.restore();
 }
 
 /* ===================== position helpers ===================== */
