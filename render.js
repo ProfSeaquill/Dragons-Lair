@@ -169,10 +169,32 @@ function drawEnemies(ctx, gs) {
     const p = enemyPixelPosition(e);
     if (!p) continue;
 
-    circle(ctx, p.x, p.y, r, e?.shield ? '#5cf' : '#fc3', true);
-    if (e?.shield) ring(ctx, p.x, p.y, r + 2, '#9df');
-    if (e?.miniboss) ring(ctx, p.x, p.y, r + 5, '#f7a');
+    const fill = colorForEnemy(e);
+    circle(ctx, p.x, p.y, r, fill, true);
+
+    // Visual accents
+    if (e?.shield)  ring(ctx, p.x, p.y, r + 2, '#9df'); // hero’s shield ring
+    if (e?.miniboss) ring(ctx, p.x, p.y, r + 5, '#f7a'); // miniboss halo
   }
+}
+
+// Map enemy types to colors (mirrors UI preview colors)
+const ENEMY_COLORS = {
+  villager:   '#9acd32',
+  squire:     '#7fd1ff',
+  knight:     '#ffd166',
+  hero:       '#ff6b6b',
+  engineer:   '#c084fc',
+  kingsguard: '#ffa8a8',
+  boss:       '#f4a261',
+};
+
+function colorForEnemy(e) {
+  // prefer a per-enemy color if one is ever attached by combat; else map by type
+  if (e && typeof e.color === 'string') return e.color;
+  if (e && ENEMY_COLORS[e.type]) return ENEMY_COLORS[e.type];
+  // fallback preserves your old behavior
+  return e?.shield ? '#5cf' : '#fc3';
 }
 
 function drawDragon(ctx, gs) {
