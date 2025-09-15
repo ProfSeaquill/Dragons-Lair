@@ -1,4 +1,4 @@
-x/ render.js — cave edge rendering + hover highlight + lightweight sprites
+// render.js — cave edge rendering + hover highlight + lightweight sprites
 
 import * as state from './state.js';
 
@@ -12,48 +12,57 @@ dragonImg.src = './assets/dragon_idle.png';
 
 /* -----------------------------------------------------------
  * FIRE (mouth) — sprite sheet animation
- * Expect a single-row sheet. Set frameCount to match your asset.
  * --------------------------------------------------------- */
 const fireImg = new Image();
 let fireReady = false;
-const FIRE_FRAMES = 12; // <-- set to 12 once your sheet is 12 frames
+const FIRE_FRAMES = 12; // set to your sheet's frame count
 fireImg.onload = () => { fireReady = true; };
 fireImg.src = './assets/fire_breath.png'; // 12 frames wide, 1 row
 
 /* -----------------------------------------------------------
  * FLAME STRIPS (corridor fire) — optional textures
- * Leave commented if you don't have the files yet; fallback will draw.
  * --------------------------------------------------------- */
 const fireStripH = new Image();
 const fireStripV = new Image();
 let fireHReady = false, fireVReady = false;
-fireStripH.onload = () => fireHReady = true;
-fireStripV.onload = () => fireVReady = true;
+fireStripH.onload = () => (fireHReady = true);
+fireStripV.onload = () => (fireVReady = true);
 // fireStripH.src = './assets/fire_strip_h.png';
 // fireStripV.src = './assets/fire_strip_v.png';
 
+/* -----------------------------------------------------------
+ * Enemy type colors
+ * --------------------------------------------------------- */
+const TYPE_COLOR = {
+  villager:  '#9acd32',
+  squire:    '#7fd1ff',
+  knight:    '#ffd166',
+  hero:      '#ff6b6b',
+  engineer:  '#c084fc',
+  kingsguard:'#ffa8a8',
+  boss:      '#f4a261',
+};
+
 /**
  * Public: draw the entire frame.
- * - Uses edge walls & distance field (no single precomputed path).
- * - Safe whether enemies use pixel (x,y) or cell (cx,cy) positions.
  */
 export function draw(ctx, gs = state.GameState) {
   const { width, height } = ctx.canvas;
 
-  // Keep pixels crisp for our hybrid chunky/pixel style
   ctx.imageSmoothingEnabled = false;
 
   // -------- Background
   ctx.clearRect(0, 0, width, height);
-  fillRect(ctx, 0, 0, width, height, '#0e1526');
+  ctx.fillStyle = '#0e1526';
+  ctx.fillRect(0, 0, width, height);
 
-  // Optional: faint grid for readability
+  // -------- Grid (faint)
   drawFaintTiles(ctx);
 
   // -------- Entry / Exit markers
   drawEntryExit(ctx);
 
-  // -------- Distance-field hints (subtle "flow" dots away from ENTRY)
+  // -------- Distance-field hints
   drawDistHints(ctx, gs);
 
   // -------- Cave edges (walls)
@@ -103,7 +112,7 @@ function drawEntryExit(ctx) {
   circle(ctx, ep.x, ep.y, state.GRID.tile * 0.28, '#0b4', true);
   ring(ctx, ep.x, ep.y, state.GRID.tile * 0.32, '#1f7');
 
-  // EXIT / Dragon lair mouth (ring stays even with sprite)
+  // EXIT / Dragon lair mouth
   circle(ctx, xp.x, xp.y, state.GRID.tile * 0.28, '#844', true);
   ring(ctx, xp.x, xp.y, state.GRID.tile * 0.32, '#c88');
 }
@@ -115,7 +124,6 @@ function drawEdgeWalls(ctx, gs) {
   ctx.lineWidth = Math.max(3, Math.floor(t * 0.12));
   ctx.lineCap = 'round';
 
-  // Draw N & W for each cell; add E/S on last col/row to avoid double strokes.
   for (let y = 0; y < state.GRID.rows; y++) {
     for (let x = 0; x < state.GRID.cols; x++) {
       const rec = state.ensureCell(gs, x, y);
@@ -169,13 +177,10 @@ function drawDistHints(ctx, gs) {
       const d0 = dist?.[y]?.[x];
       if (!isFinite(d0)) continue;
 
-      // Pick a neighbor with larger distance (moving "forward" from entry)
+      // choose neighbor with larger distance (moving "forward" from entry)
       let best = null, bestD = d0;
       const candidates = [
-        [x + 1, y],
-        [x, y + 1],
-        [x - 1, y],
-        [x, y - 1],
+        [x + 1, y], [x, y + 1], [x - 1, y], [x, y - 1],
       ];
       for (const [nx, ny] of candidates) {
         if (!state.inBounds(nx, ny)) continue;
@@ -207,8 +212,8 @@ function drawEnemies(ctx, gs) {
     const p = enemyPixelPosition(e);
     if (!p) continue;
 
-    // body
-    const bodyColor = e?.shield ? '#5cf' : '#fc3';
+    // body color by type (heroes also get a ring)
+    const bodyColor = TYPE_COLOR[e.type] || (e?.shield ? '#5cf' : '#fc3');
     circle(ctx, p.x, p.y, r, bodyColor, true);
     if (e?.shield)   ring(ctx, p.x, p.y, r + 2, '#9df');
     if (e?.miniboss) ring(ctx, p.x, p.y, r + 5, '#f7a');
@@ -227,8 +232,15 @@ function drawEnemies(ctx, gs) {
       const ratio = Math.max(0, Math.min(1, e.hp / e.maxHp));
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.fillRect(x, y, barW, barH, 'rgba(0,0,0,0.6)');              // back
-      ctx.fillRect(x + 1, y + 1, (barW - 2) * ratio, barH - 2, '#4ade80'); // front
+
+      // back
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(x, y, barW, barH);
+
+      // front
+      ctx.fillStyle = '#4ade80';
+      ctx.fillRect(x + 1, y + 1, (barW - 2) * ratio, barH - 2);
+
       ctx.restore();
     }
   }
@@ -266,7 +278,7 @@ function drawDragon(ctx, gs) {
   }
 }
 
-/* -------- Traveling corridor fire (Option 1) -------- */
+/* -------- Traveling corridor fire -------- */
 function drawFlameWaves(ctx, gs) {
   const tsize = state.GRID.tile;
   const waves = gs.effects || [];
@@ -321,7 +333,7 @@ function drawBombs(ctx, gs) {
     const r = Math.max(6, t * 0.22);
     const pulse = 0.5 + 0.5 * Math.sin((fx.timer || 0) * 6.283);
     circle(ctx, fx.x, fx.y, r * (0.9 + 0.2 * pulse), '#f44', true);
-    ring(ctx, fx.x, fx.y, r + 4, '#faa'); // <- fixed typo (fx.y)
+    ring(ctx, fx.x, fx.y, r + 4, '#faa');
     ctx.save();
     ctx.fillStyle = '#fff';
     ctx.font = `${Math.max(8, (t * 0.28) | 0)}px monospace`;
@@ -367,7 +379,6 @@ function circle(ctx, x, y, r, fillStyle = '#fff', filled = true) {
   ctx.restore();
 }
 
-// tiny helper for pill shapes
 function roundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w/2, h/2);
   ctx.beginPath();
