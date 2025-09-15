@@ -1,42 +1,45 @@
-// pathing.js — edge-walls pathing & maze-walk AI
+// pathing.js — edge-walls pathing with live shortest-path-to-exit steering
 
 import * as state from './state.js';
 
-
 /* =========================
- * Distance Field (BFS)
+ * Distance Fields (BFS)
  * ========================= */
 
-/**
- * Recompute gs.distFromEntry[y][x] as the shortest step distance from state.ENTRY,
- * traversing only through OPEN edges.
- * Infinity means unreachable.
- */
+/** Recompute gs.distFromEntry[y][x]: shortest steps from ENTRY through open edges. */
 export function recomputeDistanceField(gs = state.GameState) {
+  gs.distFromEntry = bfsField(gs, state.ENTRY.x, state.ENTRY.y);
+  return gs.distFromEntry;
+}
+
+/** New: Recompute gs.distToExit[y][x]: shortest steps TO EXIT (BFS from EXIT). */
+export function recomputeExitField(gs = state.GameState) {
+  gs.distToExit = bfsField(gs, state.EXIT.x, state.EXIT.y);
+  return gs.distToExit;
+}
+
+/** Shared BFS helper (walls respected). Infinity = unreachable. */
+function bfsField(gs, sx, sy) {
   const W = state.GRID.cols, H = state.GRID.rows;
   const dist = state.makeScalarField(W, H, Infinity);
-  const qx = new Array(W * H);
-  const qy = new Array(W * H);
+  if (!state.inBounds(sx, sy)) return dist;
+
+  const qx = new Array(W * H), qy = new Array(W * H);
   let qh = 0, qt = 0;
 
-  if (!state.inBounds(state.ENTRY.x, state.ENTRY.y)) {
-    gs.distFromEntry = dist;
-    return dist;
-  }
-
-  dist[state.ENTRY.y][state.ENTRY.x] = 0;
-  qx[qt] = state.ENTRY.x; qy[qt] = state.ENTRY.y; qt++;
+  dist[sy][sx] = 0;
+  qx[qt] = sx; qy[qt] = sy; qt++;
 
   while (qh < qt) {
     const x = qx[qh], y = qy[qh]; qh++;
     const d = dist[y][x] + 1;
-    // Explore via open edges
-    if (state.isOpen(gs, x, y, 'N')) pushIfBetter(x, y - 1);
-    if (state.isOpen(gs, x, y, 'E')) pushIfBetter(x + 1, y);
-    if (state.isOpen(gs, x, y, 'S')) pushIfBetter(x, y + 1);
-    if (state.isOpen(gs, x, y, 'W')) pushIfBetter(x - 1, y);
 
-    function pushIfBetter(nx, ny) {
+    if (state.isOpen(gs, x, y, 'N')) push(x, y - 1);
+    if (state.isOpen(gs, x, y, 'E')) push(x + 1, y);
+    if (state.isOpen(gs, x, y, 'S')) push(x, y + 1);
+    if (state.isOpen(gs, x, y, 'W')) push(x - 1, y);
+
+    function push(nx, ny) {
       if (!state.inBounds(nx, ny)) return;
       if (d < dist[ny][nx]) {
         dist[ny][nx] = d;
@@ -44,8 +47,6 @@ export function recomputeDistanceField(gs = state.GameState) {
       }
     }
   }
-
-  gs.distFromEntry = dist;
   return dist;
 }
 
@@ -54,18 +55,15 @@ export function recomputeDistanceField(gs = state.GameState) {
  * ========================= */
 
 /**
- * Quick BFS to check if state.EXIT remains reachable from state.ENTRY under an edge toggle.
- * We simulate the toggle in-memory (not applied) and test connectivity.
- * Returns true if toggle WOULD disconnect entry↔exit (i.e., should be blocked).
+ * Quick BFS reachability check used by the UI guard: would toggling (x,y,side)
+ * disconnect ENTRY↔EXIT? We “apply” the wall in-memory, test, then restore.
  */
 export function wouldDisconnectEntryAndExit(gs, x, y, side, placeWall) {
-  // Simulate: grab current edge states we will temporarily override
   const snap = snapshotEdgePair(gs, x, y, side);
   if (!applyEdgeSim(gs, x, y, side, !!placeWall)) return true;
 
   const ok = isReachable(gs, state.ENTRY.x, state.ENTRY.y, state.EXIT.x, state.EXIT.y);
 
-  // Revert sim
   restoreEdgePair(gs, x, y, side, snap);
   return !ok;
 }
@@ -77,13 +75,11 @@ function isReachable(gs, sx, sy, tx, ty) {
   const qx = new Array(W * H), qy = new Array(W * H);
   let qh = 0, qt = 0;
 
-  seen[sy * W + sx] = 1;
-  qx[qt] = sx; qy[qt] = sy; qt++;
+  seen[sy * W + sx] = 1; qx[qt] = sx; qy[qt] = sy; qt++;
 
   while (qh < qt) {
     const x = qx[qh], y = qy[qh]; qh++;
     if (x === tx && y === ty) return true;
-
     if (state.isOpen(gs, x, y, 'N')) push(x, y - 1);
     if (state.isOpen(gs, x, y, 'E')) push(x + 1, y);
     if (state.isOpen(gs, x, y, 'S')) push(x, y + 1);
@@ -93,9 +89,9 @@ function isReachable(gs, sx, sy, tx, ty) {
 
   function push(nx, ny) {
     if (!state.inBounds(nx, ny)) return;
-    const idx = ny * W + nx;
-    if (seen[idx]) return;
-    seen[idx] = 1;
+    const i = ny * W + nx;
+    if (seen[i]) return;
+    seen[i] = 1;
     qx[qt] = nx; qy[qt] = ny; qt++;
   }
 }
@@ -137,27 +133,15 @@ function neighborFor(x, y, side) {
  * Edge Toggling (UI hook)
  * ========================= */
 
-/**
- * Toggle an edge wall at (x,y,side).
- * - place=true  -> add a wall on that edge (and symmetric neighbor edge)
- * - place=false -> remove the wall
- * Enforces bones cost/refund and connectivity guard.
- * Returns { ok:boolean, reason?:string }
- */
 export function toggleEdge(gs, x, y, side, place = true) {
   if (!state.inBounds(x, y)) return { ok: false, reason: 'Out of bounds' };
-
-  // If placing, guard on affordability
   if (place && !state.canAffordEdge(gs, true)) {
     return { ok: false, reason: 'Not enough bones' };
   }
-
-  // Connectivity guard: don’t allow fully blocking entry↔exit
   if (wouldDisconnectEntryAndExit(gs, x, y, side, place)) {
     return { ok: false, reason: 'Would fully block the cave' };
   }
 
-  // Apply
   const applied = state.setEdgeWall(gs, x, y, side, !!place);
   if (!applied) return { ok: false, reason: 'Invalid neighbor' };
 
@@ -165,99 +149,84 @@ export function toggleEdge(gs, x, y, side, place = true) {
   if (place) state.spendBones(gs, state.COSTS.edgeWall);
   else state.refundBones(gs, state.COSTS.edgeRefund);
 
-  // Update distance field so UI/logic stay in sync
+  // Update BOTH fields so steering adapts immediately
   recomputeDistanceField(gs);
+  recomputeExitField(gs);
 
   return { ok: true };
 }
 
 /* =========================
- * Maze-Walk Enemy API
+ * Greedy-to-Exit Enemy API
  * ========================= */
 
-/**
- * For enemies, we assume state.GRID-centric movement with facing.
- * Enemy fields expected/maintained here:
- *   e.cx, e.cy         // current cell coords (integers)
- *   e.dir              // 'N'|'E'|'S'|'W' current heading
- *   e.stack            // [{ x, y, tried:Set<'N'|'E'|'S'|'W'> }]
- *   e.distFromEntry    // convenience cache per tick
- *
- * You can initialize cx/cy/dir on spawn; we expose helpers below.
- */
-
-const LEFT  = { N: 'W', W: 'S', S: 'E', E: 'N' };
-const RIGHT = { N: 'E', E: 'S', S: 'W', W: 'N' };
-const BACK  = { N: 'S', S: 'N', E: 'W', W: 'E' };
-
-/**
- * Update e.distFromEntry from gs.distFromEntry (call each tick or after cell advance).
- */
+/** Keep per-tick cache of distance-from-entry (used by combat’s shield rules). */
 export function updateEnemyDistance(gs, e) {
   if (state.inBounds(e.cx, e.cy)) {
-    e.distFromEntry = gs.distFromEntry[e.cy][e.cx];
+    e.distFromEntry = gs.distFromEntry?.[e.cy]?.[e.cx] ?? Infinity;
   } else {
     e.distFromEntry = Infinity;
   }
 }
 
-/**
- * Decide the next direction based on maze-walk rules:
- * 1) Try forward if open & not exhausted here,
- * 2) else try left or right (deterministic priority),
- * 3) else backtrack.
- * Keeps per-cell tried-directions in e.stack (for backtracking).
- */
-export function chooseNextDirection(gs, e) {
-  // Ensure current stack node
-  const top = stackTopFor(e);
+/** Choose direction that strictly DECREASES distToExit; ties break by Manhattan to EXIT. */
+export function chooseNextDirectionToExit(gs, e) {
+  const D = gs.distToExit;
+  if (!D) return e.dir || 'E';
 
-  // Preferred deterministic priority: forward > left > right > back
-  const order = [
-    e.dir,
-    LEFT[e.dir],
-    RIGHT[e.dir],
-    BACK[e.dir],
+  const x = e.cx | 0, y = e.cy | 0;
+  const here = D?.[y]?.[x];
+  if (!isFinite(here)) {
+    // If we’re off-field, pick any open edge toward EXIT heuristically
+    return heuristicFallback(gs, e);
+  }
+
+  let bestDir = null, bestVal = here, bestHeu = Infinity;
+
+  const candidates = [
+    ['N', x, y - 1],
+    ['E', x + 1, y],
+    ['S', x, y + 1],
+    ['W', x - 1, y],
   ];
 
-  for (const dir of order) {
-    if (top.tried.has(dir)) continue;        // already tried from this cell
-    top.tried.add(dir);
-    if (state.isOpen(gs, e.cx, e.cy, dir)) {
-      return dir;
+  for (const [dir, nx, ny] of candidates) {
+    if (!state.isOpen(gs, x, y, dir)) continue;
+    const v = D?.[ny]?.[nx];
+    if (!isFinite(v)) continue;
+    if (v < bestVal) {
+      bestDir = dir;
+      bestVal = v;
+      bestHeu = manhattan(nx, ny, state.EXIT.x, state.EXIT.y);
+    } else if (v === bestVal) {
+      // Tie-breaker: closer to EXIT in Manhattan metric
+      const h = manhattan(nx, ny, state.EXIT.x, state.EXIT.y);
+      if (h < bestHeu) {
+        bestDir = dir;
+        bestHeu = h;
+      }
     }
   }
 
-  // All tried in this cell — backtrack if possible
-  if (e.stack.length > 1) {
-    e.stack.pop();
-    const prev = e.stack[e.stack.length - 1];
-    // Heading becomes the direction from current to prev
-    const dir = directionFromTo(e.cx, e.cy, prev.x, prev.y);
-    return dir ?? BACK[e.dir]; // safe fallback
-  }
-
-  // Stuck at state.ENTRY or isolated: try any open edge to avoid deadlock
-  const neigh = state.neighborsByEdges(gs, e.cx, e.cy);
-  if (neigh.length) {
-    const n = neigh[0];
-    return directionFromTo(e.cx, e.cy, n.x, n.y) || e.dir;
-  }
-
-  return e.dir; // nowhere to go
+  return bestDir ?? heuristicFallback(gs, e);
 }
 
-function stackTopFor(e) {
-  if (!e.stack || e.stack.length === 0) {
-    e.stack = [{ x: e.cx, y: e.cy, tried: new Set() }];
-  } else {
-    const last = e.stack[e.stack.length - 1];
-    if (last.x !== e.cx || last.y !== e.cy) {
-      e.stack.push({ x: e.cx, y: e.cy, tried: new Set() });
+function heuristicFallback(gs, e) {
+  // If no improving neighbor (local basin due to dynamic edits), pick any open edge
+  const ns = state.neighborsByEdges(gs, e.cx, e.cy);
+  if (ns.length) {
+    // Prefer one that reduces straight-line distance to EXIT
+    let best = ns[0], bestHeu = Infinity;
+    for (const n of ns) {
+      const h = manhattan(n.x, n.y, state.EXIT.x, state.EXIT.y);
+      if (h < bestHeu) { bestHeu = h; best = n; }
     }
+    return directionFromTo(e.cx, e.cy, best.x, best.y) || (e.dir || 'E');
   }
-  return e.stack[e.stack.length - 1];
+  return e.dir || 'E';
 }
+
+function manhattan(x0, y0, x1, y1) { return Math.abs(x1 - x0) + Math.abs(y1 - y0); }
 
 function directionFromTo(x0, y0, x1, y1) {
   if (x1 === x0 && y1 === y0 - 1) return 'N';
@@ -265,21 +234,6 @@ function directionFromTo(x0, y0, x1, y1) {
   if (x1 === x0 && y1 === y0 + 1) return 'S';
   if (x1 === x0 - 1 && y1 === y0) return 'W';
   return null;
-}
-
-/**
- * Advance enemy by one state.GRID step (instant cell hop).
- * If you prefer pixel interpolation, wire `stepEnemyInterpolated` instead.
- */
-export function advanceEnemyOneCell(gs, e) {
-  const dir = chooseNextDirection(gs, e);
-  const { nx, ny } = stepFrom(e.cx, e.cy, dir);
-  if (!state.inBounds(nx, ny)) return; // clamp
-
-  // Move and keep stack breadcrumbs
-  e.cx = nx; e.cy = ny; e.dir = dir;
-  // Refresh distance cache for ordering mechanics (shields, etc.)
-  updateEnemyDistance(gs, e);
 }
 
 function stepFrom(x, y, dir) {
@@ -293,16 +247,25 @@ function stepFrom(x, y, dir) {
 }
 
 /**
- * Optional helper for pixel-smooth movement along state.GRID centers.
- * Expects e.x/e.y in pixels, e.speed in tiles/sec (or pixels/sec if you pass state.GRID.tile-scaled).
- * - Locks targets to tile centers, walks center→center following maze-walk choices.
+ * Instant hop by one cell using greedy-to-exit direction.
+ */
+export function advanceEnemyOneCell(gs, e) {
+  const dir = chooseNextDirectionToExit(gs, e);
+  const { nx, ny } = stepFrom(e.cx, e.cy, dir);
+  if (!state.inBounds(nx, ny)) return;
+  e.cx = nx; e.cy = ny; e.dir = dir;
+  updateEnemyDistance(gs, e);
+}
+
+/**
+ * Pixel-smooth movement between tile centers, re-evaluating target each arrival.
  */
 export function stepEnemyInterpolated(gs, e, dtSec) {
+  // Initialize target to the center of the next greedy cell
   if (e.tx === undefined || e.ty === undefined) {
-    // Initialize first target = current cell center
     const c = tileCenter(e.cx, e.cy);
     e.x = e.x ?? c.x; e.y = e.y ?? c.y;
-    const { tx, ty } = chooseNextTarget(gs, e);
+    const { tx, ty } = chooseNextTargetGreedy(gs, e);
     e.tx = tx; e.ty = ty;
   }
 
@@ -314,17 +277,16 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
   const step = pxPerSec * dtSec;
 
   if (dist <= step) {
-    // Snap to target cell center
+    // Snap and commit cell advance
     e.x = e.tx; e.y = e.ty;
 
-    // Commit cell advance to (cx,cy) based on direction
     const dir = directionFromDelta(dx, dy) ?? e.dir;
     const { nx, ny } = stepFrom(e.cx, e.cy, dir);
     e.cx = nx; e.cy = ny; e.dir = dir;
     updateEnemyDistance(gs, e);
 
-    // Pick next target
-    const nxt = chooseNextTarget(gs, e);
+    // Immediately pick the next greedy target (adapts to any wall edit)
+    const nxt = chooseNextTargetGreedy(gs, e);
     e.tx = nxt.tx; e.ty = nxt.ty;
   } else if (dist > 0) {
     e.x += (dx / dist) * step;
@@ -332,13 +294,10 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
   }
 }
 
-function chooseNextTarget(gs, e) {
-  const dir = chooseNextDirection(gs, e);
+function chooseNextTargetGreedy(gs, e) {
+  const dir = chooseNextDirectionToExit(gs, e);
   const { nx, ny } = stepFrom(e.cx, e.cy, dir);
   const c = tileCenter(nx, ny);
-  // Push breadcrumb when we commit to a new cell
-  stackTopFor(e); // ensure current node exists
-  // (We add the new node upon arrival in advanceEnemyOneCell/stepEnemyInterpolated)
   return { tx: c.x, ty: c.y, dir };
 }
 
@@ -362,32 +321,34 @@ function directionFromDelta(dx, dy) {
  * Public convenience
  * ========================= */
 
-/**
- * Call this on boot and after any edge toggle.
- * (Wrapper kept for drop-in replacement of older recomputePath APIs.)
- */
+/** Call on boot and after any edge toggle. */
 export function recomputePath(gs = state.GameState) {
-  return recomputeDistanceField(gs);
+  // Keep existing distFromEntry for UI/shielding, and add distToExit for steering
+  recomputeDistanceField(gs);
+  recomputeExitField(gs);
+  return gs.distToExit;
 }
 
-/**
- * Utility for UI hover/preview: list of open neighbors from a cell.
- */
+/** UI helper: list of open neighbors from a cell. */
 export function openNeighbors(gs, x, y) {
   return state.neighborsByEdges(gs, x, y);
 }
 
-/**
- * For AI/logic that wants a greedy hint toward exit (without A*):
- * returns best neighbor that strictly DECREASES distFromEntry (if any).
- */
+/** Greedy hint (if you need it elsewhere). */
 export function downhillNeighborTowardExit(gs, x, y) {
-  const here = gs.distFromEntry?.[y]?.[x] ?? Infinity;
-  let best = null, bestD = here;
+  const D = gs.distToExit;
+  const here = D?.[y]?.[x] ?? Infinity;
+  let best = null, bestV = here, bestHeu = Infinity;
   const neigh = state.neighborsByEdges(gs, x, y);
   for (const n of neigh) {
-    const d = gs.distFromEntry[n.y][n.x];
-    if (d < bestD) { bestD = d; best = n; }
+    const v = D?.[n.y]?.[n.x];
+    if (!isFinite(v)) continue;
+    if (v < bestV) {
+      bestV = v; best = n; bestHeu = manhattan(n.x, n.y, state.EXIT.x, state.EXIT.y);
+    } else if (v === bestV) {
+      const h = manhattan(n.x, n.y, state.EXIT.x, state.EXIT.y);
+      if (h < bestHeu) { best = n; bestHeu = h; }
+    }
   }
   return best; // may be null
 }
