@@ -291,15 +291,24 @@ function dragonBreathTick(gs, dt, ds) {
   const halfWidth = ds.breathWidth * 0.5;
   const power = ds.breathPower;
 
-  // Precompute hero shield cutoff (toward ENTRY = smaller distFromEntry)
-  let shieldCutoff = -1;
-  for (const h of enemies) {
-    if (h.type === 'hero') {
-      if (shieldCutoff < 0 || (h.distFromEntry < shieldCutoff)) {
-        shieldCutoff = h.distFromEntry;
-      }
-    }
+  // --- before applying damage, compute shield threshold ---
+// OLD (over-shielded everyone):
+// let shieldCutoff = -1;
+// for (const h of enemies) {
+//   if (h.type === 'hero') {
+//     if (shieldCutoff < 0 || (h.distFromEntry < shieldCutoff)) {
+//       shieldCutoff = h.distFromEntry;
+//     }
+//   }
+// }
+
+// NEW: find the front-most Hero (largest distance from ENTRY).
+let maxHeroDist = -1;
+for (const h of enemies) {
+  if (h.type === 'hero' && isFinite(h.distFromEntry)) {
+    if (h.distFromEntry > maxHeroDist) maxHeroDist = h.distFromEntry;
   }
+}
 
   // Apply damage
   for (const e of enemies) {
@@ -314,19 +323,17 @@ function dragonBreathTick(gs, dt, ds) {
     const off = Math.hypot(px, py);
     if (off > halfWidth) continue;
 
-    // Hero shield: if ANY hero exists with distFromEntry <= e.distFromEntry,
-    // nullify direct fire damage on e (but still allow burn application).
-    const shielded = (shieldCutoff >= 0) && (e.distFromEntry >= shieldCutoff);
-    if (!shielded) {
-      e.hp -= power;
-    }
+    // Hero shield: units strictly BEHIND the front-most hero (closer to ENTRY) are shielded
+const shielded = (maxHeroDist >= 0) && isFinite(e.distFromEntry) && (e.distFromEntry < maxHeroDist);
+if (!shielded) {
+  e.hp -= power;
+}
 
-    // Burn DoT always applies (shield doesn’t block burn)
-    if (ds.burnDPS > 0 && ds.burnDuration > 0) {
-      e.burnDps = ds.burnDPS;
-      e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
-    }
-  }
+// Burn still applies even if shielded
+if (ds.burnDPS > 0 && ds.burnDuration > 0) {
+  e.burnDps = ds.burnDPS;
+  e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
+}
 
   fireCooldown = firePeriod;
 }
