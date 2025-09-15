@@ -3,6 +3,8 @@
 import * as state from './state.js';
 import { toggleEdge, recomputePath } from './pathing.js';
 import { getUpgradeInfo, buyUpgrade } from './upgrades.js';
+// at the bottom of ui.js (or right after refreshHUD is declared)
+export const UI = { refreshHUD, tell };
 
 // ---------- DOM helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -64,18 +66,27 @@ export function bindUI() {
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
 }
 
-// Call when amounts change (gold/bones/HP/wave etc.)
+// put this near the other module locals
 let _lastPreviewWave = -1;
+let _lastGold = -1;  // <— new
+
 export function refreshHUD() {
   const gs = state.GameState;
   const ds = state.getDragonStats(gs);
+
   if (hud.wave)  hud.wave.textContent  = String(gs.wave | 0);
   if (hud.gold)  hud.gold.textContent  = String(gs.gold | 0);
   if (hud.bones) hud.bones.textContent = String(gs.bones | 0);
   if (hud.hp)    hud.hp.textContent    = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
   if (hud.auto)  hud.auto.checked      = !!gs.autoStart;
 
-  // Only re-render the “Next Wave” panel when the wave number changes
+  // 🔁 Rebuild upgrade buttons when gold changes so disabled/enabled updates live
+  if ((gs.gold | 0) !== _lastGold) {
+    _lastGold = gs.gold | 0;
+    renderUpgradesPanel();
+  }
+
+  // Only rebuild the Next Wave preview when the wave number changes
   if ((gs.wave | 0) !== _lastPreviewWave) {
     _lastPreviewWave = gs.wave | 0;
     renderNextWavePreview().catch(err => console.warn('preview failed:', err));
