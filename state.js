@@ -29,6 +29,11 @@ const DRAGON_BASE = {
   fireRate: 0.5,        // shots/sec
 };
 
+export const Dragon = {
+  attacking: false,
+  attackTimer: 0,   // seconds
+};
+
 // ===== Game State =====
 // We export a *single* mutable object so other modules can import & mutate it.
 export const GameState = {
