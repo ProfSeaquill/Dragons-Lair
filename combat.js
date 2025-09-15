@@ -284,11 +284,6 @@ function spawnOne(gs, type) {
   gs.enemies.push(e);
 }
 
-/* =========================
- * Dragon breath + hero shield rule
- * (Shield blocks FIRE damage, but BURN DoT still applies.)
- * ========================= */
-
 let fireCooldown = 0;
 
 function dragonBreathTick(gs, dt, ds) {
@@ -296,77 +291,63 @@ function dragonBreathTick(gs, dt, ds) {
   const firePeriod = 1 / Math.max(0.01, ds.fireRate);
   if (fireCooldown > 0) return;
 
-  // right after you apply breath damage / start cooldown:
-spawnMouthFire(gs, 0.6);   // ~0.6s looks good with 12 frames
+  // Build a corridor path starting at the dragon (EXIT) walking “downhill” toward ENTRY.
+  const maxTiles = Math.max(1, Math.round(ds.breathRange / state.GRID.tile));
+  const path = raycastOpenCellsFromExit(gs, maxTiles);
+  if (!path || path.length === 0) { fireCooldown = firePeriod; return; }
 
-  const enemies = gs.enemies;
-  if (!enemies || enemies.length === 0) return;
+  // Visuals: add a traveling flame wave along that corridor (render.js will draw it).
+  (gs.effects || (gs.effects = [])).push({
+    type: 'flameWave',
+    path,                // [{ x, y, from:'N'|'E'|'S'|'W' }, ...]
+    headIdx: 0,
+    t: 0,
+    dur: 0.7,            // linger time for the glow
+    tilesPerSec: 16,     // how fast the wave head advances
+    widthPx: state.GRID.tile * 0.85,
+  });
 
-  const dragon = {
-    x: state.EXIT.x * state.GRID.tile + state.GRID.tile / 2,
-    y: state.EXIT.y * state.GRID.tile + state.GRID.tile / 2,
-  };
+  // Prepare a fast lookup of the corridor tiles we hit this tick.
+  const hit = new Set(path.map(seg => state.tileKey(seg.x, seg.y)));
 
-  // Choose target = nearest enemy (ignore tunneling engineers)
-  let target = null, bestD2 = Infinity, targetPos = null;
-  for (const e of enemies) {
-    if (e.type === 'engineer' && e.tunneling) continue;
-    const p = enemyPixelCenter(e);
-    const dx = p.x - dragon.x, dy = p.y - dragon.y;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < bestD2) { bestD2 = d2; target = e; targetPos = p; }
-  }
-  if (!target) return;
-
-  // Aim unit vector
-  const aim = { x: targetPos.x - dragon.x, y: targetPos.y - dragon.y };
-  const len = Math.hypot(aim.x, aim.y) || 1;
-  const ux = aim.x / len, uy = aim.y / len;
-
-  const range = ds.breathRange;
-  const halfWidth = ds.breathWidth * 0.5;
-  const power = ds.breathPower;
-
-  // Front-most hero (largest distFromEntry)
+  // Front-most hero (largest distance-from-entry) provides the shield line.
   let maxHeroDist = -1;
-  for (const h of enemies) {
+  for (const h of gs.enemies) {
     if (h.type === 'hero' && isFinite(h.distFromEntry)) {
       if (h.distFromEntry > maxHeroDist) maxHeroDist = h.distFromEntry;
     }
   }
-  const isShieldedByFrontHero = (e) =>
-    (maxHeroDist >= 0) && isFinite(e.distFromEntry) && (e.distFromEntry <= maxHeroDist);
 
-  // Apply beam effects to all units in cone
-  for (const e of enemies) {
-    if (e.type === 'engineer' && e.tunneling) continue;
+  // Helper: is this enemy behind (or at) the front-most hero line?
+  const shieldedByHero = (e) =>
+    (maxHeroDist >= 0) &&
+    isFinite(e.distFromEntry) &&
+    (e.distFromEntry < maxHeroDist); // strictly behind the front hero (closer to ENTRY)
 
-    const p = enemyPixelCenter(e);
-    const rx = p.x - dragon.x, ry = p.y - dragon.y;
-    const along = rx * ux + ry * uy;
-    if (along < 0 || along > range) continue;
+  // Apply damage only to units that are on the corridor tiles (no wall clipping).
+  for (const e of gs.enemies) {
+    if (e.type === 'engineer' && e.tunneling) continue; // ignore underground
+    if (!hit.has(state.tileKey(e.cx, e.cy))) continue;  // not in corridor this tick
 
-    const px = rx - ux * along;
-    const py = ry - uy * along;
-    const off = Math.hypot(px, py);
-    if (off > halfWidth) continue;
+    const shielded = shieldedByHero(e);
 
-    const shielded = isShieldedByFrontHero(e);
-
-    // 1) Direct fire damage: ONLY if not shielded
+    // 1) Direct fire is blocked by shield line.
     if (!shielded) {
-      e.hp -= power;
-      markHit(e, power);
+      e.hp -= ds.breathPower;
+      markHit(e, ds.breathPower);
     }
 
-    // 2) Burn DoT applies to everyone (shield does not block burn)
+    // 2) Burn always applies, even to shielded units.
     if (ds.burnDPS > 0 && ds.burnDuration > 0) {
       e.burnDps = ds.burnDPS;
       e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
-      // mark hit so the HP bar shows even if only burn applied this frame
+      // ensure HP bar shows even if only burn was applied this frame
       markHit(e, 0.0001);
     }
   }
+
+  // Kick the mouth FX so the sprite animates while breathing
+  gs.dragonFX = { attacking: true, t: 0, dur: 0.25 };
 
   fireCooldown = firePeriod;
 }
