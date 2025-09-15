@@ -1,6 +1,6 @@
-// main.js — boot, game loop, UI wiring, and safe combat integration
+// main.js — boot, game loop, UI wiring, and combat integration (static import)
+
 import * as state from './state.js';
-// ...and use state.state.GameState in place of state.GameState
 import { bindUI, UI } from './ui.js';
 import * as render from './render.js';
 import {
@@ -9,23 +9,23 @@ import {
   updateEnemyDistance,
 } from './pathing.js';
 
+// ---------- Combat (static import so Start Wave is always ready) ----------
+import * as Combat from './combat.js';
+
 // ---------- Canvas / Context ----------
 const canvas = document.getElementById('game');
 if (!canvas) throw new Error('Canvas #game not found');
 const ctx = canvas.getContext('2d');
 
-// ---------- Combat (static import so Start Wave is always ready) ----------
-import * as Combat from './combat.js';
-
 // ---------- Boot ----------
 function boot() {
-  // Load previous save if UI triggers it; we still need initial distance field
+  // Ensure distance field exists
   recomputePath(state.GameState);
 
   // Wire UI (buttons, edge build mode, upgrades)
   bindUI();
 
-  // Listen for UI start signal (keeps main decoupled from UI internals)
+  // Start button -> wave
   window.addEventListener('dl-start-wave', () => {
     startWave();
   });
@@ -33,12 +33,13 @@ function boot() {
   // Kick off loop
   lastT = performance.now();
   requestAnimationFrame(tick);
+
   // Tell boot overlay we're good
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
 }
 
 function startWave() {
-  // Prefer explicit Combat.startWave, then fall back to spawnNextWave if present.
+  // Prefer explicit Combat.startWave, then fall back to spawnNextWave/spawnWave.
   if (typeof Combat.startWave === 'function') {
     Combat.startWave(state.GameState);
   } else if (typeof Combat.spawnNextWave === 'function') {
@@ -66,7 +67,6 @@ function tick(now) {
 
 function update(dt) {
   // 1) Let Combat drive game logic if available
-  // Try common names in order; they are all optional.
   if (typeof Combat.update === 'function') {
     Combat.update(state.GameState, dt);
   } else if (typeof Combat.tick === 'function') {
@@ -76,17 +76,13 @@ function update(dt) {
   }
 
   // 2) Fallback enemy movement using maze-walk interpolation
-  // Skip if combat is already advancing pixel positions for enemies.
   const enemies = state.GameState.enemies || [];
   for (const e of enemies) {
-    // If combat is managing e (explicit flag), skip
-    if (e.updateByCombat) continue;
+    if (e.updateByCombat) continue; // Combat owns this one
 
-    // If the enemy has cell coords (cx,cy) and a speed, we can move it smoothly.
-    // If speed isn't set, treat 2.5 tiles/sec as a sane default for grunts.
     if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
       if (typeof e.pxPerSec !== 'number' && typeof e.speed !== 'number') {
-        e.speed = e.speed || 2.5;
+        e.speed = e.speed || 2.5; // tiles/sec default
       }
       stepEnemyInterpolated(state.GameState, e, dt);
       updateEnemyDistance(state.GameState, e);
@@ -96,17 +92,12 @@ function update(dt) {
   // 3) Auto-start waves if enabled and field is clear
   if (state.GameState.autoStart) {
     const anyAlive = enemies && enemies.length > 0;
-    // Small cooldown after starting a wave to avoid immediate re-trigger
     const cool = (performance.now() - waveJustStartedAt) < 600;
-    if (!anyAlive && !cool) {
-      startWave();
-    }
+    if (!anyAlive && !cool) startWave();
   }
 
   // 4) Keep HUD in sync if gold/bones/hp might change outside UI handlers
-  if (UI && typeof UI.refreshHUD === 'function') {
-    UI.refreshHUD();
-  }
+  if (UI && typeof UI.refreshHUD === 'function') UI.refreshHUD();
 }
 
 // ---------- Go ----------
