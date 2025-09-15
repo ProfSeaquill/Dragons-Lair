@@ -1,8 +1,6 @@
-// combat.js — multi-enemy roster + bosses + engineer bombs + shield rule (fire blocked, burn applies)
-
+// combat.js (top)
 import * as state from './state.js';
-import { updateEnemyDistance } from './pathing.js';
-
+import { updateEnemyDistance, raycastOpenCellsFromExit } from './pathing.js';
 
 // --- VISUAL: spawn a one-shot mouth fire effect
 function spawnMouthFire(gs, dur = 0.6) {
