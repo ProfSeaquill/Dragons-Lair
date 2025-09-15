@@ -7,7 +7,7 @@
  * so they stay in sync.
  */
 export const PROGRESSION = {
-  baseHP: 24,            // grunt HP at wave 1
+  baseHP: 10,            // grunt HP at wave 1
   hpGrowth: 1.18,        // per-wave multiplicative growth
   baseSpeed: 2.4,        // tiles/sec at wave 1
   speedGrowth: 1.02,     // per-wave multipliclicative growth
