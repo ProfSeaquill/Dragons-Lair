@@ -22,11 +22,11 @@ export const COSTS = {
 const DRAGON_BASE = {
   maxHP: 100,
   breathPower: 10,
-  breathRange: 6 * GRID.tile,
+  breathRange: 8 * GRID.tile,
   breathWidth: GRID.tile * 0.9,
-  burnDPS: 0,           // can be modified via upgrades
-  burnDuration: 0,      // seconds
-  fireRate: 1.0,        // shots/sec
+  burnDPS: 1,           // can be modified via upgrades
+  burnDuration: 1,      // seconds
+  fireRate: 0.5,        // shots/sec
 };
 
 // ===== Game State =====
