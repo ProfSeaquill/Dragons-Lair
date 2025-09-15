@@ -44,6 +44,9 @@ export const GameState = {
   dragonHP: DRAGON_BASE.maxHP,
   autoStart: false,
 
+  // Visual-only dragon breath (mouth burst) — optional
+dragonFX: { attacking:false, t:0, dur:0.5 },
+  
   // Simulation containers (kept generic so other modules won’t crash)
   enemies: [],
   projectiles: [],
