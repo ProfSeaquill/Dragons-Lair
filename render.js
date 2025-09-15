@@ -1,6 +1,15 @@
-constnder.js — cave edge rendering + hover highlight + lightweight sprites
+// render.js — cave edge rendering + hover highlight + lightweight sprites
 
 import * as state from './state.js';
+
+/* -----------------------------------------------------------
+ * DRAGON SPRITE (singleton loader)
+ * --------------------------------------------------------- */
+const dragonImg = new Image();
+let dragonReady = false;
+dragonImg.onload = () => { dragonReady = true; };
+// Adjust the filename if yours differs
+dragonImg.src = './assets/dragon_idle.png';
 
 /**
  * Public: draw the entire frame.
@@ -9,6 +18,9 @@ import * as state from './state.js';
  */
 export function draw(ctx, gs = state.GameState) {
   const { width, height } = ctx.canvas;
+
+  // Keep pixels crisp for our hybrid chunky/pixel style
+  ctx.imageSmoothingEnabled = false;
 
   // -------- Background
   ctx.clearRect(0, 0, width, height);
@@ -32,6 +44,7 @@ export function draw(ctx, gs = state.GameState) {
   // -------- Enemies / Dragon
   drawEnemies(ctx, gs);
   drawDragon(ctx, gs);
+
   // -------- Bombs (engineer)
   drawBombs(ctx, gs);
 }
@@ -66,7 +79,7 @@ function drawEntryExit(ctx) {
   circle(ctx, ep.x, ep.y, state.GRID.tile * 0.28, '#0b4', true);
   ring(ctx, ep.x, ep.y, state.GRID.tile * 0.32, '#1f7');
 
-  // EXIT / Dragon lair mouth
+  // EXIT / Dragon lair mouth (ring stays even with sprite)
   circle(ctx, xp.x, xp.y, state.GRID.tile * 0.28, '#844', true);
   ring(ctx, xp.x, xp.y, state.GRID.tile * 0.32, '#c88');
 }
@@ -173,7 +186,7 @@ function drawEnemies(ctx, gs) {
     circle(ctx, p.x, p.y, r, fill, true);
 
     // Visual accents
-    if (e?.shield)  ring(ctx, p.x, p.y, r + 2, '#9df'); // hero’s shield ring
+    if (e?.shield)   ring(ctx, p.x, p.y, r + 2, '#9df'); // hero’s shield ring
     if (e?.miniboss) ring(ctx, p.x, p.y, r + 5, '#f7a'); // miniboss halo
   }
 }
@@ -190,21 +203,29 @@ const ENEMY_COLORS = {
 };
 
 function colorForEnemy(e) {
-  // prefer a per-enemy color if one is ever attached by combat; else map by type
   if (e && typeof e.color === 'string') return e.color;
   if (e && ENEMY_COLORS[e.type]) return ENEMY_COLORS[e.type];
-  // fallback preserves your old behavior
   return e?.shield ? '#5cf' : '#fc3';
 }
 
 function drawDragon(ctx, gs) {
-  const dragonImg = new Image();
-dragonImg.src = './assets/dragon_idle.png';
   const p = centerOf(state.EXIT.x, state.EXIT.y);
+
+  // Choose a size that reads well on your grid; tweak as needed.
+  // ~2 tiles wide keeps it chunky but readable.
+  const size = Math.round(state.GRID.tile * 2);
+  const half = size / 2;
+
+  if (dragonReady) {
+    ctx.drawImage(dragonImg, p.x - half, p.y - half, size, size);
+  } else {
+    // Fallback while the sprite is still loading
+    const r = Math.max(6, state.GRID.tile * 0.35);
+    circle(ctx, p.x, p.y, r, '#b33', true);
+  }
+
+  // Lair accent ring (kept from your original)
   const r = Math.max(6, state.GRID.tile * 0.35);
-  if (dragonImg.complete) {
-  ctx.drawImage(dragonImg, p.x - 32, p.y - 32, 64, 64);
-}
   ring(ctx, p.x, p.y, r + 3, '#f88');
 }
 
@@ -250,7 +271,6 @@ function fillRect(ctx, x, y, w, h, fillStyle) {
   ctx.restore();
 }
 
-
 function drawBombs(ctx, gs) {
   if (!Array.isArray(gs.effects)) return;
   const t = state.GRID.tile;
@@ -260,7 +280,7 @@ function drawBombs(ctx, gs) {
     // Pulse as timer counts down
     const pulse = 0.5 + 0.5 * Math.sin((fx.timer || 0) * 6.283);
     circle(ctx, fx.x, fx.y, r * (0.9 + 0.2 * pulse), '#f44', true);
-    ring(ctx, fx.x, fx.y, r + 4, '#faa');
+    ring(ctx, fx.x, fy = fx.y, r + 4, '#faa');
     // Tiny timer text
     ctx.save();
     ctx.fillStyle = '#fff';
