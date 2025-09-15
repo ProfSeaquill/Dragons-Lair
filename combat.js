@@ -30,6 +30,12 @@ function waveCountFor(wave) {
   return Math.max(3, Math.round(base * Math.pow(growth, Math.max(0, wave - 1))));
 }
 
+function markHit(e, amount = 0) {
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  e.lastHitAt = now;
+  e.showHpUntil = now + 1000; // visible for 1s since last damage tick
+}
+
 // Build a concrete enemy entry (stats only; spawn fills position)
 function makeEnemy(type, wave) {
   const hp0  = CURVES.hpBase[type];
