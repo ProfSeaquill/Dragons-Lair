@@ -15,7 +15,7 @@ dragonImg.src = './assets/dragon_idle.png';
  * --------------------------------------------------------- */
 const fireImg = new Image();
 let fireReady = false;
-const FIRE_FRAMES = 12; // set to your sheet's frame count
+const FIRE_FRAMES = 4; // set to your sheet's frame count
 fireImg.onload = () => { fireReady = true; };
 fireImg.src = './assets/fire_breath.png'; // 12 frames wide, 1 row
 
