@@ -61,6 +61,13 @@ export const GameState = {
 
   // RNG / misc hooks
   seed: 0,
+
+  // Visual-only dragon attack state (driven by combat)
+dragonFX: {
+  attacking: false, // true while fire sprite is shown
+  t: 0,             // elapsed seconds for current attack anim
+  dur: 0.5          // animation duration (seconds)
+},
 };
 
 // ===== Utility: Field allocation =====
