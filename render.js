@@ -226,7 +226,6 @@ function drawDragon(ctx, gs) {
 
   // Lair accent ring (kept from your original)
   const r = Math.max(6, state.GRID.tile * 0.35);
-  ring(ctx, p.x, p.y, r + 3, '#f88');
 }
 
 /* ===================== tiny primitives ===================== */
