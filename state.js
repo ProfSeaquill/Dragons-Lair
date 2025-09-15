@@ -13,8 +13,8 @@ export const EXIT  = { x: GRID.cols - 1, y: Math.floor(GRID.rows / 2) };
 
 // ===== Economy / Costs (kept minimal; upgrades can extend) =====
 export const COSTS = {
-  edgeWall: 10,     // bones to place an edge wall
-  edgeRefund: 5,    // bones refunded on removal
+  edgeWall: 1,     // bones to place an edge wall
+  edgeRefund: 0,    // bones refunded on removal
   healPerBone: 1,   // 1 HP per 1 bone
 };
 
