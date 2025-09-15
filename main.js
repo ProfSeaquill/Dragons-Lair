@@ -111,6 +111,16 @@ function update(dt) {
     }
   }
 
+  // 2b) Dragon fire animation FX timer (visual only)
+const fx = state.GameState.dragonFX;
+if (fx && fx.attacking) {
+  fx.t += dt;
+  if (fx.t >= fx.dur) {
+    fx.attacking = false; // animation finished
+    fx.t = 0;
+  }
+}
+  
   // 3) Auto-start waves if enabled and field is clear
   if (state.GameState.autoStart) {
     const anyAlive = enemies && enemies.length > 0;
