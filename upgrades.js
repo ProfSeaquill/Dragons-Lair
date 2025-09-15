@@ -12,10 +12,10 @@ import { GameState, getDragonStats, GRID } from './state.js';
  * No max caps — upgrades are infinite.
  */
 export const UPGRADE_DEFS = [
-  { key: 'power', title: 'Fire Power', base: 20, mult: 1.15 },
-  { key: 'rate',  title: 'Fire Rate',  base: 25, mult: 1.15 },
-  { key: 'range', title: 'Flame Range',base: 30, mult: 1.28 },
-  { key: 'burn',  title: 'Burn DoT',   base: 22, mult: 1.25 },
+  { key: 'power', title: 'Fire Power',  base: 20, mult: 1.15 },
+  { key: 'rate',  title: 'Fire Rate',   base: 25, mult: 1.15 },
+  { key: 'range', title: 'Flame Range', base: 30, mult: 1.28 },
+  { key: 'burn',  title: 'Burn DoT',    base: 22, mult: 1.25 }
 ];
 
 /** Utility: get current level (safe 0 default) */
@@ -29,10 +29,10 @@ function costFor(def, level) {
   return Math.round(def.base * Math.pow(def.mult, L));
 }
 
-/** Build a human-readable desc from the *current* dragon stats */
+/** Build a human-readable desc from the current dragon stats */
 function buildDesc(gs) {
-  const ds = getDragonStats(gs); // uses upgrade levels to compute live stats
-  // Power: breathPower is “damage per tick/shot” in combat cone
+  const ds = getDragonStats(gs);
+  // Power: breathPower is damage per tick/shot in the combat cone
   const power   = Math.round(ds.breathPower);
   // Rate: shots per second
   const rate    = ds.fireRate.toFixed(2);
@@ -53,7 +53,7 @@ function buildDesc(gs) {
 
 /**
  * Public: returns array of { key, title, level, cost, desc }
- * for UI rendering. Desc strings reflect actual *current* values.
+ * for UI rendering. Desc strings reflect actual current values.
  */
 export function getUpgradeInfo(gs = GameState) {
   const live = buildDesc(gs);
@@ -67,7 +67,6 @@ export function getUpgradeInfo(gs = GameState) {
       level,
       cost,
       desc,
-      // kept for compatibility with any UI that checks these:
       max: undefined,
       isMax: false,
     };
@@ -75,7 +74,7 @@ export function getUpgradeInfo(gs = GameState) {
 }
 
 /**
- * Public: attempt to buy upgrade by key.
+ * Attempt to buy upgrade by key.
  * - Deducts gold if affordable.
  * - Increments gs.upgrades[key].
  * - Returns true/false.
