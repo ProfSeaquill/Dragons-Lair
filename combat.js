@@ -7,11 +7,11 @@ import { updateEnemyDistance } from './pathing.js';
  * Enemy templates & scaling
  * ========================= */
 const CURVES = {
-  hpBase:       { villager: 24,  squire: 30,  knight: 45,  hero: 85, engineer: 40, kingsguard: 90, boss: 320 },
+  hpBase:       { villager: 10,  squire: 14,  knight: 30,  hero: 60, engineer: 40, kingsguard: 90, boss: 320 },
   hpGrowth:     1.16,
-  spdBase:      { villager: 2.2, squire: 2.6, knight: 3.2, hero: 1.8, engineer: 2.4, kingsguard: 2.7, boss: 2.2 },
+  spdBase:      { villager: 1.6, squire: 1.7, knight: 2.7, hero: 1.8, engineer: 2.4, kingsguard: 2.5, boss: 2.0 },
   spdGrowth:    1.015,
-  touchDmgBase: { villager: 8,   squire: 10,  knight: 14,  hero: 16, engineer: 20, kingsguard: 28, boss: 40 },
+  touchDmgBase: { villager: 8,   squire: 10,  knight: 14,  hero: 16, engineer: 0, kingsguard: 28, boss: 40 },
   touchDmgGrowth: 1.04,
 };
 
