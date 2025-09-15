@@ -211,11 +211,11 @@ export function update(gs = state.GameState, dt) {
     }
 
     // Burn DoT
-    if (e.burnLeft > 0 && e.burnDps > 0) {
-      const tick = Math.min(dt, e.burnLeft);
-      e.burnLeft -= tick;
-      e.hp -= e.burnDps * tick;
-    }
+if (e.burnLeft > 0 && e.burnDps > 0) {
+  const tick = Math.min(dt, e.burnLeft);
+  e.burnLeft -= tick;
+  e.hp -= e.burnDps * tick;
+  markHit(e, e.burnDps * tick);if
 
     // Contact with dragon
     if (e.cx === exitCx && e.cy === exitCy) {
@@ -262,6 +262,7 @@ export function update(gs = state.GameState, dt) {
  * ========================= */
 function spawnOne(gs, type) {
   const e = makeEnemy(type, gs.wave | 0);
+  e.maxHp = e.hp;
   e.cx = state.ENTRY.x;
   e.cy = state.ENTRY.y;
   e.dir = 'E';
@@ -329,8 +330,9 @@ function dragonBreathTick(gs, dt, ds) {
     // Units strictly behind the front-most hero (closer to ENTRY) are shielded
     const shielded = (maxHeroDist >= 0) && isFinite(e.distFromEntry) && (e.distFromEntry < maxHeroDist);
     if (!shielded) {
-      e.hp -= power;
-    }
+  e.hp -= power;
+  markHit(e, power);
+}
 
     // Burn always applies
     if (ds.burnDPS > 0 && ds.burnDuration > 0) {
