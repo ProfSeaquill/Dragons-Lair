@@ -12,10 +12,10 @@ import { GameState, getDragonStats, GRID } from './state.js';
  * No max caps — upgrades are infinite.
  */
 export const UPGRADE_DEFS = [
-  { key: 'power', title: 'Fire Power', base: 20, mult: 1.35 },
-  { key: 'rate',  title: 'Fire Rate',  base: 25, mult: 1.35 },
+  { key: 'power', title: 'Fire Power', base: 20, mult: 1.15 },
+  { key: 'rate',  title: 'Fire Rate',  base: 25, mult: 1.15 },
   { key: 'range', title: 'Flame Range',base: 30, mult: 1.28 },
-  { key: 'burn',  title: 'Burn DoT',   base: 22, mult: 1.35 },
+  { key: 'burn',  title: 'Burn DoT',   base: 22, mult: 1.25 },
 ];
 
 /** Utility: get current level (safe 0 default) */
