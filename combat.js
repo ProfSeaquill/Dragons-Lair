@@ -3,6 +3,18 @@
 import * as state from './state.js';
 import { updateEnemyDistance } from './pathing.js';
 
+
+// --- VISUAL: spawn a one-shot mouth fire effect
+function spawnMouthFire(gs, dur = 0.6) {
+  gs.effects = gs.effects || [];
+  gs.effects.push({
+    type: 'fireMouth',
+    t: 0,          // elapsed seconds
+    dur,           // how long the animation runs
+    dead: false,   // cleanup flag
+  });
+}
+
 /* =========================
  * Enemy templates & scaling
  * ========================= */
@@ -285,6 +297,9 @@ function dragonBreathTick(gs, dt, ds) {
   fireCooldown -= dt;
   const firePeriod = 1 / Math.max(0.01, ds.fireRate);
   if (fireCooldown > 0) return;
+
+  // right after you apply breath damage / start cooldown:
+spawnMouthFire(gs, 0.6);   // ~0.6s looks good with 12 frames
 
   const enemies = gs.enemies;
   if (!enemies || enemies.length === 0) return;
