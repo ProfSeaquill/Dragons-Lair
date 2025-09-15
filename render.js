@@ -270,6 +270,84 @@ if (fx && fx.attacking && fireReady) {
     mouthX, mouthY - fh / 2, fw, fh // dest near the mouth
   )Fire}
 
+  // --- Flame strip textures (optional; fallback if missing)
+const fireStripH = new Image();
+const fireStripV = new Image();
+let fireHReady = false, fireVReady = false;
+fireStripH.onload = () => fireHReady = true;
+fireStripV.onload = () => fireVReady = true;
+// If you add these files, uncomment the next two lines:
+// fireStripH.src = './assets/fire_strip_h.png';
+// fireStripV.src = './assets/fire_strip_v.png';
+
+function drawFlameWaves(ctx, gs) {
+  const tsize = state.GRID.tile;
+  const waves = gs.effects || [];
+  const tailLen = 10; // tiles that remain lit behind the head
+
+  for (const fx of waves) {
+    if (fx.type !== 'flameWave' || !fx.path || fx.headIdx == null) continue;
+
+    const start = Math.max(0, fx.headIdx - tailLen);
+    const end   = fx.headIdx;
+
+    for (let i = start; i <= end; i++) {
+      const seg = fx.path[i];
+      if (!seg) continue;
+      const p = centerOf(seg.x, seg.y);
+      const age = end - i;                         // 0 = freshest
+      const alpha = Math.max(0, 1 - age / tailLen);
+
+      const horiz = (seg.from === 'E' || seg.from === 'W');
+      const w = horiz ? tsize : (fx.widthPx || tsize * 0.9);
+      const h = horiz ? (fx.widthPx || tsize * 0.9) : tsize;
+
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.95;
+
+      // Prefer texture strips if available; else draw a simple gradient
+      if (horiz && fireHReady) {
+        ctx.drawImage(fireStripH, p.x - w/2, p.y - h/2, w, h);
+      } else if (!horiz && fireVReady) {
+        ctx.drawImage(fireStripV, p.x - w/2, p.y - h/2, w, h);
+      } else {
+        // Fallback: soft rounded “flame segment”
+        const grd = ctx.createLinearGradient(p.x - w/2, p.y, p.x + w/2, p.y);
+        grd.addColorStop(0.00, 'rgba(255,255,255,0.85)');
+        grd.addColorStop(0.25, 'rgba(255,220,120,0.85)');
+        grd.addColorStop(0.60, 'rgba(255,120,30,0.80)');
+        grd.addColorStop(1.00, 'rgba(200,40,10,0.60)');
+        ctx.fillStyle = grd;
+        roundRect(ctx, p.x - w/2, p.y - h/2, w, h, Math.min(10, h/3));
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+  }
+}
+
+  function drawBombs(ctx, gs) {
+  if (!Array.isArray(gs.effects)) return;
+  const t = state.GRID.tile;
+  for (const fx of gs.effects) {
+    if (fx.type !== 'bomb') continue;
+    const r = Math.max(6, t * 0.22);
+    // Pulse as timer counts down
+    const pulse = 0.5 + 0.5 * Math.sin((fx.timer || 0) * 6.283);
+    circle(ctx, fx.x, fx.y, r * (0.9 + 0.2 * pulse), '#f44', true);
+    ring(ctx, fx.x, fy = fx.y, r + 4, '#faa');
+    // Tiny timer text
+    ctx.save();
+    ctx.fillStyle = '#fff';
+    ctx.font = `${Math.max(8, (t * 0.28) | 0)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(Math.ceil(Math.max(0, fx.timer)).toString(), fx.x, fx.y);
+    ctx.restore();
+  }
+}
+
 /* ===================== tiny primitives ===================== */
 
 function centerOf(cx, cy) {
@@ -305,32 +383,23 @@ function circle(ctx, x, y, r, fillStyle = '#fff', filled = true) {
   ctx.restore();
 }
 
+// tiny helper for pill shapes
+function roundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, rr);
+  ctx.arcTo(x+w, y+h, x,   y+h, rr);
+  ctx.arcTo(x,   y+h, x,   y,   rr);
+  ctx.arcTo(x,   y,   x+w, y,   rr);
+  ctx.closePath();
+}
+  
 function fillRect(ctx, x, y, w, h, fillStyle) {
   ctx.save();
   ctx.fillStyle = fillStyle;
   ctx.fillRect(x, y, w, h);
   ctx.restore();
-}
-
-function drawBombs(ctx, gs) {
-  if (!Array.isArray(gs.effects)) return;
-  const t = state.GRID.tile;
-  for (const fx of gs.effects) {
-    if (fx.type !== 'bomb') continue;
-    const r = Math.max(6, t * 0.22);
-    // Pulse as timer counts down
-    const pulse = 0.5 + 0.5 * Math.sin((fx.timer || 0) * 6.283);
-    circle(ctx, fx.x, fx.y, r * (0.9 + 0.2 * pulse), '#f44', true);
-    ring(ctx, fx.x, fy = fx.y, r + 4, '#faa');
-    // Tiny timer text
-    ctx.save();
-    ctx.fillStyle = '#fff';
-    ctx.font = `${Math.max(8, (t * 0.28) | 0)}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(Math.ceil(Math.max(0, fx.timer)).toString(), fx.x, fx.y);
-    ctx.restore();
-  }
 }
 
 /* ===================== position helpers ===================== */
