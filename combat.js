@@ -1,4 +1,4 @@
-// combat.js — multi-enemy roster + bosses + engineer bombs for edge-walls pathing
+// combat.js — multi-enemy roster + bosses + engineer bombs + shield rule (fire blocked, burn applies)
 
 import * as state from './state.js';
 import { updateEnemyDistance } from './pathing.js';
@@ -6,22 +6,23 @@ import { updateEnemyDistance } from './pathing.js';
 /* =========================
  * Enemy templates & scaling
  * ========================= */
+
 const CURVES = {
-  hpBase:       { villager: 10,  squire: 14,  knight: 30,  hero: 60, engineer: 40, kingsguard: 90, boss: 320 },
+  hpBase:       { villager: 24,  squire: 30,  knight: 45,  hero: 85, engineer: 40, kingsguard: 90, boss: 320 },
   hpGrowth:     1.16,
-  spdBase:      { villager: 1.6, squire: 1.7, knight: 2.7, hero: 1.8, engineer: 2.4, kingsguard: 2.5, boss: 2.0 },
+  spdBase:      { villager: 2.2, squire: 2.6, knight: 3.2, hero: 1.8, engineer: 2.4, kingsguard: 2.7, boss: 2.2 },
   spdGrowth:    1.015,
-  touchDmgBase: { villager: 8,   squire: 10,  knight: 14,  hero: 16, engineer: 0, kingsguard: 28, boss: 40 },
+  touchDmgBase: { villager: 8,   squire: 10,  knight: 14,  hero: 16, engineer: 20, kingsguard: 28, boss: 40 },
   touchDmgGrowth: 1.04,
 };
 
 const FLAGS = {
-  kingsguardEvery: 5,
-  bossEvery: 10,
-  engineerBombTimer: 10,
-  engineerTravelTime: 2.0,
-  engineerBombDmg: 35,
-  spawnGap: 0.55,
+  kingsguardEvery: 5,        // miniboss cadence
+  bossEvery: 10,             // Knight of the Round Table cadence
+  engineerBombTimer: 10,     // seconds until detonation
+  engineerTravelTime: 2.0,   // seconds "digging" underground before popping up
+  engineerBombDmg: 35,       // damage to the dragon on bomb detonation
+  spawnGap: 0.55,            // seconds between spawns
 };
 
 // Wave size curve
@@ -30,13 +31,6 @@ function waveCountFor(wave) {
   return Math.max(3, Math.round(base * Math.pow(growth, Math.max(0, wave - 1))));
 }
 
-function markHit(e, amount = 0) {
-  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-  e.lastHitAt = now;
-  e.showHpUntil = now + 1000; // visible for 1s since last damage tick
-}
-
-// Build a concrete enemy entry (stats only; spawn fills position)
 function makeEnemy(type, wave) {
   const hp0  = CURVES.hpBase[type];
   const spd0 = CURVES.spdBase[type];
@@ -50,13 +44,16 @@ function makeEnemy(type, wave) {
     type,
     name: type,
     hp,
-    speed: spd,
+    maxHp: hp,              // for health bars
+    speed: spd,             // tiles/sec; main converts to px/sec
     contactDamage: tDmg,
-    shield: false,
+    shield: false,          // used only for visuals on heroes
     miniboss: false,
     burnLeft: 0,
     burnDps: 0,
-    updateByCombat: false, // main moves them via pathing
+    updateByCombat: false,  // main handles movement via pathing interpolation
+    lastHitAt: 0,
+    showHpUntil: 0,
   };
 
   switch (type) {
@@ -65,40 +62,39 @@ function makeEnemy(type, wave) {
     case 'knight':     return { ...base, name: 'Knight' };
     case 'hero':       return { ...base, name: 'Hero', shield: true };
     case 'engineer':   return { ...base, name: 'Engineer', tunneling: true, tunnelT: FLAGS.engineerTravelTime };
-    case 'kingsguard': return { ...base, name: 'King’s Guard', miniboss: true };
+    case 'kingsguard': return { ...base, name: "King's Guard", miniboss: true };
     case 'boss':       return { ...base, name: 'Knight of the Round Table', miniboss: true };
     default:           return base;
   }
 }
 
 /* =========================
- * Wave composition (with thresholds you requested)
+ * Wave composition (with thresholds)
  * ========================= */
+
 export function previewWaveList(wave) {
   return planWaveList(wave).slice();
 }
 
-// Rules:
-// - Wave 1: all Villagers
-// - Boss every 10: 1 boss + tough adds (no Heroes <11, no Engineers <21)
-// - Miniboss every 5 (not 10): 1 kingsguard + mixed adds (same thresholds)
-// - Normal: deterministic mix, thresholds respected
 function planWaveList(wave) {
   const count = waveCountFor(wave);
 
-  if (wave === 1) return Array.from({ length: count }, () => 'villager');
+  // Wave 1: all Villagers
+  if (wave === 1) {
+    return Array.from({ length: count }, () => 'villager');
+  }
 
   const isBoss = (wave % FLAGS.bossEvery === 0);
   const isMini = !isBoss && (wave % FLAGS.kingsguardEvery === 0);
 
   const can = {
-    villager:   true,
-    squire:     wave >= 2,
-    knight:     wave >= 6,
-    hero:       wave >= 11,
-    engineer:   wave >= 21,
-    kingsguard: true,
-    boss:       true,
+    villager:  true,
+    squire:    wave >= 2,
+    knight:    wave >= 6,
+    hero:      wave >= 11,
+    engineer:  wave >= 21,
+    kingsguard:true,
+    boss:      true,
   };
 
   const list = [];
@@ -109,7 +105,7 @@ function planWaveList(wave) {
     for (let i = 0; i < adds; i++) {
       let type = 'squire';
       if (can.knight && i % 2 === 0) type = 'knight';
-      if (can.hero   && i % 5 === 0) type = 'hero';
+      if (can.hero && i % 5 === 0)   type = 'hero';
       list.push(type);
     }
     return list;
@@ -120,15 +116,16 @@ function planWaveList(wave) {
     const adds = Math.max(0, count - 1);
     for (let i = 0; i < adds; i++) {
       let type = 'villager';
-      if (can.knight && i % 3 === 0) type = 'knight';
+      if (can.knight && i % 3 === 0)      type = 'knight';
       else if (can.squire && i % 2 === 0) type = 'squire';
-      if (can.hero && i % 6 === 0) type = 'hero';
-      if (can.engineer && i % 8 === 0) type = 'engineer';
+      if (can.hero && i % 6 === 0)        type = 'hero';
+      if (can.engineer && i % 8 === 0)    type = 'engineer';
       list.push(type);
     }
     return list;
   }
 
+  // Normal waves
   for (let i = 0; i < count; i++) {
     let type = 'villager';
     if (can.engineer && i % 9 === 0)        type = 'engineer';
@@ -143,6 +140,7 @@ function planWaveList(wave) {
 /* =========================
  * Module runtime
  * ========================= */
+
 const R = {
   spawning: false,
   queue: [],
@@ -153,6 +151,7 @@ const R = {
 /* =========================
  * Public API
  * ========================= */
+
 export function startWave(gs = state.GameState) {
   if (R.waveActive) return;
   R.queue = planWaveList(gs.wave);
@@ -163,7 +162,11 @@ export function startWave(gs = state.GameState) {
 
 export const spawnNextWave = startWave;
 export const spawnWave = startWave;
-export { update as tick, update as step }; // compat aliases
+export { update as tick, update as step };
+
+/* =========================
+ * Update loop
+ * ========================= */
 
 export function update(gs = state.GameState, dt) {
   const enemies = gs.enemies || (gs.enemies = []);
@@ -200,6 +203,7 @@ export function update(gs = state.GameState, dt) {
         e.cx = spot.x; e.cy = spot.y; e.dir = 'W';
         e.tunneling = false;
 
+        // Plant bomb
         gs.effects.push({
           type: 'bomb',
           x: state.GRID.tile * (exitCx + 0.5),
@@ -210,12 +214,13 @@ export function update(gs = state.GameState, dt) {
       }
     }
 
-    // Burn DoT
-if (e.burnLeft > 0 && e.burnDps > 0) {
-  const tick = Math.min(dt, e.burnLeft);
-  e.burnLeft -= tick;
-  e.hp -= e.burnDps * tick;
-  markHit(e, e.burnDps * tick);if
+    // Burn DoT (burn always ticks; shield only blocks direct fire)
+    if (e.burnLeft > 0 && e.burnDps > 0) {
+      const tick = Math.min(dt, e.burnLeft);
+      e.burnLeft -= tick;
+      e.hp -= e.burnDps * tick;
+      markHit(e, e.burnDps * tick);
+    }
 
     // Contact with dragon
     if (e.cx === exitCx && e.cy === exitCy) {
@@ -244,7 +249,7 @@ if (e.burnLeft > 0 && e.burnDps > 0) {
     }
   }
 
-  // 4) Dragon breath (with corrected hero shield logic)
+  // 4) Dragon breath (with shield rule)
   if (enemies.length > 0) {
     dragonBreathTick(gs, dt, state.getDragonStats(gs));
   }
@@ -260,16 +265,20 @@ if (e.burnLeft > 0 && e.burnDps > 0) {
 /* =========================
  * Spawning
  * ========================= */
+
 function spawnOne(gs, type) {
   const e = makeEnemy(type, gs.wave | 0);
-  e.maxHp = e.hp;
   e.cx = state.ENTRY.x;
   e.cy = state.ENTRY.y;
   e.dir = 'E';
   gs.enemies.push(e);
 }
 
-// Replace your existing dragonBreathTick with this version
+/* =========================
+ * Dragon breath + hero shield rule
+ * (Shield blocks FIRE damage, but BURN DoT still applies.)
+ * ========================= */
+
 let fireCooldown = 0;
 
 function dragonBreathTick(gs, dt, ds) {
@@ -280,34 +289,12 @@ function dragonBreathTick(gs, dt, ds) {
   const enemies = gs.enemies;
   if (!enemies || enemies.length === 0) return;
 
-  import { raycastOpenCellsFromExit } from './pathing.js';
-import { GRID, getDragonStats } from './state.js';
-
-// Call this exactly when the dragon breath attack “fires”
-function spawnFlameWave(gs) {
-  const ds = getDragonStats(gs);
-  const rangeTiles = Math.max(1, Math.floor(ds.breathRange / GRID.tile));
-
-  gs.effects.push({
-    type: 'flameWave',
-    t: 0,                 // elapsed time (sec)
-    dur: 0.7,             // how long segments linger/shine
-    tilesPerSec: 14,      // how fast the head marches
-    widthPx: ds.breathWidth,
-    path: raycastOpenCellsFromExit(gs, rangeTiles),
-  });
-
-  // (Optional) kick off mouth-burst FX
-  if (gs.dragonFX) { gs.dragonFX.attacking = true; gs.dragonFX.t = 0; }
-}
-
-  // Dragon (EXIT-center) position
   const dragon = {
     x: state.EXIT.x * state.GRID.tile + state.GRID.tile / 2,
     y: state.EXIT.y * state.GRID.tile + state.GRID.tile / 2,
   };
 
-  // Target: nearest enemy (ignore tunneling engineers)
+  // Choose target = nearest enemy (ignore tunneling engineers)
   let target = null, bestD2 = Infinity, targetPos = null;
   for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
@@ -323,23 +310,21 @@ function spawnFlameWave(gs) {
   const len = Math.hypot(aim.x, aim.y) || 1;
   const ux = aim.x / len, uy = aim.y / len;
 
-  // Beam params
   const range = ds.breathRange;
   const halfWidth = ds.breathWidth * 0.5;
   const power = ds.breathPower;
 
-  // --- Shield rule: find the FRONT-MOST hero (largest distFromEntry)
+  // Front-most hero (largest distFromEntry)
   let maxHeroDist = -1;
   for (const h of enemies) {
     if (h.type === 'hero' && isFinite(h.distFromEntry)) {
       if (h.distFromEntry > maxHeroDist) maxHeroDist = h.distFromEntry;
     }
   }
-  // Any unit with distFromEntry <= maxHeroDist is under the shield umbrella
   const isShieldedByFrontHero = (e) =>
     (maxHeroDist >= 0) && isFinite(e.distFromEntry) && (e.distFromEntry <= maxHeroDist);
 
-  // Apply effects to anyone in cone
+  // Apply beam effects to all units in cone
   for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
 
@@ -348,7 +333,6 @@ function spawnFlameWave(gs) {
     const along = rx * ux + ry * uy;
     if (along < 0 || along > range) continue;
 
-    // perpendicular offset to beam centerline
     const px = rx - ux * along;
     const py = ry - uy * along;
     const off = Math.hypot(px, py);
@@ -359,24 +343,25 @@ function spawnFlameWave(gs) {
     // 1) Direct fire damage: ONLY if not shielded
     if (!shielded) {
       e.hp -= power;
+      markHit(e, power);
     }
 
-    // 2) Burn: Applies to everyone (including shielded targets)
+    // 2) Burn DoT applies to everyone (shield does not block burn)
     if (ds.burnDPS > 0 && ds.burnDuration > 0) {
       e.burnDps = ds.burnDPS;
       e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
+      // mark hit so the HP bar shows even if only burn applied this frame
+      markHit(e, 0.0001);
     }
   }
 
-// Important: next-shot timer starts AFTER the anim finishes
-// Total wait = animation duration + normal fire period
-const animDur = gs.dragonFX.dur || 0.5;
-fireCooldown = animDur + firePeriod;
+  fireCooldown = firePeriod;
 }
 
 /* =========================
  * Helpers
  * ========================= */
+
 function enemyPixelCenter(e) {
   if (typeof e.x === 'number' && typeof e.y === 'number') return { x: e.x, y: e.y };
   return {
@@ -391,4 +376,11 @@ function shuffle(a) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+// Healthbar visibility helper
+function markHit(e, amount = 0) {
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  e.lastHitAt = now;
+  e.showHpUntil = now + 1000; // visible for 1s since last damage tick
 }
