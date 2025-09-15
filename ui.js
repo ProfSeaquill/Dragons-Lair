@@ -24,7 +24,7 @@ const hud = {
     const n = document.querySelector('.gridHelp');
     if (n) {
       n.textContent =
-        'Build Mode: Click a TILE EDGE to add a wall (10 bones). Right-click an edge wall to remove (refund 5). Walls cannot fully block entry ↔ exit.';
+        'Build Mode: Click a TILE EDGE to add a wall (10 bones). Right-click an edge wall to remove (refund 5). Walls cannot fully block entry <-> exit.';
     }
     return n;
   })(),
@@ -35,13 +35,13 @@ state.GameState.uiHoverEdge = null;
 
 // ---------- Enemy meta for the Preview ----------
 const ENEMY_META = {
-  villager:  { name: 'Villager',  color: '#9acd32', blurb: 'Basic grunt. Slow and squishy.' },
-  squire:    { name: 'Squire',    color: '#7fd1ff', blurb: 'A bit tougher and quicker than a villager.' },
-  knight:    { name: 'Knight',    color: '#ffd166', blurb: 'Fast mover with solid armor and damage.' },
-  hero:      { name: 'Hero',      color: '#ff6b6b', blurb: 'Shield-bearer: blocks direct fire for units behind him.' },
-  engineer:  { name: 'Engineer',  color: '#c084fc', blurb: 'Tunnels to the lair and plants a timed bomb.' },
-  kingsguard:{ name: 'King’s Guard', color: '#ffa8a8', blurb: 'Miniboss: heavier Knight, moves a bit slower.' },
-  boss:      { name: 'Knight of the Round Table', color: '#f4a261', blurb: 'Boss: massive HP; a real push.' },
+  villager:   { name: 'Villager',  color: '#9acd32', blurb: 'Basic grunt. Slow and squishy.' },
+  squire:     { name: 'Squire',    color: '#7fd1ff', blurb: 'A bit tougher and quicker than a villager.' },
+  knight:     { name: 'Knight',    color: '#ffd166', blurb: 'Fast mover with solid armor and damage.' },
+  hero:       { name: 'Hero',      color: '#ff6b6b', blurb: 'Shield-bearer: blocks direct fire for units behind him.' },
+  engineer:   { name: 'Engineer',  color: '#c084fc', blurb: 'Tunnels to the lair and plants a timed bomb.' },
+  kingsguard: { name: 'King\'s Guard', color: '#ffa8a8', blurb: 'Miniboss: heavier Knight, moves a bit slower.' },
+  boss:       { name: 'Knight of the Round Table', color: '#f4a261', blurb: 'Boss: massive HP; a real push.' },
 };
 
 // Cache the combat module (so we can ask it for wave composition)
@@ -64,9 +64,9 @@ export function bindUI() {
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
 }
 
-// put this near the other module locals
+// Track last values so we only rebuild when needed
 let _lastPreviewWave = -1;
-let _lastGold = -1;  // <— new
+let _lastGold = -1;
 
 export function refreshHUD() {
   const gs = state.GameState;
@@ -78,7 +78,7 @@ export function refreshHUD() {
   if (hud.hp)    hud.hp.textContent    = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
   if (hud.auto)  hud.auto.checked      = !!gs.autoStart;
 
-  // 🔁 Rebuild upgrade buttons when gold changes so disabled/enabled updates live
+  // Rebuild upgrade buttons when gold changes so disabled/enabled updates live
   if ((gs.gold | 0) !== _lastGold) {
     _lastGold = gs.gold | 0;
     renderUpgradesPanel();
@@ -124,7 +124,7 @@ function wireButtons() {
   if (hud.start) {
     hud.start.addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('dl-start-wave'));
-      tell('Wave starting…');
+      tell('Wave starting...');
     });
   }
 
@@ -235,7 +235,7 @@ function wireCanvasEdgeBuild() {
 
     const res = toggleEdge(state.GameState, hover.x, hover.y, hover.side, place);
     if (!res.ok) {
-      tell(`❌ ${res.reason || 'Action blocked'}`, '#f88');
+      tell(`Blocked: ${res.reason || 'Action not allowed'}`, '#f88');
       return;
     }
 
@@ -289,7 +289,7 @@ async function renderNextWavePreview() {
   // Get the raw list, then count by type
   const list = (typeof combat.previewWaveList === 'function')
     ? combat.previewWaveList(wave)
-    : []; // fallback: empty
+    : [];
 
   const counts = {};
   for (const type of list) counts[type] = (counts[type] | 0) + 1;
@@ -334,7 +334,7 @@ async function renderNextWavePreview() {
 
     // Count pill
     const pill = document.createElement('div');
-    pill.textContent = '× ' + n;
+    pill.textContent = 'x ' + n;
     pill.style.background = '#1b2437';
     pill.style.border = '1px solid #2a3854';
     pill.style.borderRadius = '999px';
