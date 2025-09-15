@@ -269,9 +269,7 @@ function spawnOne(gs, type) {
   gs.enemies.push(e);
 }
 
-/* =========================
- * Dragon breath + hero shields
- * ========================= */
+// Replace your existing dragonBreathTick with this version
 let fireCooldown = 0;
 
 function dragonBreathTick(gs, dt, ds) {
@@ -282,12 +280,13 @@ function dragonBreathTick(gs, dt, ds) {
   const enemies = gs.enemies;
   if (!enemies || enemies.length === 0) return;
 
+  // Dragon (EXIT-center) position
   const dragon = {
     x: state.EXIT.x * state.GRID.tile + state.GRID.tile / 2,
     y: state.EXIT.y * state.GRID.tile + state.GRID.tile / 2,
   };
 
-  // Target nearest (ignore tunneling engineers)
+  // Target: nearest enemy (ignore tunneling engineers)
   let target = null, bestD2 = Infinity, targetPos = null;
   for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
@@ -298,22 +297,28 @@ function dragonBreathTick(gs, dt, ds) {
   }
   if (!target) return;
 
+  // Aim unit vector
   const aim = { x: targetPos.x - dragon.x, y: targetPos.y - dragon.y };
   const len = Math.hypot(aim.x, aim.y) || 1;
   const ux = aim.x / len, uy = aim.y / len;
 
+  // Beam params
   const range = ds.breathRange;
   const halfWidth = ds.breathWidth * 0.5;
   const power = ds.breathPower;
 
-  // Front-most hero (largest distance from ENTRY)
+  // --- Shield rule: find the FRONT-MOST hero (largest distFromEntry)
   let maxHeroDist = -1;
   for (const h of enemies) {
     if (h.type === 'hero' && isFinite(h.distFromEntry)) {
       if (h.distFromEntry > maxHeroDist) maxHeroDist = h.distFromEntry;
     }
   }
+  // Any unit with distFromEntry <= maxHeroDist is under the shield umbrella
+  const isShieldedByFrontHero = (e) =>
+    (maxHeroDist >= 0) && isFinite(e.distFromEntry) && (e.distFromEntry <= maxHeroDist);
 
+  // Apply effects to anyone in cone
   for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
 
@@ -322,29 +327,25 @@ function dragonBreathTick(gs, dt, ds) {
     const along = rx * ux + ry * uy;
     if (along < 0 || along > range) continue;
 
+    // perpendicular offset to beam centerline
     const px = rx - ux * along;
     const py = ry - uy * along;
     const off = Math.hypot(px, py);
     if (off > halfWidth) continue;
 
-    // Units strictly behind the front-most hero (closer to ENTRY) are shielded
-    const shielded = (maxHeroDist >= 0) && isFinite(e.distFromEntry) && (e.distFromEntry < maxHeroDist);
-    if (!shielded) {
-  e.hp -= power;
-  markHit(e, power);
-}
+    const shielded = isShieldedByFrontHero(e);
 
-    // Burn always applies
+    // 1) Direct fire damage: ONLY if not shielded
+    if (!shielded) {
+      e.hp -= power;
+    }
+
+    // 2) Burn: Applies to everyone (including shielded targets)
     if (ds.burnDPS > 0 && ds.burnDuration > 0) {
       e.burnDps = ds.burnDPS;
       e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
     }
   }
-
-  // Kick off the visual breath animation
-gs.dragonFX = gs.dragonFX || { attacking:false, t:0, dur:0.5 };
-gs.dragonFX.attacking = true;
-gs.dragonFX.t = 0;
 
 // Important: next-shot timer starts AFTER the anim finishes
 // Total wait = animation duration + normal fire period
