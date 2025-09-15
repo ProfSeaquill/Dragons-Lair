@@ -280,6 +280,27 @@ function dragonBreathTick(gs, dt, ds) {
   const enemies = gs.enemies;
   if (!enemies || enemies.length === 0) return;
 
+  import { raycastOpenCellsFromExit } from './pathing.js';
+import { GRID, getDragonStats } from './state.js';
+
+// Call this exactly when the dragon breath attack “fires”
+function spawnFlameWave(gs) {
+  const ds = getDragonStats(gs);
+  const rangeTiles = Math.max(1, Math.floor(ds.breathRange / GRID.tile));
+
+  gs.effects.push({
+    type: 'flameWave',
+    t: 0,                 // elapsed time (sec)
+    dur: 0.7,             // how long segments linger/shine
+    tilesPerSec: 14,      // how fast the head marches
+    widthPx: ds.breathWidth,
+    path: raycastOpenCellsFromExit(gs, rangeTiles),
+  });
+
+  // (Optional) kick off mouth-burst FX
+  if (gs.dragonFX) { gs.dragonFX.attacking = true; gs.dragonFX.t = 0; }
+}
+
   // Dragon (EXIT-center) position
   const dragon = {
     x: state.EXIT.x * state.GRID.tile + state.GRID.tile / 2,
