@@ -120,6 +120,20 @@ if (fx && fx.attacking) {
     fx.t = 0;
   }
 }
+
+
+  // 2b) Advance flame waves (traveling corridor fire)
+for (const fx of state.GameState.effects) {
+  if (fx.type !== 'flameWave') continue;
+  fx.t += dt;
+  // “Head” index marches forward in tiles
+  const head = Math.floor(fx.t * (fx.tilesPerSec || 12));
+  fx.headIdx = Math.min((fx.path?.length ?? 0) - 1, head);
+  if (fx.t > (fx.dur || 0.7)) fx.dead = true; // end of visible linger
+}
+// Cleanup
+state.GameState.effects = state.GameState.effects.filter(fx => !fx.dead);
+
   
   // 3) Auto-start waves if enabled and field is clear
   if (state.GameState.autoStart) {
