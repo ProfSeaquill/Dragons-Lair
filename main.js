@@ -66,79 +66,84 @@ function tick(now) {
 }
 
 function update(dt) {
-  // --- Game Over guard ---
   const gs = state.GameState;
-  if (gs.dragonHP <= 0) {
+
+  // --- Ensure containers exist early (prevents .filter / for-of crashes) ---
+  if (!Array.isArray(gs.enemies)) gs.enemies = [];
+  if (!Array.isArray(gs.effects)) gs.effects = [];
+
+  // --- Game Over guard ---
+  if ((gs.dragonHP | 0) <= 0) {
     if (!gs.gameOver) {
       gs.gameOver = true;
       gs.autoStart = false;
+
       // stop any current action
-      if (Array.isArray(gs.enemies)) gs.enemies.length = 0;
-      if (Array.isArray(gs.effects)) gs.effects.length = 0;
-      // disable the Start button
+      gs.enemies.length = 0;
+      gs.effects.length = 0;
+
+      // disable Start button
       const startBtn = document.getElementById('startBtn');
       if (startBtn) startBtn.disabled = true;
+
       // on-screen notice
       if (UI && typeof UI.tell === 'function') {
         UI.tell('💀 Game Over! Your lair was overrun. Load a save or refresh to try again.', '#ff6b6b');
       }
     }
-    // Freeze gameplay updates while still letting render() draw the scene/HUD
+    // Keep HUD responsive but freeze gameplay updates
     if (UI && typeof UI.refreshHUD === 'function') UI.refreshHUD();
     return;
   }
   // --- end Game Over guard ---
+
   // 1) Let Combat drive game logic if available
   if (typeof combatUpdate === 'function') {
-    combatUpdate(state.GameState, dt);
+    combatUpdate(gs, dt);
   } else if (typeof combatTick === 'function') {
-    combatTick(state.GameState, dt);
+    combatTick(gs, dt);
   } else if (typeof combatStep === 'function') {
-    combatStep(state.GameState, dt);
+    combatStep(gs, dt);
   }
 
-  // 2) Fallback enemy movement using maze-walk interpolation
-  const enemies = state.GameState.enemies || [];
-  for (const e of enemies) {
-    if (e.updateByCombat) continue;
+  // 2) Fallback enemy movement using interpolated center-to-center steps
+  //    (Skip enemies explicitly owned by combat)
+  for (const enemy of gs.enemies) {
+    if (enemy.updateByCombat) continue;
 
-    if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
-      if (typeof e.pxPerSec !== 'number' && typeof e.speed !== 'number') {
-        e.speed = e.speed || 2.5;
+    if (Number.isInteger(enemy.cx) && Number.isInteger(enemy.cy)) {
+      if (typeof enemy.pxPerSec !== 'number' && typeof enemy.speed !== 'number') {
+        enemy.speed = enemy.speed || 2.5; // sane default tiles/sec
       }
-      stepEnemyInterpolated(state.GameState, e, dt);
-      updateEnemyDistance(state.GameState, e);
+      stepEnemyInterpolated(gs, enemy, dt);
+      updateEnemyDistance(gs, enemy);
     }
   }
 
-  // 2b) Dragon fire animation FX timer (visual only)
-const fx = state.GameState.dragonFX;
-if (fx && fx.attacking) {
-  fx.t += dt;
-  if (fx.t >= fx.dur) {
-    fx.attacking = false; // animation finished
-    fx.t = 0;
+  // 2b) Dragon fire animation FX timer (visual only; optional)
+  const dfx = gs.dragonFX;
+  if (dfx && dfx.attacking) {
+    dfx.t += dt;
+    if (dfx.t >= dfx.dur) {
+      dfx.attacking = false;
+      dfx.t = 0;
+    }
   }
-}
 
+  // 2c) Advance flame-wave effects (if any) and clean up dead ones
+  for (const eff of gs.effects) {
+    if (eff.type !== 'flameWave') continue;
+    eff.t += dt;
+    const head = Math.floor(eff.t * (eff.tilesPerSec || 12));
+    eff.headIdx = Math.min((eff.path?.length ?? 0) - 1, head);
+    if (eff.t > (eff.dur || 0.7)) eff.dead = true;
+  }
+  gs.effects = gs.effects.filter(eff => !eff.dead);
 
-  // 2b) Advance flame waves (traveling corridor fire)
-for (const fx of state.GameState.effects) {
-  if (fx.type !== 'flameWave') continue;
-  fx.t += dt;
-  // “Head” index marches forward in tiles
-  const head = Math.floor(fx.t * (fx.tilesPerSec || 12));
-  fx.headIdx = Math.min((fx.path?.length ?? 0) - 1, head);
-  if (fx.t > (fx.dur || 0.7)) fx.dead = true; // end of visible linger
-}
-// Cleanup
-state.GameState.effects = state.GameState.effects.filter(fx => !fx.dead);
-
-  
   // 3) Auto-start waves if enabled and field is clear
-  if (state.GameState.autoStart) {
-    const anyAlive = enemies && enemies.length > 0;
-    const cool = (performance.now() - waveJustStartedAt) < 600;
+  if (gs.autoStart) {
+    const anyAlive = gs.enemies.length > 0;
+    const cool = (performance.now() - waveJustStartedAt) < 600; // small cooldown after starting
     if (!anyAlive && !cool) startWave();
   }
 
