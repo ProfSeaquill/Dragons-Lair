@@ -1,4 +1,4 @@
-// render.js — cave edge rendering + hover highlight + lightweight sprites
+constnder.js — cave edge rendering + hover highlight + lightweight sprites
 
 import * as state from './state.js';
 
@@ -198,9 +198,13 @@ function colorForEnemy(e) {
 }
 
 function drawDragon(ctx, gs) {
+  const dragonImg = new Image();
+dragonImg.src = './assets/dragon_idle.png';
   const p = centerOf(state.EXIT.x, state.EXIT.y);
   const r = Math.max(6, state.GRID.tile * 0.35);
-  circle(ctx, p.x, p.y, r, '#b33', true);
+  if (dragonImg.complete) {
+  ctx.drawImage(dragonImg, p.x - 32, p.y - 32, 64, 64);
+}
   ring(ctx, p.x, p.y, r + 3, '#f88');
 }
 
