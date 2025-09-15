@@ -66,6 +66,28 @@ function tick(now) {
 }
 
 function update(dt) {
+  // --- Game Over guard ---
+  const gs = state.GameState;
+  if (gs.dragonHP <= 0) {
+    if (!gs.gameOver) {
+      gs.gameOver = true;
+      gs.autoStart = false;
+      // stop any current action
+      if (Array.isArray(gs.enemies)) gs.enemies.length = 0;
+      if (Array.isArray(gs.effects)) gs.effects.length = 0;
+      // disable the Start button
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) startBtn.disabled = true;
+      // on-screen notice
+      if (UI && typeof UI.tell === 'function') {
+        UI.tell('💀 Game Over! Your lair was overrun. Load a save or refresh to try again.', '#ff6b6b');
+      }
+    }
+    // Freeze gameplay updates while still letting render() draw the scene/HUD
+    if (UI && typeof UI.refreshHUD === 'function') UI.refreshHUD();
+    return;
+  }
+  // --- end Game Over guard ---
   // 1) Let Combat drive game logic if available
   if (typeof combatUpdate === 'function') {
     combatUpdate(state.GameState, dt);
