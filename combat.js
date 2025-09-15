@@ -333,7 +333,15 @@ function dragonBreathTick(gs, dt, ds) {
     }
   }
 
-  fireCooldown = firePeriod;
+  // Kick off the visual breath animation
+gs.dragonFX = gs.dragonFX || { attacking:false, t:0, dur:0.5 };
+gs.dragonFX.attacking = true;
+gs.dragonFX.t = 0;
+
+// Important: next-shot timer starts AFTER the anim finishes
+// Total wait = animation duration + normal fire period
+const animDur = gs.dragonFX.dur || 0.5;
+fireCooldown = animDur + firePeriod;
 }
 
 /* =========================
