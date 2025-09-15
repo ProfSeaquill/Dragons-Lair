@@ -216,22 +216,28 @@ function colorForEnemy(e) {
 
 function drawDragon(ctx, gs) {
   const p = centerOf(state.EXIT.x, state.EXIT.y);
-
-  // Choose a size that reads well on your grid; tweak as needed.
-  // ~2 tiles wide keeps it chunky but readable.
   const size = Math.round(state.GRID.tile * 2);
   const half = size / 2;
 
   if (dragonReady) {
     ctx.drawImage(dragonImg, p.x - half, p.y - half, size, size);
   } else {
-    // Fallback while the sprite is still loading
-    const r = Math.max(6, state.GRID.tile * 0.35);
-    circle(ctx, p.x, p.y, r, '#b33', true);
+    circle(ctx, p.x, p.y, size * 0.4, '#b33', true);
   }
 
-  // Lair accent ring (kept from your original)
-  const r = Math.max(6, state.GRID.tile * 0.35);
+  // Fire overlay if attacking
+  if (state.Dragon.attacking && fireReady) {
+    const frameCount = 4;
+    const frame = Math.floor((state.Dragon.attackTimer * 10) % frameCount);
+    const fw = fireImg.width / frameCount;
+    const fh = fireImg.height;
+
+    ctx.drawImage(
+      fireImg,
+      frame * fw, 0, fw, fh,            // source
+      p.x + half - 8, p.y - 16, fw, fh  // destination (offset mouth)
+    );
+  }
 }
 
 /* ===================== tiny primitives ===================== */
