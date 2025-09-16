@@ -279,8 +279,6 @@ export function resetState(gs = GameState) {
   gs.successField  = makeScalarField(GRID.cols, GRID.rows, 0);   // <- add this
   gs.seed = 0;
 }
-  gs.seed = 0;
-}
 
 // ===== Econ helpers used by UI (optional, non-breaking) =====
 export function canAffordEdge(gs, place = true) {
