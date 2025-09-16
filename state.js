@@ -232,23 +232,17 @@ export function loadState() {
     GameState.upgrades  = data.upgrades ?? {};
     GameState.seed      = data.seed ?? 0;
 
-    // Migration:
-    // v0/1 saves may have had gs.walls: Set<"x,y"> fully-blocked tiles.
-    // If present, turn those into all-four edge walls. Otherwise, load cellWalls map.
+    // Migration
     GameState.cellWalls = new Map();
     if (Array.isArray(data.cellWalls)) {
-      // v2 format
       for (const [k, v] of data.cellWalls) {
-        // sanitize
-        const rec = {
-          N: !!v?.N, E: !!v?.E, S: !!v?.S, W: !!v?.W
-        };
+        const rec = { N: !!v?.N, E: !!v?.E, S: !!v?.S, W: !!v?.W };
         GameState.cellWalls.set(k, rec);
       }
     } else if (Array.isArray(data.walls)) {
-      // legacy: an array of tile keys that were fully blocked
       for (const k of data.walls) {
-        const [sx, sy] = k.split(','); const x = +sx, y = +sy;
+        const [sx, sy] = k.split(',');
+        const x = +sx, y = +sy;
         if (!inBounds(x, y)) continue;
         setEdgeWall(GameState, x, y, 'N', true);
         setEdgeWall(GameState, x, y, 'E', true);
@@ -257,11 +251,10 @@ export function loadState() {
       }
     }
 
-    // Fresh distance field (recomputed by pathing on boot/toggle)
+    // Fresh fields (pathing will recompute real values on boot/toggle)
     GameState.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
-  GameState.successField  = makeScalarField(GRID.cols, GRID.rows, 0); // <- add this
-  return true;
-}
+    GameState.distToExit    = makeScalarField(GRID.cols, GRID.rows, Infinity);
+    GameState.successField  = makeScalarField(GRID.cols, GRID.rows, 0);
 
     return true;
   } catch (e) {
