@@ -2,6 +2,41 @@
 
 import * as state from './state.js';
 
+// ---------- Edge Toggling (UI hook) ----------
+export function toggleEdge(gs, x, y, side, place = true) {
+  // Bounds
+  if (!state.inBounds(x, y)) {
+    return { ok: false, reason: 'Out of bounds' };
+  }
+
+  // Cost check for placing
+  if (place && !state.canAffordEdge(gs, true)) {
+    return { ok: false, reason: 'Not enough bones' };
+  }
+
+  // Connectivity guard: don’t allow fully blocking entry↔exit
+  if (wouldDisconnectEntryAndExit(gs, x, y, side, place)) {
+    return { ok: false, reason: 'Would fully block the cave' };
+  }
+
+  // Apply symmetric edge wall
+  const applied = state.setEdgeWall(gs, x, y, side, !!place);
+  if (!applied) {
+    return { ok: false, reason: 'Invalid neighbor' };
+  }
+
+  // Spend / refund bones
+  if (place) state.spendBones(gs, state.COSTS.edgeWall);
+  else       state.refundBones(gs, state.COSTS.edgeRefund);
+
+  // Recompute distance fields so enemies immediately adapt
+  recomputeDistanceField(gs);
+  recomputeExitField(gs);
+  // (Do NOT clear successTrail here; it should persist while enemies are alive.)
+
+  return { ok: true };
+}
+
 /* =========================
  * Success Trail (herding)
  * ========================= */
