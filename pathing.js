@@ -335,9 +335,11 @@ export function openNeighbors(gs, x, y) {
 }
 
 // Returns open cells starting from EXIT and walking toward ENTRY.
-// Prefers to keep the same heading; only turns when straight is blocked.
+// Returns open cells starting from EXIT and walking toward ENTRY.
+// Prefers to keep the same heading; only turns when straight is invalid.
+// Never goes through walls; never steps "uphill" in the distance field.
 export function raycastOpenCellsFromExit(gs, maxSteps) {
-  const dist = gs.distFromEntry;
+  const dist = gs?.distFromEntry;
   if (!dist) return [];
 
   const inBounds = (x, y) =>
@@ -345,26 +347,24 @@ export function raycastOpenCellsFromExit(gs, maxSteps) {
 
   const openTo = (x, y, side) => {
     const cell = state.ensureCell(gs, x, y);
-    // walls are stored as booleans on the *current* cell's sides
-    return !cell?.[side];
+    return !cell?.[side]; // wall on current cell's side blocks movement that way
   };
 
   const downhillNeighbors = (x, y) => {
     const d0 = dist?.[y]?.[x];
     if (!isFinite(d0)) return [];
     const cands = [
-      { x: x + 1, y,   side: 'E', dir: 'h' },
-      { x: x - 1, y,   side: 'W', dir: 'h' },
-      { x,   y: y + 1, side: 'S', dir: 'v' },
-      { x,   y: y - 1, side: 'N', dir: 'v' },
+      { x: x + 1, y,   side: 'E' },
+      { x: x - 1, y,   side: 'W' },
+      { x,   y: y + 1, side: 'S' },
+      { x,   y: y - 1, side: 'N' },
     ];
     const out = [];
     for (const nb of cands) {
       if (!inBounds(nb.x, nb.y)) continue;
-      // must be open in the direction we move
-      if (!openTo(x, y, nb.side)) continue;
+      if (!openTo(x, y, nb.side)) continue;          // must be open from current cell
       const dn = dist?.[nb.y]?.[nb.x];
-      if (isFinite(dn) && dn < d0) out.push(nb); // strictly downhill
+      if (isFinite(dn) && dn < d0) out.push(nb);     // strictly downhill
     }
     return out;
   };
@@ -372,39 +372,63 @@ export function raycastOpenCellsFromExit(gs, maxSteps) {
   const out = [];
   let cx = state.EXIT.x, cy = state.EXIT.y;
 
-  // First step: pick the *best* downhill neighbor (lowest distance), to seed heading.
+  // Seed heading by choosing the best downhill neighbor first.
   let nbs = downhillNeighbors(cx, cy);
   if (!nbs.length) return out;
-  nbs.sort((a, b) => (dist[a.y][a.x] - dist[b.y][b.x]));
+  nbs.sort((a, b) => dist[a.y][a.x] - dist[b.y][b.x]);
   let hx = Math.sign(nbs[0].x - cx);
   let hy = Math.sign(nbs[0].y - cy);
+
+  const MIN_STRAIGHT_STEPS = 2; // bias only; never overrides walls/downhill
+  let straightStreak = 0;
 
   for (let i = 0; i < maxSteps; i++) {
     nbs = downhillNeighbors(cx, cy);
     if (!nbs.length) break;
 
-    // Prefer going straight if possible.
+    // Check "straight" candidate relative to current heading
     const sx = cx + hx, sy = cy + hy;
-    let next = nbs.find(nb => nb.x === sx && nb.y === sy);
+    const straightSide =
+      hx > 0 ? 'E' :
+      hx < 0 ? 'W' :
+      hy > 0 ? 'S' : 'N';
 
-    if (!next) {
-      // Straight is blocked — pick the best downhill neighbor (deterministic).
-      nbs.sort((a, b) => (dist[a.y][a.x] - dist[b.y][b.x]));
-      next = nbs[0];
-      // Update heading to the new direction.
-      hx = Math.sign(next.x - cx);
-      hy = Math.sign(next.y - cy);
+    const straightOK =
+      inBounds(sx, sy) &&
+      openTo(cx, cy, straightSide) &&
+      dist[sy][sx] < dist[cy][cx];
+
+    let next = null;
+
+    // Prefer straight if valid and within our "stickiness" window
+    if (straightOK && straightStreak < MIN_STRAIGHT_STEPS) {
+      next = { x: sx, y: sy, side: straightSide };
+      straightStreak++;
+    } else {
+      // Among valid downhill neighbors, prefer straight if available; else best (lowest dist)
+      const straightInNbs = straightOK && nbs.find(nb => nb.x === sx && nb.y === sy);
+      if (straightInNbs) {
+        next = { x: sx, y: sy, side: straightSide };
+        straightStreak++;
+      } else {
+        nbs.sort((a, b) => dist[a.y][a.x] - dist[b.y][b.x]);
+        next = nbs[0];
+        // Turn: update heading and reset streak
+        hx = Math.sign(next.x - cx);
+        hy = Math.sign(next.y - cy);
+        straightStreak = 0;
+      }
     }
 
+    // Emit segment with a fixed orientation flag for rendering ('h' or 'v')
     out.push({
       x: next.x,
       y: next.y,
-      dir: (hx !== 0 ? 'h' : 'v'),   // horizontal vs vertical segment
-      from: next.side                // still available if you need it
+      dir: (hx !== 0 ? 'h' : 'v'), // horizontal vs vertical
+      from: next.side,             // kept for reference if you still use it elsewhere
     });
 
-    cx = next.x;
-    cy = next.y;
+    cx = next.x; cy = next.y;
   }
 
   return out;
