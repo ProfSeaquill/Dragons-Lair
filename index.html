@@ -1,4 +1,4 @@
-<!doctype html>
+Wallstype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -29,7 +29,8 @@
       <div class="stat">HP: <span id="dragonHP">100</span></div>
       <div class="stat">Gold: <span id="gold">0</span></div>
       <div class="stat">Bones: <span id="bones">0</span></div>
-      <button id="healBtn" class="btn">Heal (1 HP / 1 bone)</button>
+      <div class="stat">Time: <span id="timer">90.0</span>s</div>
+      <button id="healBtn" class="btn">Heal (1 HP / bone)</button>
       <button id="startBtn" class="btn">Start Wave</button>
       <label class="stat"><input id="autoStart" type="checkbox" /> Auto-start</label>
       <button id="saveBtn" class="btn">Save</button>
@@ -41,7 +42,7 @@
       <div id="leftCol">
         <canvas id="game" width="768" height="512"></canvas>
         <div class="panel gridHelp">
-          Build Mode: Click a TILE EDGE to add a wall (10 bones). Right-click an edge wall to remove (refund 5). Walls cannot fully block entry ↔ exit.
+          Build Mode: Click a TILE EDGE to add a wall (10 bones). Walls cannot fully block entry ↔ exit.
         </div>
       </div>
       <div id="rightCol">
