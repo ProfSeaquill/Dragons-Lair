@@ -244,7 +244,7 @@ function drawEnemies(ctx, gs) {
 
 function drawDragon(ctx, gs) {
   const p = centerOf(state.EXIT.x, state.EXIT.y);
-  const size = Math.round(state.GRID.tile * 2);
+  const size = Math.round(state.GRID.tile * 2.8);
   const half = size / 2;
 
   // Dragon sprite
