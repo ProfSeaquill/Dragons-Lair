@@ -162,6 +162,6 @@ function update(dt) {
     }
     gs.effects = arr.filter(fx => !fx?.dead);
   }
-
+}
 // ---------- Go ----------
 boot();
