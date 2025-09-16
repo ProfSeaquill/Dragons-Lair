@@ -87,20 +87,6 @@ export function makeScalarField(w, h, fill = 0) {
   return a;
 }
 
-export function resetState(gs = GameState) {
-  // ...existing resets...
-  gs.cellWalls = new Map();
-  gs.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
-  gs.successField  = makeScalarField(GRID.cols, GRID.rows, 0);   // <- add this
-  gs.seed = 0;
-}
-
-export function loadState() {
-  // ...existing restore...
-  GameState.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
-  GameState.successField  = makeScalarField(GRID.cols, GRID.rows, 0); // <- add this
-  return true;
-}
 
 // ===== Helpers: keys, bounds =====
 export const tileKey = (x, y) => `${x},${y}`;
@@ -273,6 +259,9 @@ export function loadState() {
 
     // Fresh distance field (recomputed by pathing on boot/toggle)
     GameState.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
+  GameState.successField  = makeScalarField(GRID.cols, GRID.rows, 0); // <- add this
+  return true;
+}
 
     return true;
   } catch (e) {
@@ -294,6 +283,9 @@ export function resetState(gs = GameState) {
   gs.upgrades = {};
   gs.cellWalls = new Map();
   gs.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
+  gs.successField  = makeScalarField(GRID.cols, GRID.rows, 0);   // <- add this
+  gs.seed = 0;
+}
   gs.seed = 0;
 }
 
