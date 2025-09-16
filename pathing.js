@@ -1,4 +1,4 @@
-// pathing.js — edge-walls pathing with live shortest-path-to-exit steering
+// pathing.js — edge-walls pathing with local steering + persistent success trails
 
 import * as state from './state.js';
 
@@ -6,19 +6,19 @@ import * as state from './state.js';
  * Distance Fields (BFS)
  * ========================= */
 
-/** Recompute gs.distFromEntry[y][x]: shortest steps from ENTRY through open edges. */
+// Keep entry distance for UI & hero shield ordering.
 export function recomputeDistanceField(gs = state.GameState) {
   gs.distFromEntry = bfsField(gs, state.ENTRY.x, state.ENTRY.y);
   return gs.distFromEntry;
 }
 
-/** New: Recompute gs.distToExit[y][x]: shortest steps TO EXIT (BFS from EXIT). */
+// Compatibility stub: we no longer steer via a global exit field.
+// Leave a harmless field so callers don't crash.
 export function recomputeExitField(gs = state.GameState) {
-  gs.distToExit = bfsField(gs, state.EXIT.x, state.EXIT.y);
-  return gs.distToExit;
+  gs.distToExit = null;
+  return null;
 }
 
-/** Shared BFS helper (walls respected). Infinity = unreachable. */
 function bfsField(gs, sx, sy) {
   const W = state.GRID.cols, H = state.GRID.rows;
   const dist = state.makeScalarField(W, H, Infinity);
@@ -51,13 +51,9 @@ function bfsField(gs, sx, sy) {
 }
 
 /* =========================
- * Connectivity Guard
+ * Connectivity Guard (unchanged)
  * ========================= */
 
-/**
- * Quick BFS reachability check used by the UI guard: would toggling (x,y,side)
- * disconnect ENTRY↔EXIT? We “apply” the wall in-memory, test, then restore.
- */
 export function wouldDisconnectEntryAndExit(gs, x, y, side, placeWall) {
   const snap = snapshotEdgePair(gs, x, y, side);
   if (!applyEdgeSim(gs, x, y, side, !!placeWall)) return true;
@@ -130,7 +126,7 @@ function neighborFor(x, y, side) {
 }
 
 /* =========================
- * Edge Toggling (UI hook)
+ * Edge toggling (recompute entry field; exit field is a no-op)
  * ========================= */
 
 export function toggleEdge(gs, x, y, side, place = true) {
@@ -145,22 +141,95 @@ export function toggleEdge(gs, x, y, side, place = true) {
   const applied = state.setEdgeWall(gs, x, y, side, !!place);
   if (!applied) return { ok: false, reason: 'Invalid neighbor' };
 
-  // Spend / refund
   if (place) state.spendBones(gs, state.COSTS.edgeWall);
   else state.refundBones(gs, state.COSTS.edgeRefund);
 
-  // Update BOTH fields so steering adapts immediately
+  // Update entry field; success trail stays (player wanted persistence).
   recomputeDistanceField(gs);
-  recomputeExitField(gs);
+  recomputeExitField(gs); // harmless stub
 
   return { ok: true };
 }
 
 /* =========================
- * Greedy-to-Exit Enemy API
+ * Success Trail (persistent, developer-controlled reset)
  * ========================= */
 
-/** Keep per-tick cache of distance-from-entry (used by combat’s shield rules). */
+function ensureSuccessTrail(gs) {
+  if (!gs.successTrail) {
+    gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0);
+  }
+  return gs.successTrail;
+}
+
+/** Optional gentle decay per frame; safe to call from your main update. */
+export function decaySuccessTrail(gs, dt, halfLifeSec = 12) {
+  const grid = ensureSuccessTrail(gs);
+  // Convert half-life to per-second decay factor
+  const k = Math.pow(0.5, dt / Math.max(0.001, halfLifeSec));
+  for (let y = 0; y < grid.length; y++) {
+    const row = grid[y];
+    for (let x = 0; x < row.length; x++) {
+      row[x] *= k;
+    }
+  }
+}
+
+/** Clear trail entirely — call this when *no enemies remain* on the map. */
+export function clearSuccessTrail(gs) {
+  gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0);
+}
+
+/** Stamp the cell an enemy just entered. */
+function stampTrail(gs, x, y, amount = 1) {
+  const grid = ensureSuccessTrail(gs);
+  if (!state.inBounds(x, y)) return;
+  grid[y][x] = (grid[y][x] || 0) + amount;
+}
+
+/* =========================
+ * Per-enemy “brain”
+ * ========================= */
+
+function initMind(e) {
+  if (e.mind) return e.mind;
+  // Deterministic-ish seed from spawn index if available, else Math.random
+  const r = Math.random;
+  e.mind = {
+    // How strongly to prefer goal (closer to EXIT) vs other influences
+    goalBias: 0.6 + 0.25 * r(),      // 0.6 .. 0.85
+    // Random exploration weight
+    curiosity: 0.05 + 0.20 * r(),    // 0.05 .. 0.25
+    // How much to follow nearby allies’ flow
+    herding: 0.3 + 0.4 * r(),        // 0.3 .. 0.7
+    // “Sense” increases as you approach EXIT (we scale it in scoring)
+    sense: 0.6 + 0.5 * r(),          // base multiplier
+    // Short memory (don’t ping-pong)
+    memoryCap: 6 + (r() * 4 | 0),    // 6..9 last tiles
+  };
+  e.recent = e.recent || []; // circular list of last coords (as "x,y")
+  return e.mind;
+}
+
+function remember(e, x, y) {
+  e.recent = e.recent || [];
+  const k = `${x},${y}`;
+  if (e.recent.length === 0 || e.recent[e.recent.length - 1] !== k) {
+    e.recent.push(k);
+    const cap = e.mind?.memoryCap || 8;
+    if (e.recent.length > cap) e.recent.shift();
+  }
+}
+function inRecent(e, x, y) {
+  const k = `${x},${y}`;
+  return Array.isArray(e.recent) && e.recent.includes(k);
+}
+
+/* =========================
+ * Public enemy helpers
+ * ========================= */
+
+// Still used for hero shield ordering
 export function updateEnemyDistance(gs, e) {
   if (state.inBounds(e.cx, e.cy)) {
     e.distFromEntry = gs.distFromEntry?.[e.cy]?.[e.cx] ?? Infinity;
@@ -169,71 +238,85 @@ export function updateEnemyDistance(gs, e) {
   }
 }
 
-/** Choose direction that strictly DECREASES distToExit; ties break by Manhattan to EXIT. */
+// Compatibility name: now forwards to our local chooser
 export function chooseNextDirectionToExit(gs, e) {
-  const D = gs.distToExit;
-  if (!D) return e.dir || 'E';
+  return chooseNextDirection(gs, e);
+}
+
+/**
+ * Core: choose next step using local scoring (no global exit BFS).
+ * Score(open neighbor) = goalTerm + trailTerm + herdTerm + curiosityTerm − memoryPenalty
+ */
+export function chooseNextDirection(gs, e) {
+  initMind(e);
+  const mind = e.mind;
 
   const x = e.cx | 0, y = e.cy | 0;
-  const here = D?.[y]?.[x];
-  if (!isFinite(here)) {
-    // If we’re off-field, pick any open edge toward EXIT heuristically
-    return heuristicFallback(gs, e);
-  }
+  const ex = state.EXIT.x, ey = state.EXIT.y;
 
-  let bestDir = null, bestVal = here, bestHeu = Infinity;
+  const neigh = state.neighborsByEdges(gs, x, y);
+  if (neigh.length === 0) return e.dir || 'E';
 
-  const candidates = [
-    ['N', x, y - 1],
-    ['E', x + 1, y],
-    ['S', x, y + 1],
-    ['W', x - 1, y],
-  ];
+  // Sense increases closer to EXIT (Manhattan-based)
+  const distM = Math.abs(ex - x) + Math.abs(ey - y);
+  const senseScale = mind.sense * (1.2 + 1.0 / Math.max(1, distM)); // 2.2x near exit → fewer wrong turns
 
-  for (const [dir, nx, ny] of candidates) {
-    if (!state.isOpen(gs, x, y, dir)) continue;
-    const v = D?.[ny]?.[nx];
-    if (!isFinite(v)) continue;
-    if (v < bestVal) {
-      bestDir = dir;
-      bestVal = v;
-      bestHeu = manhattan(nx, ny, state.EXIT.x, state.EXIT.y);
-    } else if (v === bestVal) {
-      // Tie-breaker: closer to EXIT in Manhattan metric
-      const h = manhattan(nx, ny, state.EXIT.x, state.EXIT.y);
-      if (h < bestHeu) {
-        bestDir = dir;
-        bestHeu = h;
+  // Herding: count allies in 2-tile radius and bias toward their most common direction
+  let herdDir = null;
+  if (Array.isArray(gs.enemies)) {
+    const counts = { N:0,E:0,S:0,W:0 };
+    for (const o of gs.enemies) {
+      if (o === e) continue;
+      if (Math.abs((o.cx|0) - x) + Math.abs((o.cy|0) - y) <= 2) {
+        counts[o.dir || 'E'] = (counts[o.dir || 'E'] | 0) + 1;
       }
     }
+    herdDir = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+    herdDir = herdDir && herdDir[1] > 0 ? herdDir[0] : null;
   }
 
-  return bestDir ?? heuristicFallback(gs, e);
-}
+  const trail = ensureSuccessTrail(gs);
 
-function heuristicFallback(gs, e) {
-  // If no improving neighbor (local basin due to dynamic edits), pick any open edge
-  const ns = state.neighborsByEdges(gs, e.cx, e.cy);
-  if (ns.length) {
-    // Prefer one that reduces straight-line distance to EXIT
-    let best = ns[0], bestHeu = Infinity;
-    for (const n of ns) {
-      const h = manhattan(n.x, n.y, state.EXIT.x, state.EXIT.y);
-      if (h < bestHeu) { bestHeu = h; best = n; }
+  // Evaluate candidates
+  let best = null, bestScore = -Infinity, bestDir = e.dir || 'E';
+  for (const n of neigh) {
+    const nx = n.x, ny = n.y;
+
+    // Goal: prefer Manhattan closer to EXIT
+    const goalNow = Math.abs(ex - x) + Math.abs(ey - y);
+    const goalNext = Math.abs(ex - nx) + Math.abs(ey - ny);
+    const goalTerm = (goalNow - goalNext) * mind.goalBias * senseScale; // positive if we moved closer
+
+    // Success trail: follow prior wins
+    const trailTerm = (trail?.[ny]?.[nx] || 0) * 0.6;
+
+    // Herding: small nudge if moving in the common local heading
+    const dir = directionFromTo(x, y, nx, ny) || 'E';
+    const herdTerm = (herdDir && dir === herdDir) ? mind.herding * 0.8 : 0;
+
+    // Curiosity: tiny random spice per option (stable-ish via coords)
+    const cur = pseudoNoise(nx, ny);
+    const curiosityTerm = cur * mind.curiosity;
+
+    // Memory penalty: avoid recently visited tiles
+    const memPenalty = inRecent(e, nx, ny) ? 0.9 : 0; // subtract later
+
+    const score = goalTerm + trailTerm + herdTerm + curiosityTerm - memPenalty;
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = { nx, ny };
+      bestDir = dir;
     }
-    return directionFromTo(e.cx, e.cy, best.x, best.y) || (e.dir || 'E');
   }
-  return e.dir || 'E';
+
+  return best ? bestDir : (e.dir || 'E');
 }
 
-function manhattan(x0, y0, x1, y1) { return Math.abs(x1 - x0) + Math.abs(y1 - y0); }
-
-function directionFromTo(x0, y0, x1, y1) {
-  if (x1 === x0 && y1 === y0 - 1) return 'N';
-  if (x1 === x0 + 1 && y1 === y0) return 'E';
-  if (x1 === x0 && y1 === y0 + 1) return 'S';
-  if (x1 === x0 - 1 && y1 === y0) return 'W';
-  return null;
+function pseudoNoise(x, y) {
+  // Simple deterministic-ish noise in 0..1 based on coords
+  const s = Math.sin((x * 12.9898 + y * 78.233) * 43758.5453);
+  return (s - Math.floor(s));
 }
 
 function stepFrom(x, y, dir) {
@@ -246,26 +329,25 @@ function stepFrom(x, y, dir) {
   }
 }
 
-/**
- * Instant hop by one cell using greedy-to-exit direction.
- */
+/* =========================
+ * Movement (cell hop / pixel-smooth)
+ * ========================= */
+
 export function advanceEnemyOneCell(gs, e) {
-  const dir = chooseNextDirectionToExit(gs, e);
+  const dir = chooseNextDirection(gs, e);
   const { nx, ny } = stepFrom(e.cx, e.cy, dir);
   if (!state.inBounds(nx, ny)) return;
   e.cx = nx; e.cy = ny; e.dir = dir;
+  remember(e, nx, ny);
+  stampTrail(gs, nx, ny, 1);
   updateEnemyDistance(gs, e);
 }
 
-/**
- * Pixel-smooth movement between tile centers, re-evaluating target each arrival.
- */
 export function stepEnemyInterpolated(gs, e, dtSec) {
-  // Initialize target to the center of the next greedy cell
   if (e.tx === undefined || e.ty === undefined) {
     const c = tileCenter(e.cx, e.cy);
     e.x = e.x ?? c.x; e.y = e.y ?? c.y;
-    const { tx, ty } = chooseNextTargetGreedy(gs, e);
+    const { tx, ty } = chooseNextTarget(gs, e);
     e.tx = tx; e.ty = ty;
   }
 
@@ -277,16 +359,20 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
   const step = pxPerSec * dtSec;
 
   if (dist <= step) {
-    // Snap and commit cell advance
+    // Snap & commit
     e.x = e.tx; e.y = e.ty;
 
     const dir = directionFromDelta(dx, dy) ?? e.dir;
     const { nx, ny } = stepFrom(e.cx, e.cy, dir);
-    e.cx = nx; e.cy = ny; e.dir = dir;
-    updateEnemyDistance(gs, e);
+    if (state.inBounds(nx, ny)) {
+      e.cx = nx; e.cy = ny; e.dir = dir;
+      remember(e, nx, ny);
+      stampTrail(gs, nx, ny, 1);
+      updateEnemyDistance(gs, e);
+    }
 
-    // Immediately pick the next greedy target (adapts to any wall edit)
-    const nxt = chooseNextTargetGreedy(gs, e);
+    // Next target via local chooser
+    const nxt = chooseNextTarget(gs, e);
     e.tx = nxt.tx; e.ty = nxt.ty;
   } else if (dist > 0) {
     e.x += (dx / dist) * step;
@@ -294,18 +380,63 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
   }
 }
 
-function chooseNextTargetGreedy(gs, e) {
-  const dir = chooseNextDirectionToExit(gs, e);
+function chooseNextTarget(gs, e) {
+  const dir = chooseNextDirection(gs, e);
   const { nx, ny } = stepFrom(e.cx, e.cy, dir);
   const c = tileCenter(nx, ny);
   return { tx: c.x, ty: c.y, dir };
 }
+
+/* =========================
+ * Public convenience
+ * ========================= */
+
+export function recomputePath(gs = state.GameState) {
+  // Keep distFromEntry (UI/shields), no need for an exit field anymore.
+  recomputeDistanceField(gs);
+  recomputeExitField(gs);
+  // Ensure success trail exists
+  ensureSuccessTrail(gs);
+  return gs.distFromEntry;
+}
+
+export function openNeighbors(gs, x, y) {
+  return state.neighborsByEdges(gs, x, y);
+}
+
+// (Kept for any existing callers – still returns a downhill step, but now
+//  uses the entry field as a soft hint only if present.)
+export function downhillNeighborTowardExit(gs, x, y) {
+  const ex = state.EXIT.x, ey = state.EXIT.y;
+  const neigh = state.neighborsByEdges(gs, x, y);
+  if (!neigh.length) return null;
+
+  // Prefer Manhattan toward EXIT
+  let best = neigh[0], bestH = manhattan(neigh[0].x, neigh[0].y, ex, ey);
+  for (const n of neigh) {
+    const h = manhattan(n.x, n.y, ex, ey);
+    if (h < bestH) { bestH = h; best = n; }
+  }
+  return best;
+}
+
+/* =========================
+ * Small helpers
+ * ========================= */
 
 function tileCenter(cx, cy) {
   return {
     x: cx * state.GRID.tile + state.GRID.tile / 2,
     y: cy * state.GRID.tile + state.GRID.tile / 2,
   };
+}
+
+function directionFromTo(x0, y0, x1, y1) {
+  if (x1 === x0 && y1 === y0 - 1) return 'N';
+  if (x1 === x0 + 1 && y1 === y0) return 'E';
+  if (x1 === x0 && y1 === y0 + 1) return 'S';
+  if (x1 === x0 - 1 && y1 === y0) return 'W';
+  return null;
 }
 
 function directionFromDelta(dx, dy) {
@@ -317,138 +448,6 @@ function directionFromDelta(dx, dy) {
   return null;
 }
 
-/* =========================
- * Public convenience
- * ========================= */
-
-/** Call on boot and after any edge toggle. */
-export function recomputePath(gs = state.GameState) {
-  // Keep existing distFromEntry for UI/shielding, and add distToExit for steering
-  recomputeDistanceField(gs);
-  recomputeExitField(gs);
-  return gs.distToExit;
-}
-
-/** UI helper: list of open neighbors from a cell. */
-export function openNeighbors(gs, x, y) {
-  return state.neighborsByEdges(gs, x, y);
-}
-
-// Returns open cells starting from EXIT and walking toward ENTRY.
-// Returns open cells starting from EXIT and walking toward ENTRY.
-// Prefers to keep the same heading; only turns when straight is invalid.
-// Never goes through walls; never steps "uphill" in the distance field.
-export function raycastOpenCellsFromExit(gs, maxSteps) {
-  const dist = gs?.distFromEntry;
-  if (!dist) return [];
-
-  const inBounds = (x, y) =>
-    x >= 0 && y >= 0 && x < state.GRID.cols && y < state.GRID.rows;
-
-  const openTo = (x, y, side) => {
-    const cell = state.ensureCell(gs, x, y);
-    return !cell?.[side]; // wall on current cell's side blocks movement that way
-  };
-
-  const downhillNeighbors = (x, y) => {
-    const d0 = dist?.[y]?.[x];
-    if (!isFinite(d0)) return [];
-    const cands = [
-      { x: x + 1, y,   side: 'E' },
-      { x: x - 1, y,   side: 'W' },
-      { x,   y: y + 1, side: 'S' },
-      { x,   y: y - 1, side: 'N' },
-    ];
-    const out = [];
-    for (const nb of cands) {
-      if (!inBounds(nb.x, nb.y)) continue;
-      if (!openTo(x, y, nb.side)) continue;          // must be open from current cell
-      const dn = dist?.[nb.y]?.[nb.x];
-      if (isFinite(dn) && dn < d0) out.push(nb);     // strictly downhill
-    }
-    return out;
-  };
-
-  const out = [];
-  let cx = state.EXIT.x, cy = state.EXIT.y;
-
-  // Seed heading by choosing the best downhill neighbor first.
-  let nbs = downhillNeighbors(cx, cy);
-  if (!nbs.length) return out;
-  nbs.sort((a, b) => dist[a.y][a.x] - dist[b.y][b.x]);
-  let hx = Math.sign(nbs[0].x - cx);
-  let hy = Math.sign(nbs[0].y - cy);
-
-  const MIN_STRAIGHT_STEPS = 2; // bias only; never overrides walls/downhill
-  let straightStreak = 0;
-
-  for (let i = 0; i < maxSteps; i++) {
-    nbs = downhillNeighbors(cx, cy);
-    if (!nbs.length) break;
-
-    // Check "straight" candidate relative to current heading
-    const sx = cx + hx, sy = cy + hy;
-    const straightSide =
-      hx > 0 ? 'E' :
-      hx < 0 ? 'W' :
-      hy > 0 ? 'S' : 'N';
-
-    const straightOK =
-      inBounds(sx, sy) &&
-      openTo(cx, cy, straightSide) &&
-      dist[sy][sx] < dist[cy][cx];
-
-    let next = null;
-
-    // Prefer straight if valid and within our "stickiness" window
-    if (straightOK && straightStreak < MIN_STRAIGHT_STEPS) {
-      next = { x: sx, y: sy, side: straightSide };
-      straightStreak++;
-    } else {
-      // Among valid downhill neighbors, prefer straight if available; else best (lowest dist)
-      const straightInNbs = straightOK && nbs.find(nb => nb.x === sx && nb.y === sy);
-      if (straightInNbs) {
-        next = { x: sx, y: sy, side: straightSide };
-        straightStreak++;
-      } else {
-        nbs.sort((a, b) => dist[a.y][a.x] - dist[b.y][b.x]);
-        next = nbs[0];
-        // Turn: update heading and reset streak
-        hx = Math.sign(next.x - cx);
-        hy = Math.sign(next.y - cy);
-        straightStreak = 0;
-      }
-    }
-
-    // Emit segment with a fixed orientation flag for rendering ('h' or 'v')
-    out.push({
-      x: next.x,
-      y: next.y,
-      dir: (hx !== 0 ? 'h' : 'v'), // horizontal vs vertical
-      from: next.side,             // kept for reference if you still use it elsewhere
-    });
-
-    cx = next.x; cy = next.y;
-  }
-
-  return out;
-}
-
-/** Greedy hint (if you need it elsewhere). */
-export function downhillNeighborTowardExit(gs, x, y) {
-  const D = gs.distToExit;
-  const here = D?.[y]?.[x] ?? Infinity;
-  let best = null, bestV = here, bestHeu = Infinity;
-  const neigh = state.neighborsByEdges(gs, x, y);
-  for (const n of neigh) {
-    const v = D?.[n.y]?.[n.x];
-    if (!isFinite(v)) continue;
-    if (v < bestV) {
-      bestV = v; best = n; bestHeu = manhattan(n.x, n.y, state.EXIT.x, state.EXIT.y);
-    } else if (v === bestV) {
-      const h = manhattan(n.x, n.y, state.EXIT.x, state.EXIT.y);
-      if (h < bestHeu) { best = n; bestHeu = h; }
-    }
-  }
-  return best; // may be null
+function manhattan(x0, y0, x1, y1) {
+  return Math.abs(x1 - x0) + Math.abs(y1 - y0);
 }
