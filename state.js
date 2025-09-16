@@ -62,6 +62,9 @@ dragonFX: { attacking:false, t:0, dur:0.5 },
   // New: scalar field for pathing/ordering (BFS distance from ENTRY)
   distFromEntry: makeScalarField(GRID.cols, GRID.rows, Infinity),
 
+  // in GameState (near distFromEntry)
+successField: makeScalarField(GRID.cols, GRID.rows, 0), // success “heat” per cell
+  
   // RNG / misc hooks
   seed: 0,
 
@@ -82,6 +85,21 @@ export function makeScalarField(w, h, fill = 0) {
     a[y] = row;
   }
   return a;
+}
+
+export function resetState(gs = GameState) {
+  // ...existing resets...
+  gs.cellWalls = new Map();
+  gs.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
+  gs.successField  = makeScalarField(GRID.cols, GRID.rows, 0);   // <- add this
+  gs.seed = 0;
+}
+
+export function loadState() {
+  // ...existing restore...
+  GameState.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
+  GameState.successField  = makeScalarField(GRID.cols, GRID.rows, 0); // <- add this
+  return true;
 }
 
 // ===== Helpers: keys, bounds =====
