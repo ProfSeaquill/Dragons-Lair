@@ -334,29 +334,79 @@ export function openNeighbors(gs, x, y) {
   return state.neighborsByEdges(gs, x, y);
 }
 
+// Returns open cells starting from EXIT and walking toward ENTRY.
+// Prefers to keep the same heading; only turns when straight is blocked.
 export function raycastOpenCellsFromExit(gs, maxSteps) {
+  const dist = gs.distFromEntry;
+  if (!dist) return [];
+
+  const inBounds = (x, y) =>
+    x >= 0 && y >= 0 && x < state.GRID.cols && y < state.GRID.rows;
+
+  const openTo = (x, y, side) => {
+    const cell = state.ensureCell(gs, x, y);
+    // walls are stored as booleans on the *current* cell's sides
+    return !cell?.[side];
+  };
+
+  const downhillNeighbors = (x, y) => {
+    const d0 = dist?.[y]?.[x];
+    if (!isFinite(d0)) return [];
+    const cands = [
+      { x: x + 1, y,   side: 'E', dir: 'h' },
+      { x: x - 1, y,   side: 'W', dir: 'h' },
+      { x,   y: y + 1, side: 'S', dir: 'v' },
+      { x,   y: y - 1, side: 'N', dir: 'v' },
+    ];
+    const out = [];
+    for (const nb of cands) {
+      if (!inBounds(nb.x, nb.y)) continue;
+      // must be open in the direction we move
+      if (!openTo(x, y, nb.side)) continue;
+      const dn = dist?.[nb.y]?.[nb.x];
+      if (isFinite(dn) && dn < d0) out.push(nb); // strictly downhill
+    }
+    return out;
+  };
+
   const out = [];
   let cx = state.EXIT.x, cy = state.EXIT.y;
 
-  for (let i = 0; i < maxSteps; i++) {
-    // choose neighbor that DECREASES distFromEntry (toward ENTRY)
-    const here = gs.distFromEntry?.[cy]?.[cx] ?? Infinity;
-    let best = null, bestD = here, bestHeu = Infinity;
+  // First step: pick the *best* downhill neighbor (lowest distance), to seed heading.
+  let nbs = downhillNeighbors(cx, cy);
+  if (!nbs.length) return out;
+  nbs.sort((a, b) => (dist[a.y][a.x] - dist[b.y][b.x]));
+  let hx = Math.sign(nbs[0].x - cx);
+  let hy = Math.sign(nbs[0].y - cy);
 
-    const neigh = state.neighborsByEdges(gs, cx, cy);
-    for (const n of neigh) {
-      const d = gs.distFromEntry?.[n.y]?.[n.x];
-      if (!isFinite(d)) continue;
-      if (d < bestD || (d === bestD && manhattan(n.x, n.y, state.ENTRY.x, state.ENTRY.y) < bestHeu)) {
-        best = n; bestD = d;
-        bestHeu = manhattan(n.x, n.y, state.ENTRY.x, state.ENTRY.y);
-      }
+  for (let i = 0; i < maxSteps; i++) {
+    nbs = downhillNeighbors(cx, cy);
+    if (!nbs.length) break;
+
+    // Prefer going straight if possible.
+    const sx = cx + hx, sy = cy + hy;
+    let next = nbs.find(nb => nb.x === sx && nb.y === sy);
+
+    if (!next) {
+      // Straight is blocked — pick the best downhill neighbor (deterministic).
+      nbs.sort((a, b) => (dist[a.y][a.x] - dist[b.y][b.x]));
+      next = nbs[0];
+      // Update heading to the new direction.
+      hx = Math.sign(next.x - cx);
+      hy = Math.sign(next.y - cy);
     }
 
-    if (!best) break;
-    out.push({ x: best.x, y: best.y, from: best.side });
-    cx = best.x; cy = best.y;
+    out.push({
+      x: next.x,
+      y: next.y,
+      dir: (hx !== 0 ? 'h' : 'v'),   // horizontal vs vertical segment
+      from: next.side                // still available if you need it
+    });
+
+    cx = next.x;
+    cy = next.y;
   }
+
   return out;
 }
 
