@@ -20,6 +20,7 @@ const hud = {
   canvas:  $('game'),
   upgrades: $('upgrades'),
   preview:  $('preview'),
+  timer: $('timer'),
   buildHelp: (function(){
     const n = document.querySelector('.gridHelp');
     if (n) {
@@ -89,6 +90,11 @@ export function refreshHUD() {
     _lastPreviewWave = gs.wave | 0;
     renderNextWavePreview().catch(err => console.warn('preview failed:', err));
   }
+
+  if (hud.timer) {
+  const t = Math.max(0, (state.GameState.waveTimeLeft || 0));
+  hud.timer.textContent = t.toFixed(1);
+}
 }
 
 // Lightweight message banner
