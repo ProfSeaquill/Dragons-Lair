@@ -1,79 +1,27 @@
 // state.js — per-edge wall model + core game state + helpers
 
 // ===== Grid & Entry/Exit =====
-export const GRID = {
-  cols: 24,
-  rows: 16,
-  tile: 32,
-};
+export const GRID = { cols: 24, rows: 16, tile: 32 };
 
-// Entry at left mid, Exit at right mid (can be adjusted in pathing later)
 export const ENTRY = { x: 0, y: Math.floor(GRID.rows / 2) };
 export const EXIT  = { x: GRID.cols - 1, y: Math.floor(GRID.rows / 2) };
 
-// ===== Economy / Costs (kept minimal; upgrades can extend) =====
+// ===== Economy / Costs =====
 export const COSTS = {
-  edgeWall: 1,     // bones to place an edge wall
-  edgeRefund: 0,    // bones refunded on removal
-  healPerBone: 1,   // 1 HP per 1 bone
+  edgeWall: 1,   // bones to place an edge wall
+  edgeRefund: 0, // bones refunded on removal
+  healPerBone: 1 // 1 HP per 1 bone
 };
 
-// ===== Base Dragon Stats (lightweight; upgraded via upgrades in getDragonStats) =====
+// ===== Base Dragon Stats =====
 const DRAGON_BASE = {
   maxHP: 100,
   breathPower: 50,
   breathRange: 8 * GRID.tile,
   breathWidth: GRID.tile * 0.9,
-  burnDPS: 1,           // can be modified via upgrades
-  burnDuration: 1,      // seconds
-  fireRate: 0.5,        // shots/sec
-};
-
-export const Dragon = {
-  attacking: false,
-  attackTimer: 0,   // seconds
-};
-
-// ===== Game State =====
-// We export a *single* mutable object so other modules can import & mutate it.
-export const GameState = {
-  version: 2,           // bump when migrating saves
-  wave: 1,
-  gold: 0,
-  bones: 0,
-  dragonHP: DRAGON_BASE.maxHP,
-  autoStart: false,
-
-  // Visual-only dragon breath (mouth burst) — optional
-dragonFX: { attacking:false, t:0, dur:0.5 },
-  
-  // Simulation containers (kept generic so other modules won’t crash)
-  enemies: [],
-  projectiles: [],
-  effects: [],
-
-  // Upgrades bag (key -> level)
-  upgrades: {},
-
-  // New: per-cell edge walls (true = wall present on that side)
-  // Map key = "x,y" -> {N:boolean,E:boolean,S:boolean,W:boolean}
-  cellWalls: new Map(),
-
-  // New: scalar field for pathing/ordering (BFS distance from ENTRY)
-  distFromEntry: makeScalarField(GRID.cols, GRID.rows, Infinity),
-
-  // in GameState (near distFromEntry)
-successField: makeScalarField(GRID.cols, GRID.rows, 0), // success “heat” per cell
-  
-  // RNG / misc hooks
-  seed: 0,
-
-  // Visual-only dragon attack state (driven by combat)
-dragonFX: {
-  attacking: false, // true while fire sprite is shown
-  t: 0,             // elapsed seconds for current attack anim
-  dur: 0.5          // animation duration (seconds)
-},
+  burnDPS: 1,
+  burnDuration: 1,
+  fireRate: 0.5, // shots/sec
 };
 
 // ===== Utility: Field allocation =====
@@ -87,41 +35,57 @@ export function makeScalarField(w, h, fill = 0) {
   return a;
 }
 
-
 // ===== Helpers: keys, bounds =====
 export const tileKey = (x, y) => `${x},${y}`;
-
 export function inBounds(x, y) {
   return x >= 0 && x < GRID.cols && y >= 0 && y < GRID.rows;
 }
 
+// ===== Game State (single mutable object) =====
+export const GameState = {
+  version: 2,
+  wave: 1,
+  gold: 0,
+  bones: 0,
+  dragonHP: DRAGON_BASE.maxHP,
+  autoStart: false,
+
+  // Visual-only dragon breath (mouth burst / sprite timing)
+  dragonFX: { attacking: false, t: 0, dur: 0.5 },
+
+  // Simulation containers
+  enemies: [],
+  projectiles: [],
+  effects: [],
+
+  // Upgrades
+  upgrades: {},
+
+  // Per-cell edge walls: Map<"x,y", {N,E,S,W:boolean}>
+  cellWalls: new Map(),
+
+  // Fields used by pathing/AI
+  distFromEntry: makeScalarField(GRID.cols, GRID.rows, Infinity),
+  distToExit:    makeScalarField(GRID.cols, GRID.rows, Infinity),
+  successField:  makeScalarField(GRID.cols, GRID.rows, 0),
+
+  // RNG / misc
+  seed: 0,
+};
+
 // ===== Per-Cell Edge Accessors =====
-/**
- * Ensure a cell wall record exists and return it.
- * Initializes as all-open (no walls) when first created.
- */
 export function ensureCell(gs, x, y) {
   const k = tileKey(x, y);
   let rec = gs.cellWalls.get(k);
-  if (!rec) {
-    rec = { N: false, E: false, S: false, W: false };
-    gs.cellWalls.set(k, rec);
-  }
+  if (!rec) { rec = { N: false, E: false, S: false, W: false }; gs.cellWalls.set(k, rec); }
   return rec;
 }
 
-/**
- * Checks if movement from (x,y) to a given side is open (no wall and in-bounds).
- * side ∈ {'N','E','S','W'}
- */
 export function isOpen(gs, x, y, side) {
   if (!inBounds(x, y)) return false;
   const here = ensureCell(gs, x, y);
-
-  // Local edge must be open
   if (here[side] === true) return false;
 
-  // Neighbor must exist and its opposite edge must be open
   let nx = x, ny = y, opp;
   switch (side) {
     case 'N': ny = y - 1; opp = 'S'; break;
@@ -135,23 +99,15 @@ export function isOpen(gs, x, y, side) {
   return there[opp] === false;
 }
 
-/**
- * Returns neighbors you can step into via open edges.
- * Each entry: { x, y, side } meaning “from (cx,cy) move through 'side' into this neighbor”.
- */
 export function neighborsByEdges(gs, cx, cy) {
   const out = [];
-  if (isOpen(gs, cx, cy, 'N')) out.push({ x: cx, y: cy - 1, side: 'N' });
-  if (isOpen(gs, cx, cy, 'E')) out.push({ x: cx + 1, y: cy, side: 'E' });
-  if (isOpen(gs, cx, cy, 'S')) out.push({ x: cx, y: cy + 1, side: 'S' });
-  if (isOpen(gs, cx, cy, 'W')) out.push({ x: cx - 1, y: cy, side: 'W' });
+  if (isOpen(gs, cx, cy, 'N')) out.push({ x: cx,     y: cy - 1, side: 'N' });
+  if (isOpen(gs, cx, cy, 'E')) out.push({ x: cx + 1, y: cy,     side: 'E' });
+  if (isOpen(gs, cx, cy, 'S')) out.push({ x: cx,     y: cy + 1, side: 'S' });
+  if (isOpen(gs, cx, cy, 'W')) out.push({ x: cx - 1, y: cy,     side: 'W' });
   return out;
 }
 
-/**
- * Symmetrically set or clear an edge wall between (x,y) and its neighbor in 'side'.
- * Does *not* perform connectivity checks — call your pathing guard before using.
- */
 export function setEdgeWall(gs, x, y, side, hasWall) {
   if (!inBounds(x, y)) return false;
   const here = ensureCell(gs, x, y);
@@ -190,11 +146,10 @@ export function getDragonStats(gs) {
   };
 }
 
-// ===== Saving / Loading (with migration from legacy tile-walls) =====
+// ===== Saving / Loading =====
 const LS_KEY = 'dragons-lair-save';
 
 export function saveState(gs) {
-  // Serialize Map as array of [k, v]
   const cellWallsArr = Array.from(gs.cellWalls.entries());
   const data = {
     version: gs.version,
@@ -206,7 +161,6 @@ export function saveState(gs) {
     upgrades: gs.upgrades,
     seed: gs.seed,
     cellWalls: cellWallsArr,
-    // We omit distFromEntry; recompute after load.
   };
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(data));
@@ -223,7 +177,6 @@ export function loadState() {
     if (!raw) return false;
     const data = JSON.parse(raw);
 
-    // Shallow restore
     GameState.wave      = data.wave ?? GameState.wave;
     GameState.gold      = data.gold ?? GameState.gold;
     GameState.bones     = data.bones ?? GameState.bones;
@@ -232,7 +185,6 @@ export function loadState() {
     GameState.upgrades  = data.upgrades ?? {};
     GameState.seed      = data.seed ?? 0;
 
-    // Migration
     GameState.cellWalls = new Map();
     if (Array.isArray(data.cellWalls)) {
       for (const [k, v] of data.cellWalls) {
@@ -240,6 +192,7 @@ export function loadState() {
         GameState.cellWalls.set(k, rec);
       }
     } else if (Array.isArray(data.walls)) {
+      // legacy
       for (const k of data.walls) {
         const [sx, sy] = k.split(',');
         const x = +sx, y = +sy;
@@ -251,7 +204,7 @@ export function loadState() {
       }
     }
 
-    // Fresh fields (pathing will recompute real values on boot/toggle)
+    // Fresh fields (recomputed properly by pathing on boot/toggle)
     GameState.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
     GameState.distToExit    = makeScalarField(GRID.cols, GRID.rows, Infinity);
     GameState.successField  = makeScalarField(GRID.cols, GRID.rows, 0);
@@ -263,7 +216,7 @@ export function loadState() {
   }
 }
 
-// ===== Convenience Reset (optional) =====
+// ===== Convenience Reset =====
 export function resetState(gs = GameState) {
   gs.wave = 1;
   gs.gold = 0;
@@ -276,11 +229,12 @@ export function resetState(gs = GameState) {
   gs.upgrades = {};
   gs.cellWalls = new Map();
   gs.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
-  gs.successField  = makeScalarField(GRID.cols, GRID.rows, 0);   // <- add this
+  gs.distToExit    = makeScalarField(GRID.cols, GRID.rows, Infinity);
+  gs.successField  = makeScalarField(GRID.cols, GRID.rows, 0);
   gs.seed = 0;
 }
 
-// ===== Econ helpers used by UI (optional, non-breaking) =====
+// ===== Econ helpers =====
 export function canAffordEdge(gs, place = true) {
   return place ? gs.bones >= COSTS.edgeWall : true;
 }
