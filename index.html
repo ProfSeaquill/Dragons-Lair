@@ -72,20 +72,22 @@
     <script type="module" src="./main.js"></script>
 
     <script>
-      window.addEventListener("error", (event) => {
-        const msg = document.getElementById("msg");
-        if (msg) {
-          msg.textContent = "⚠️ " + event.message;
-          msg.style.color = "orange";
-        }
-      });
-      window.addEventListener("unhandledrejection", (event) => {
-        const msg = document.getElementById("msg");
-        if (msg) {
-          msg.textContent = "⚠️ Promise error: " + (event.reason?.message || event.reason);
-          msg.style.color = "orange";
-        }
-      });
-    </script>
+  window.addEventListener("error", (event) => {
+    const msg = document.getElementById("msg");
+    if (msg) {
+      const where = event.filename ? ` @ ${event.filename}:${event.lineno}:${event.colno}` : '';
+      msg.textContent = "⚠️ " + event.message + where;
+      msg.style.color = "orange";
+    }
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    const msg = document.getElementById("msg");
+    if (msg) {
+      const reason = (event.reason && event.reason.stack) || (event.reason && event.reason.message) || event.reason;
+      msg.textContent = "⚠️ Promise error: " + reason;
+      msg.style.color = "orange";
+    }
+  });
+</script>
   </body>
 </html>
