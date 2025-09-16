@@ -291,10 +291,10 @@ function drawFlameWaves(ctx, gs) {
       const age = end - i;                         // 0 = freshest
       const alpha = Math.max(0, 1 - age / tailLen);
 
-      const horiz = (seg.from === 'E' || seg.from === 'W');
-      const w = horiz ? tsize : (fx.widthPx || tsize * 0.9);
-      const h = horiz ? (fx.widthPx || tsize * 0.9) : tsize;
-
+      const horiz = (seg.dir === 'h'); // instead of E/W vs N/S from 'from'
+const w = horiz ? tsize : (fx.widthPx || tsize * 0.9);
+const h = horiz ? (fx.widthPx || tsize * 0.9) : tsize;
+      
       ctx.save();
       ctx.globalAlpha = alpha * 0.95;
 
