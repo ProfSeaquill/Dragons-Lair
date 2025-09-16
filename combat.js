@@ -356,14 +356,6 @@ function dragonBreathTick(gs, dt, ds) {
  * Helpers
  * ========================= */
 
-function enemyPixelCenter(e) {
-  if (typeof e.x === 'number' && typeof e.y === 'number') return { x: e.x, y: e.y };
-  return {
-    x: e.cx * state.GRID.tile + state.GRID.tile / 2,
-    y: e.cy * state.GRID.tile + state.GRID.tile / 2,
-  };
-}
-
 function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) {
     const j = (Math.random() * (i + 1)) | 0;
