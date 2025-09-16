@@ -150,20 +150,18 @@ function update(dt) {
   // 4) HUD sync
   if (UI && typeof UI.refreshHUD === 'function') UI.refreshHUD();
 
-  // --- Effects update (tick & cleanup)
-{
-  const arr = state.GameState.effects || [];
-  for (const fx of arr) {
-    if (!fx) continue;
-    if (fx.t == null) fx.t = 0;
-    if (fx.dur == null) fx.dur = 0.6;
-
-    fx.t += dt;
-    if (fx.t >= fx.dur) fx.dead = true;
+// --- Effects update (tick & cleanup) for non-flameWave effects only
+  {
+    const arr = gs.effects || [];
+    for (const fx of arr) {
+      if (!fx || fx.type === 'flameWave') continue; // skip; handled in 2c
+      if (fx.t == null) fx.t = 0;
+      if (fx.dur == null) fx.dur = 0.6;
+      fx.t += dt;
+      if (fx.t >= fx.dur) fx.dead = true;
+    }
+    gs.effects = arr.filter(fx => !fx?.dead);
   }
-  state.GameState.effects = arr.filter(fx => !fx.dead);
-}
-}
 
 // ---------- Go ----------
 boot();
