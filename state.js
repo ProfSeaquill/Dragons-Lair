@@ -71,6 +71,11 @@ export const GameState = {
 
   // RNG / misc
   seed: 0,
+
+  // Dev / Playtest flags (not required, but handy)
+  dev: {
+    infiniteMoney: false,  // if true, UI will keep gold/bones topped up
+  },
 };
 
 // ===== Per-Cell Edge Accessors =====
