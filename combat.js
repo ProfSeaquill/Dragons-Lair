@@ -383,3 +383,19 @@ function markHit(e, amount = 0) {
   e.lastHitAt = now;
   e.showHpUntil = now + 1000; // visible for 1s since last damage tick
 }
+
+// --- Dev / Playtest helpers ---
+export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
+  n = Math.max(1, n|0);
+  for (let i = 0; i < n; i++) {
+    const e = makeEnemy(type, gs.wave | 0);
+    e.cx = state.ENTRY.x;
+    e.cy = state.ENTRY.y;
+    e.dir = 'E';
+    gs.enemies.push(e);
+  }
+}
+
+export function devClearEnemies(gs = state.GameState) {
+  gs.enemies = [];
+}
