@@ -211,9 +211,11 @@ export function chooseNextDirectionToExit(gs, e) {
   const here = D?.[y]?.[x];
   if (!isFinite(here)) return heuristicFallback(gs, e);
 
-  // weights — light touch so they still mainly follow “downhill to exit”
-  const TRAIL_W = 0.6;     // how much we care about trail vs. pure downhill
-  const CURIOUS = 0.03;    // small random to prevent lockstep
+  // Pull per-enemy “brain” with safe defaults
+  const b = e.behavior || {};
+  const SENSE     = (b.sense     ?? 0.5);  // prefers neighbors that are closer to exit
+  const HERDING   = (b.herding   ?? 1.0);  // follows established success trail
+  const CURIOSITY = (b.curiosity ?? 0.12); // tiny randomness to avoid lockstep
 
   let bestDir = null;
   let bestScore = -Infinity;
@@ -230,14 +232,19 @@ export function chooseNextDirectionToExit(gs, e) {
     const d = D?.[ny]?.[nx];
     if (!isFinite(d)) continue;
 
-    // strictly downhill; otherwise skip (prevents wandering loops)
+    // Only consider strictly downhill moves (prevents loops/wandering)
     if (d >= here) continue;
 
     const trail = T?.[ny]?.[nx] || 0;
-    // Larger score is better; downhill is already ensured by the filter above
-    const score = (TRAIL_W * trail)
-                - (0.00 * d)           // (downhill enforced; no need to subtract)
-                + (Math.random() * CURIOUS);
+
+    // Higher score wins. We combine:
+    //  - herding: prefer tiles with stronger success trail
+    //  - sense: prefer tiles with smaller distance-to-exit
+    //  - curiosity: small jitter
+    const score =
+      (HERDING * trail) +
+      (SENSE   * (here - d)) +    // bigger drop in D = better
+      (Math.random() * CURIOSITY);
 
     if (score > bestScore) {
       bestScore = score;
