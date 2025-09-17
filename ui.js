@@ -75,6 +75,12 @@ export function refreshHUD() {
   const gs = state.GameState;
   const ds = state.getDragonStats(gs);
 
+  // Dev: keep topped up if infiniteMoney is on
+  if (gs.dev?.infiniteMoney) {
+    if ((gs.gold | 0) < 500_000)  gs.gold  = 1_000_000;
+    if ((gs.bones | 0) < 500_000) gs.bones = 1_000_000;
+  }
+
   if (hud.wave)  hud.wave.textContent  = String(gs.wave | 0);
   if (hud.gold)  hud.gold.textContent  = String(gs.gold | 0);
   if (hud.bones) hud.bones.textContent = String(gs.bones | 0);
