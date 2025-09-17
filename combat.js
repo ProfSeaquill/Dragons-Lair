@@ -28,7 +28,7 @@ const CURVES = {
 
 // How each unit tends to decide at junctions
 const BEHAVIOR = {
-  villager:  { sense: 0.15, herding: 1.20, curiosity: 0.25 },
+  villager:  { sense: 0.05, herding: 1.00, curiosity: 0.25 },
   squire:    { sense: 0.35, herding: 1.00, curiosity: 0.18 },
   knight:    { sense: 0.55, herding: 0.85, curiosity: 0.12 },
   hero:      { sense: 0.70, herding: 0.80, curiosity: 0.08 },
