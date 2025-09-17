@@ -26,6 +26,17 @@ const CURVES = {
   touchDmgGrowth: 1.04,
 };
 
+// How each unit tends to decide at junctions
+const BEHAVIOR = {
+  villager:  { sense: 0.15, herding: 1.20, curiosity: 0.25 },
+  squire:    { sense: 0.35, herding: 1.00, curiosity: 0.18 },
+  knight:    { sense: 0.55, herding: 0.85, curiosity: 0.12 },
+  hero:      { sense: 0.70, herding: 0.80, curiosity: 0.08 },
+  engineer:  { sense: 0.65, herding: 0.70, curiosity: 0.15 },
+  kingsguard:{ sense: 0.80, herding: 0.75, curiosity: 0.06 },
+  boss:      { sense: 0.90, herding: 0.70, curiosity: 0.04 },
+};
+
 const FLAGS = {
   kingsguardEvery: 5,        // miniboss cadence
   bossEvery: 10,             // Knight of the Round Table cadence
@@ -64,7 +75,9 @@ function makeEnemy(type, wave) {
     updateByCombat: false,  // main handles movement via pathing interpolation
     lastHitAt: 0,
     showHpUntil: 0,
-  };
+  behavior: BEHAVIOR[type] || { sense: 0.5, herding: 1.0, curiosity: 0.12 },
+};
+
 
   switch (type) {
     case 'villager':   return { ...base, name: 'Villager' };
