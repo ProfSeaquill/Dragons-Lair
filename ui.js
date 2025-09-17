@@ -61,7 +61,9 @@ export function bindUI() {
   refreshHUD();          // also triggers first preview render
   recomputePath(state.GameState);
 
-  // Boot ok banner
+  // Dev tools
+  ensureDevPanel();
+
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
 }
 
@@ -364,3 +366,118 @@ async function renderNextWavePreview() {
 
 // ---------- Optional small API for main/render ----------
 export const UI = { refreshHUD, tell };
+
+
+// ---------- Dev / Playtest Panel ----------
+async function ensureDevPanel() {
+  const rightCol = document.getElementById('rightCol');
+  if (!rightCol) return;
+
+  // Avoid duplicates if bindUI is ever called twice
+  if (document.getElementById('devPanel')) return;
+
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  panel.id = 'devPanel';
+
+  const title = document.createElement('div');
+  title.className = 'pTitle';
+  title.textContent = 'Dev / Playtest';
+  panel.appendChild(title);
+
+  const row = (node) => { const d = document.createElement('div'); d.style.margin = '6px 0'; d.appendChild(node); panel.appendChild(d); };
+
+  // Infinite money checkbox
+  const moneyWrap = document.createElement('label');
+  moneyWrap.style.display = 'flex';
+  moneyWrap.style.alignItems = 'center';
+  moneyWrap.style.gap = '8px';
+  const moneyCb = document.createElement('input');
+  moneyCb.type = 'checkbox';
+  moneyCb.checked = !!state.GameState.dev?.infiniteMoney;
+  moneyCb.addEventListener('change', () => {
+    state.GameState.dev = state.GameState.dev || {};
+    state.GameState.dev.infiniteMoney = moneyCb.checked;
+    if (moneyCb.checked) {
+      state.GameState.gold  = 1_000_000;
+      state.GameState.bones = 1_000_000;
+      refreshHUD();
+    }
+  });
+  const moneyLbl = document.createElement('span');
+  moneyLbl.textContent = 'Infinite gold & bones';
+  moneyWrap.appendChild(moneyCb);
+  moneyWrap.appendChild(moneyLbl);
+  row(moneyWrap);
+
+  // Grant resources once
+  const grantBtn = document.createElement('button');
+  grantBtn.className = 'btn';
+  grantBtn.textContent = 'Grant 1,000g + 1,000 bones';
+  grantBtn.addEventListener('click', () => {
+    state.GameState.gold  = (state.GameState.gold  | 0) + 1000;
+    state.GameState.bones = (state.GameState.bones | 0) + 1000;
+    refreshHUD();
+  });
+  row(grantBtn);
+
+  // Spawn enemy buttons
+  const spawnRow = document.createElement('div');
+  spawnRow.style.display = 'grid';
+  spawnRow.style.gridTemplateColumns = 'repeat(3, 1fr)';
+  spawnRow.style.gap = '6px';
+
+  const types = ['villager','squire','knight','hero','engineer','kingsguard','boss'];
+  const combat = await getCombat();
+
+  function addSpawnBtn(type) {
+    const b = document.createElement('button');
+    b.className = 'btn';
+    b.textContent = `Spawn ${type}`;
+    b.addEventListener('click', () => {
+      if (typeof combat.devSpawnEnemy === 'function') {
+        combat.devSpawnEnemy(state.GameState, type, 1);
+        tell(`Spawned ${type}`);
+      } else {
+        tell('devSpawnEnemy not found in combat.js', '#f88');
+      }
+    });
+    spawnRow.appendChild(b);
+  }
+  types.forEach(addSpawnBtn);
+  row(spawnRow);
+
+  // Utilities row
+  const utilRow = document.createElement('div');
+  utilRow.style.display = 'flex';
+  utilRow.style.gap = '6px';
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'btn';
+  clearBtn.textContent = 'Clear Enemies';
+  clearBtn.addEventListener('click', async () => {
+    const c = await getCombat();
+    if (typeof c.devClearEnemies === 'function') {
+      c.devClearEnemies(state.GameState);
+      tell('Cleared enemies');
+    }
+  });
+  utilRow.appendChild(clearBtn);
+
+  const setWaveBtn = document.createElement('button');
+  setWaveBtn.className = 'btn';
+  setWaveBtn.textContent = 'Set Wave…';
+  setWaveBtn.addEventListener('click', () => {
+    const n = parseInt(prompt('Set current wave number:', String(state.GameState.wave | 0)), 10);
+    if (!Number.isNaN(n) && n > 0) {
+      state.GameState.wave = n | 0;
+      refreshHUD();
+      tell(`Wave set to ${n}`);
+    }
+  });
+  utilRow.appendChild(setWaveBtn);
+
+  panel.appendChild(utilRow);
+
+  rightCol.appendChild(panel);
+}
