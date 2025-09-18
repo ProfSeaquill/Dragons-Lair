@@ -289,6 +289,11 @@ function edgeHitTest(canvas, evt) {
 function edgeHasWall(gs, x, y, side) {
   const rec = state.ensureCell(gs, x, y);
   return !!rec?.[side];
+  // inside your wall-toggle handler:
+if (edgeTouchesDragon(state.GameState, cellX, cellY, side)) {
+  // optionally play a "blocked" cue
+  return; // don't allow building on/around the dragon
+}
 }
 
 function edgeTouchesDragon(gs, x, y, side) {
