@@ -201,57 +201,52 @@ export function updateEnemyDistance(gs, e) {
 export function chooseNextDirectionToExit(gs, e) {
   const D = gs.distToExit;
   if (!D) return e.dir || 'E';
-  const T = ensureSuccessField(gs);
+  const T = gs.successTrail || ensureSuccessField(gs);
 
   const x = e.cx | 0, y = e.cy | 0;
   const here = D?.[y]?.[x];
   if (!isFinite(here)) return heuristicFallback(gs, e);
 
-  const OPP = { N:'S', S:'N', E:'W', W:'E' };
-  const curDir = e.dir || 'E';
+  // Per-enemy weights
+  const b = e.behavior || {};
+  const SENSE     = (b.sense     ?? 0.5);   // prefers lower distance-to-exit
+  const HERDING   = (b.herding   ?? 1.0);   // follows success trail
+  const CURIOSITY = (b.curiosity ?? 0.12);  // tiny randomness
 
-  // Collect strictly-downhill candidates first
-  const cands = [
+  // Movement “comforts”
+  const UPHILL_PEN = 2.0;   // penalty per step you go *away* from exit
+  const TURN_PEN   = 0.15;  // soft inertia: dislike turning
+  const UTURN_PEN  = 0.65;  // strongly dislike reversing direction
+
+  const curDir = e.dir || null;
+
+  let bestDir = null, bestScore = -Infinity;
+
+  const candidates = [
     ['N', x, y - 1],
     ['E', x + 1, y],
     ['S', x, y + 1],
     ['W', x - 1, y],
-  ].filter(([dir, nx, ny]) => {
-    if (!state.isOpen(gs, x, y, dir)) return false;
+  ];
+
+  for (const [dir, nx, ny] of candidates) {
+    if (!state.isOpen(gs, x, y, dir)) continue;
     const d = D?.[ny]?.[nx];
-    return isFinite(d) && d < here;
-  });
+    if (!isFinite(d)) continue;
 
-  if (cands.length === 0) {
-    // No improving neighbor (should be rare) – fall back to heuristic
-    return heuristicFallback(gs, e);
-  }
-
-  // If there’s more than one improving option, disallow a U-turn
-  const filtered = (cands.length > 1)
-    ? cands.filter(([dir]) => dir !== OPP[curDir])
-    : cands;
-  const options = filtered.length ? filtered : cands;
-
-  // Weights
-  const HERDING   = (e.behavior?.herding   ?? 1.0);
-  const SENSE     = (e.behavior?.sense     ?? 0.5);
-  const CURIOSITY = Math.min(0.08, (e.behavior?.curiosity ?? 0.12)); // tame jitter
-  const KEEP_HEADING_BONUS = 0.20;   // small bias to keep going straight
-  const UTURN_PENALTY      = 0.35;   // extra safety if only option includes a U-turn
-
-  let bestDir = null, bestScore = -Infinity;
-
-  for (const [dir, nx, ny] of options) {
-    const d = D[ny][nx];
+    const delta = here - d;           // +ve = downhill, 0 = flat, -ve = uphill
     const trail = T?.[ny]?.[nx] || 0;
 
-    let score = 0;
-    score += HERDING * trail;
-    score += SENSE   * (here - d);               // always positive (strictly downhill)
-    if (dir === curDir) score += KEEP_HEADING_BONUS;
-    if (dir === OPP[curDir]) score -= UTURN_PENALTY; // can happen if it’s the only option
-    score += Math.random() * CURIOSITY;
+    // Soft biases/penalties instead of hard filters
+    const turnCost  = (curDir && dir !== curDir) ? TURN_PEN : 0;
+    const uturnCost = (curDir && isOpposite(dir, curDir)) ? UTURN_PEN : 0;
+
+    const score =
+      (HERDING * trail) +
+      (SENSE   * delta) -                 // prefer bigger downhill
+      (UPHILL_PEN * Math.max(0, -delta)) -// punish going uphill
+      turnCost - uturnCost +
+      (Math.random() * CURIOSITY);
 
     if (score > bestScore) {
       bestScore = score;
@@ -260,6 +255,12 @@ export function chooseNextDirectionToExit(gs, e) {
   }
 
   return bestDir ?? heuristicFallback(gs, e);
+}
+
+// Helper: is this direction the opposite of the other?
+function isOpposite(a, b) {
+  return (a === 'N' && b === 'S') || (a === 'S' && b === 'N') ||
+         (a === 'E' && b === 'W') || (a === 'W' && b === 'E');
 }
 
 
