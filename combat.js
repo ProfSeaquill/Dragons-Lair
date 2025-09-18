@@ -267,12 +267,15 @@ export function update(gs = state.GameState, dt) {
       markHit(e, e.burnDps * tick);
     }
 
-    // Contact with dragon
-    if (e.cx === exitCx && e.cy === exitCy) {
-      gs.dragonHP = Math.max(0, gs.dragonHP - (e.contactDamage | 0));
-      enemies.splice(i, 1);
-      continue;
-    }
+    // Contact with dragon (supports multi-tile hitbox)
+if (
+  Number.isInteger(e.cx) && Number.isInteger(e.cy) &&
+  state.isDragonCell(e.cx, e.cy, gs)
+) {
+  gs.dragonHP = Math.max(0, gs.dragonHP - (e.contactDamage | 0));
+  enemies.splice(i, 1);
+  continue;
+}
 
     // Death -> rewards
     if (e.hp <= 0) {
