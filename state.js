@@ -13,6 +13,38 @@ export const COSTS = {
   healPerBone: 1 // 1 HP per 1 bone
 };
 
+// --- Dragon hitbox config (in tiles), centered on the EXIT tile
+export const DRAGON_HITBOX = {
+  w: 3,   // width in tiles  (try 3, 4, or 5)
+  h: 3,   // height in tiles (try 3, 4, or 5)
+};
+
+// Returns an array of tile coords covered by the dragon hitbox
+export function dragonCells(gs) {
+  const { x: cx, y: cy } = EXIT; // EXIT is the lair mouth tile
+  const halfW = Math.floor(DRAGON_HITBOX.w / 2);
+  const halfH = Math.floor(DRAGON_HITBOX.h / 2);
+
+  const cells = [];
+  for (let dy = -halfH; dy <= halfH; dy++) {
+    for (let dx = -halfW; dx <= halfW; dx++) {
+      const x = cx + dx, y = cy + dy;
+      if (inBounds(x, y)) cells.push({ x, y });
+    }
+  }
+  return cells;
+}
+
+// Fast check for a single tile
+export function isDragonCell(x, y, gs) {
+  const list = dragonCells(gs);
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].x === x && list[i].y === y) return true;
+  }
+  return false;
+}
+
+
 // ===== Base Dragon Stats =====
 const DRAGON_BASE = {
   maxHP: 100,
