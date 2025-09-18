@@ -232,9 +232,6 @@ export function chooseNextDirectionToExit(gs, e) {
     const d = D?.[ny]?.[nx];
     if (!isFinite(d)) continue;
 
-    // Only consider strictly downhill moves (prevents loops/wandering)
-    if (d >= here) continue;
-
     const trail = T?.[ny]?.[nx] || 0;
 
     // Higher score wins. We combine:
