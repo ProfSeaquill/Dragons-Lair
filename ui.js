@@ -291,6 +291,19 @@ function edgeHasWall(gs, x, y, side) {
   return !!rec?.[side];
 }
 
+function edgeTouchesDragon(gs, x, y, side) {
+  // side is 'N','S','E','W' for the edge on cell (x,y)
+  const a = { x, y };
+  const b = { x, y };
+  if (side === 'N') b.y = y - 1;
+  if (side === 'S') b.y = y + 1;
+  if (side === 'W') b.x = x - 1;
+  if (side === 'E') b.x = x + 1;
+
+  // If either cell is part of the dragon, block building
+  return state.isDragonCell(a.x, a.y, gs) || state.isDragonCell(b.x, b.y, gs);
+}
+
 // ---------- Next Wave Preview ----------
 async function renderNextWavePreview() {
   const root = hud.preview;
