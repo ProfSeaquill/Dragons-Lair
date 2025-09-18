@@ -18,13 +18,24 @@ function spawnMouthFire(gs, dur = 0.6) {
  * ========================= */
 
 const CURVES = {
+  // Bases per type
   hpBase:       { villager: 12,  squire: 16,  knight: 45,  hero: 65, engineer: 40, kingsguard: 90, boss: 300 },
-  hpGrowth:     1.16,
   spdBase:      { villager: 1.6, squire: 1.7, knight: 2.5, hero: 1.8, engineer: 2.0, kingsguard: 2.2, boss: 2.0 },
-  spdGrowth:    1.015,
-  touchDmgBase: { villager: 8,   squire: 10,  knight: 14,  hero: 16, engineer: 20, kingsguard: 28, boss: 40 },
-  touchDmgGrowth: 1.04,
+  dmgBase:      { villager: 8,   squire: 10,  knight: 14,  hero: 16, engineer: 20, kingsguard: 28, boss: 40 },
+
+  // Caps relative to base (your request):
+  // speed: 2×, hp: 10×, damage: 1.5×
+  hpCapMult:   10.0,
+  spdCapMult:   2.0,
+  dmgCapMult:   1.5,
+
+  // How quickly each stat approaches its cap (tune to taste)
+  // Larger k => reaches the cap sooner.
+  kHP:   0.06,
+  kSPD:  0.03,
+  kDMG:  0.05,
 };
+
 
 // How each unit tends to decide at junctions
 const BEHAVIOR = {
@@ -46,39 +57,48 @@ const FLAGS = {
   spawnGap: 0.55,            // seconds between spawns
 };
 
-// Wave size curve
 function waveCountFor(wave) {
-  const base = 7, growth = 1.16;
-  return Math.max(3, Math.round(base * Math.pow(growth, Math.max(0, wave - 1))));
+  const base = 7;          // wave 1 size
+  const cap  = 50;         // hard-ish ceiling you wanted (~50)
+  const k    = 0.07;       // growth tempo
+  return Math.max(1, Math.round(approachCap(base, cap, wave, k)));
+}
+
+// Smooth asymptotic growth: starts near `base`, rises quickly early,
+// then slows and approaches `cap` as wave → ∞.
+// k is the “tempo” (higher k = reaches the cap faster).
+function approachCap(base, cap, wave, k) {
+  const w = Math.max(0, (wave | 0) - 1);
+  return cap - (cap - base) * Math.exp(-k * w);
 }
 
 function makeEnemy(type, wave) {
   const hp0  = CURVES.hpBase[type];
   const spd0 = CURVES.spdBase[type];
-  const td0  = CURVES.touchDmgBase[type];
+  const dmg0 = CURVES.dmgBase[type];
 
-  const hp   = Math.round(hp0 * Math.pow(CURVES.hpGrowth, Math.max(0, wave - 1)));
-  const spd  = spd0 * Math.pow(CURVES.spdGrowth, Math.max(0, wave - 1));
-  const tDmg = Math.round(td0 * Math.pow(CURVES.touchDmgGrowth, Math.max(0, wave - 1)));
+  // Approach caps per your spec
+  const hp   = Math.round(approachCap(hp0,  hp0  * CURVES.hpCapMult,  wave, CURVES.kHP));
+  const spd  =           approachCap(spd0, spd0 * CURVES.spdCapMult, wave, CURVES.kSPD);
+  const tDmg = Math.round(approachCap(dmg0, dmg0 * CURVES.dmgCapMult, wave, CURVES.kDMG));
 
   const base = {
     type,
     name: type,
     hp,
-    maxHp: hp,              // for health bars
-    speed: spd,             // tiles/sec; main converts to px/sec
+    maxHp: hp,
+    speed: spd,             // tiles/sec
     contactDamage: tDmg,
-    shield: false,          // used only for visuals on heroes
+    shield: false,
     miniboss: false,
     burnLeft: 0,
     burnDps: 0,
-    updateByCombat: false,  // main handles movement via pathing interpolation
+    updateByCombat: false,
     lastHitAt: 0,
     showHpUntil: 0,
-  behavior: BEHAVIOR[type] || { sense: 0.5, herding: 1.0, curiosity: 0.12 },
-};
+  };
 
-
+  // (keep your existing switch with names/flags)
   switch (type) {
     case 'villager':   return { ...base, name: 'Villager' };
     case 'squire':     return { ...base, name: 'Squire' };
@@ -90,6 +110,7 @@ function makeEnemy(type, wave) {
     default:           return base;
   }
 }
+
 
 /* =========================
  * Wave composition (with thresholds)
