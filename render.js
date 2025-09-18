@@ -169,22 +169,40 @@ export function draw(ctx, gs = state.GameState) {
 
 /* ===================== visuals ===================== */
 
-function drawFaintTiles(ctx) {
+function drawFaintTiles(ctx, gs = state.GameState) {
   const t = state.GRID.tile;
   ctx.save();
-  ctx.strokeStyle = COLORS.gridLine;
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
   ctx.lineWidth = 1;
   ctx.beginPath();
+
+  // Vertical lines
   for (let x = 0; x <= state.GRID.cols; x++) {
     const px = x * t + 0.5;
-    ctx.moveTo(px, 0);
-    ctx.lineTo(px, state.GRID.rows * t);
+    // Only draw line segments that are NOT inside the dragon zone
+    let y = 0;
+    while (y < state.GRID.rows) {
+      // advance while we're in a visible stretch
+      let y0 = y;
+      while (y < state.GRID.rows && !state.isDragonCell(x, y, gs) && !state.isDragonCell(x - 1, y, gs)) y++;
+      if (y > y0) { ctx.moveTo(px, y0 * t); ctx.lineTo(px, y * t); }
+      // skip over the dragon zone (don’t draw those segments)
+      while (y < state.GRID.rows && (state.isDragonCell(x, y, gs) || state.isDragonCell(x - 1, y, gs))) y++;
+    }
   }
+
+  // Horizontal lines
   for (let y = 0; y <= state.GRID.rows; y++) {
     const py = y * t + 0.5;
-    ctx.moveTo(0, py);
-    ctx.lineTo(state.GRID.cols * t, py);
+    let x = 0;
+    while (x < state.GRID.cols) {
+      let x0 = x;
+      while (x < state.GRID.cols && !state.isDragonCell(x, y, gs) && !state.isDragonCell(x, y - 1, gs)) x++;
+      if (x > x0) { ctx.moveTo(x0 * t, py); ctx.lineTo(x * t, py); }
+      while (x < state.GRID.cols && (state.isDragonCell(x, y, gs) || state.isDragonCell(x, y - 1, gs))) x++;
+    }
   }
+
   ctx.stroke();
   ctx.restore();
 }
