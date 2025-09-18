@@ -198,10 +198,6 @@ export function updateEnemyDistance(gs, e) {
   }
 }
 
-/**
- * Choose direction that strictly DECREASES distToExit; among those,
- * prefer higher success-trail and add a tiny curiosity jitter to break ties.
- */
 export function chooseNextDirectionToExit(gs, e) {
   const D = gs.distToExit;
   if (!D) return e.dir || 'E';
@@ -211,37 +207,51 @@ export function chooseNextDirectionToExit(gs, e) {
   const here = D?.[y]?.[x];
   if (!isFinite(here)) return heuristicFallback(gs, e);
 
-  // Pull per-enemy “brain” with safe defaults
-  const b = e.behavior || {};
-  const SENSE     = (b.sense     ?? 0.5);  // prefers neighbors that are closer to exit
-  const HERDING   = (b.herding   ?? 1.0);  // follows established success trail
-  const CURIOSITY = (b.curiosity ?? 0.12); // tiny randomness to avoid lockstep
+  const OPP = { N:'S', S:'N', E:'W', W:'E' };
+  const curDir = e.dir || 'E';
 
-  let bestDir = null;
-  let bestScore = -Infinity;
-
-  const candidates = [
+  // Collect strictly-downhill candidates first
+  const cands = [
     ['N', x, y - 1],
     ['E', x + 1, y],
     ['S', x, y + 1],
     ['W', x - 1, y],
-  ];
-
-  for (const [dir, nx, ny] of candidates) {
-    if (!state.isOpen(gs, x, y, dir)) continue;
+  ].filter(([dir, nx, ny]) => {
+    if (!state.isOpen(gs, x, y, dir)) return false;
     const d = D?.[ny]?.[nx];
-    if (!isFinite(d)) continue;
+    return isFinite(d) && d < here;
+  });
 
+  if (cands.length === 0) {
+    // No improving neighbor (should be rare) – fall back to heuristic
+    return heuristicFallback(gs, e);
+  }
+
+  // If there’s more than one improving option, disallow a U-turn
+  const filtered = (cands.length > 1)
+    ? cands.filter(([dir]) => dir !== OPP[curDir])
+    : cands;
+  const options = filtered.length ? filtered : cands;
+
+  // Weights
+  const HERDING   = (e.behavior?.herding   ?? 1.0);
+  const SENSE     = (e.behavior?.sense     ?? 0.5);
+  const CURIOSITY = Math.min(0.08, (e.behavior?.curiosity ?? 0.12)); // tame jitter
+  const KEEP_HEADING_BONUS = 0.20;   // small bias to keep going straight
+  const UTURN_PENALTY      = 0.35;   // extra safety if only option includes a U-turn
+
+  let bestDir = null, bestScore = -Infinity;
+
+  for (const [dir, nx, ny] of options) {
+    const d = D[ny][nx];
     const trail = T?.[ny]?.[nx] || 0;
 
-    // Higher score wins. We combine:
-    //  - herding: prefer tiles with stronger success trail
-    //  - sense: prefer tiles with smaller distance-to-exit
-    //  - curiosity: small jitter
-    const score =
-      (HERDING * trail) +
-      (SENSE   * (here - d)) +    // bigger drop in D = better
-      (Math.random() * CURIOSITY);
+    let score = 0;
+    score += HERDING * trail;
+    score += SENSE   * (here - d);               // always positive (strictly downhill)
+    if (dir === curDir) score += KEEP_HEADING_BONUS;
+    if (dir === OPP[curDir]) score -= UTURN_PENALTY; // can happen if it’s the only option
+    score += Math.random() * CURIOSITY;
 
     if (score > bestScore) {
       bestScore = score;
@@ -251,6 +261,7 @@ export function chooseNextDirectionToExit(gs, e) {
 
   return bestDir ?? heuristicFallback(gs, e);
 }
+
 
 function heuristicFallback(gs, e) {
   // If no improving neighbor (rare), pick any open edge closer to EXIT (Manhattan)
