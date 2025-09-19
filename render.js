@@ -41,6 +41,16 @@ let caveReady = false;
 caveImg.onload = () => { caveReady = true; };
 caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
 
+// === Torch lighting tunables ===
+const LIGHT = {
+  ambient: 0.72,                 // how dark the cave is overall (0..1)
+  enemyR:  () => state.GRID.tile * 2.2,   // base light radius for normal units
+  bossR:   () => state.GRID.tile * 3.1,   // bosses/minibosses
+  dragonR: () => state.GRID.tile * 3.6,   // warm glow at the lair
+  flickerAmp: () => state.GRID.tile * 0.25, // how much the radius flickers
+  color: 'rgba(255,180,80,0.55)', // additive warm light color
+};
+
 /* -----------------------------------------------------------
  * Enemy type colors
  * --------------------------------------------------------- */
@@ -183,6 +193,8 @@ drawVignette(ctx);
 
   // -------- Bombs (engineer)
   drawBombs(ctx, gs);
+
+   drawTorchLighting(ctx, gs);
 }
 
 /* ===================== visuals ===================== */
@@ -577,6 +589,94 @@ function drawBombs(ctx, gs) {
 }
 
 /* ===================== primitives & helpers ===================== */
+
+// Draw a dark overlay, then cut out soft holes around light sources (enemies, dragon),
+// and finally add a warm additive glow. Call this AFTER you’ve drawn the scene.
+function drawTorchLighting(ctx, gs) {
+  const { width, height } = ctx.canvas;
+  const now = (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) * 0.001;
+
+  // 1) Full-screen darkness
+  ctx.save();
+  ctx.globalAlpha = LIGHT.ambient;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+
+  // 2) Cut “holes” for light using destination-out with soft radial gradients
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+
+  // Helper: carve one light hole
+  function carveLight(x, y, r, pulse = 0) {
+    const rr = Math.max(4, r + pulse);
+    const g = ctx.createRadialGradient(x, y, rr * 0.1, x, y, rr);
+    g.addColorStop(0.00, 'rgba(0,0,0,0.85)'); // strong removal in center
+    g.addColorStop(0.35, 'rgba(0,0,0,0.65)');
+    g.addColorStop(1.00, 'rgba(0,0,0,0.00)'); // feathered edge
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, rr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Enemies as torch carriers
+  if (Array.isArray(gs.enemies)) {
+    for (const e of gs.enemies) {
+      const p = enemyPixelPosition(e);
+      if (!p) continue;
+      const base = (e.miniboss || e.type === 'boss') ? LIGHT.bossR() : LIGHT.enemyR();
+      // gentle flicker per-unit
+      const flick = Math.sin(now * 9.7 + (e.id || 0)) * (LIGHT.flickerAmp() * 0.5)
+                  + Math.sin(now * 6.1 + (e.hp || 0)) * (LIGHT.flickerAmp() * 0.3);
+      carveLight(p.x, p.y, base, flick);
+    }
+  }
+
+  // Dragon (lair mouth) always glows a bit
+  {
+    const p = centerOf(state.EXIT.x, state.EXIT.y);
+    const base = LIGHT.dragonR();
+    const flick = Math.sin(now * 7.1) * (LIGHT.flickerAmp() * 0.4);
+    carveLight(p.x + state.GRID.tile * 0.4, p.y - state.GRID.tile * 0.1, base, flick);
+  }
+
+  ctx.restore();
+
+  // 3) Add warm color back into the carved areas for torch feel
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = LIGHT.color;
+
+  // reuse same positions but cheaper (no gradients; wide soft blobs)
+  function addWarmGlow(x, y, r) {
+    const rr = Math.max(4, r * 0.8);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
+    g.addColorStop(0.00, 'rgba(255,200,120,0.35)');
+    g.addColorStop(0.60, 'rgba(255,160,60,0.18)');
+    g.addColorStop(1.00, 'rgba(255,120,40,0.00)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, rr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (Array.isArray(gs.enemies)) {
+    for (const e of gs.enemies) {
+      const p = enemyPixelPosition(e);
+      if (!p) continue;
+      const base = (e.miniboss || e.type === 'boss') ? LIGHT.bossR() : LIGHT.enemyR();
+      addWarmGlow(p.x, p.y, base);
+    }
+  }
+
+  {
+    const p = centerOf(state.EXIT.x, state.EXIT.y);
+    addWarmGlow(p.x + state.GRID.tile * 0.4, p.y - state.GRID.tile * 0.1, LIGHT.dragonR());
+  }
+
+  ctx.restore();
+}
 
 function centerOf(cx, cy) {
   return {
