@@ -34,6 +34,14 @@ let fireHReady = false, fireVReady = false;
 // fireStripV.src = './assets/fire_strip_v.png';
 
 /* -----------------------------------------------------------
+ * CAVE BACKDROP (grid-sized art)
+ * --------------------------------------------------------- */
+const caveImg = new Image();
+let caveReady = false;
+caveImg.onload = () => { caveReady = true; };
+caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
+
+/* -----------------------------------------------------------
  * Enemy type colors
  * --------------------------------------------------------- */
 const TYPE_COLOR = {
@@ -134,13 +142,23 @@ export function draw(ctx, gs = state.GameState) {
 
   ctx.imageSmoothingEnabled = false;
 
-  // -------- Background: cave pattern + vignette
-  ctx.clearRect(0, 0, width, height);
+  // -------- Background: image if ready, otherwise procedural pattern
+ctx.clearRect(0, 0, width, height);
+
+if (caveReady) {
+  // If your art exactly matches GRID size, this is a perfect 1:1 draw
+  ctx.drawImage(caveImg, 0, 0, width, height);
+} else {
+  // fallback: your existing procedural cave background
   ctx.save();
   ctx.fillStyle = getCavePattern(ctx);
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
-  drawVignette(ctx);
+}
+
+// Optional: keep vignette to add depth even on the painted backdrop
+drawVignette(ctx);
+
 
   // -------- Grid (ultra faint, optional)
   drawFaintTiles(ctx);
