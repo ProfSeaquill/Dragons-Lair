@@ -13,6 +13,19 @@ function spawnMouthFire(gs, dur = 0.6) {
   });
 }
 
+// Return nearest dragon cell (tile coords) to a given tile (ox, oy)
+function nearestDragonCell(gs, ox, oy) {
+  const cells = state.dragonCells(gs); // assumes you exported this from state.js
+  let best = cells[0], bestD2 = Infinity;
+  for (const c of cells) {
+    const dx = c.x - ox, dy = c.y - oy;
+    const d2 = dx*dx + dy*dy;
+    if (d2 < bestD2) { bestD2 = d2; best = c; }
+  }
+  return best;
+}
+
+
 /* =========================
  * Enemy templates & scaling
  * ========================= */
@@ -248,14 +261,34 @@ export function update(gs = state.GameState, dt) {
         e.cx = spot.x; e.cy = spot.y; e.dir = 'W';
         e.tunneling = false;
 
-        // Plant bomb
-        gs.effects.push({
-          type: 'bomb',
-          x: state.GRID.tile * (exitCx + 0.5),
-          y: state.GRID.tile * (exitCy + 0.5),
-          timer: FLAGS.engineerBombTimer,
-          dmg: FLAGS.engineerBombDmg,
-        });
+       // Plant bomb at dragon perimeter (or center of nearest dragon cell)
+const PLACE_MODE = 'perimeter'; // 'perimeter' | 'center'
+const t  = state.GRID.tile;
+const dc = nearestDragonCell(gs, e.cx, e.cy);
+
+// Center of that dragon tile
+const cx = (dc.x + 0.5) * t;
+const cy = (dc.y + 0.5) * t;
+
+let bx = cx, by = cy;
+if (PLACE_MODE === 'perimeter') {
+  // Place along the line from dragon center toward the engineer, at the tile edge
+  const ex = (e.cx + 0.5) * t;
+  const ey = (e.cy + 0.5) * t;
+  const dx = ex - cx, dy = ey - cy;
+  const L  = Math.hypot(dx, dy) || 1;
+  const halfTile = t * 0.5;
+  bx = cx + (dx / L) * halfTile;
+  by = cy + (dy / L) * halfTile;
+}
+
+gs.effects.push({
+  type: 'bomb',
+  x: bx,
+  y: by,
+  timer: FLAGS.engineerBombTimer,
+  dmg: FLAGS.engineerBombDmg,
+});
       }
     }
 
