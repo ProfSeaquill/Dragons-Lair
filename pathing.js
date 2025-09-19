@@ -198,6 +198,7 @@ export function updateEnemyDistance(gs, e) {
   }
 }
 
+/** Choose next step using soft-downhill + trail + inertia. */
 export function chooseNextDirectionToExit(gs, e) {
   const D = gs.distToExit;
   if (!D) return e.dir || 'E';
@@ -207,20 +208,20 @@ export function chooseNextDirectionToExit(gs, e) {
   const here = D?.[y]?.[x];
   if (!isFinite(here)) return heuristicFallback(gs, e);
 
-  // Per-enemy weights
+  // Per-enemy weights (unitless, ~0..2 sane range)
   const b = e.behavior || {};
-  const SENSE     = (b.sense     ?? 0.5);   // prefers lower distance-to-exit
-  const HERDING   = (b.herding   ?? 1.0);   // follows success trail
-  const CURIOSITY = (b.curiosity ?? 0.12);  // tiny randomness
+  const SENSE     = (b.sense     ?? 0.5);   // likes smaller D (toward exit)
+  const HERDING   = (b.herding   ?? 1.0);   // likes stronger success trail
+  const CURIOSITY = (b.curiosity ?? 0.12);  // small jitter to break ties
 
-  // Movement “comforts”
-  const UPHILL_PEN = 2.0;   // penalty per step you go *away* from exit
-  const TURN_PEN   = 0.15;  // soft inertia: dislike turning
-  const UTURN_PEN  = 0.65;  // strongly dislike reversing direction
+  // Inertia controls
+  const prevDir = e.dir || null;
+  const STRAIGHT_BONUS   = 0.25;            // slight nudge to keep heading
+  const BACKTRACK_PENALTY = 9.0;            // strongly avoid immediate 180°
+  const MAX_UPHILL = 1;                     // allow flat (0) or +1 uphill only
 
-  const curDir = e.dir || null;
-
-  let bestDir = null, bestScore = -Infinity;
+  let bestDir = null;
+  let bestScore = -Infinity;
 
   const candidates = [
     ['N', x, y - 1],
@@ -234,19 +235,22 @@ export function chooseNextDirectionToExit(gs, e) {
     const d = D?.[ny]?.[nx];
     if (!isFinite(d)) continue;
 
-    const delta = here - d;           // +ve = downhill, 0 = flat, -ve = uphill
-    const trail = T?.[ny]?.[nx] || 0;
+    const delta = d - here;        // <0 downhill, 0 flat, >0 uphill
+    if (delta > MAX_UPHILL) continue; // too uphill => ignore
 
-    // Soft biases/penalties instead of hard filters
-    const turnCost  = (curDir && dir !== curDir) ? TURN_PEN : 0;
-    const uturnCost = (curDir && isOpposite(dir, curDir)) ? UTURN_PEN : 0;
+    // Components
+    const trail   = T?.[ny]?.[nx] || 0;
+    const downhillScore = -SENSE * Math.max(-3, Math.min(3, delta)); // soft: small uphill allowed
+    const trailScore    =  HERDING * trail;
+    const jitter        = (Math.random() * CURIOSITY);
 
-    const score =
-      (HERDING * trail) +
-      (SENSE   * delta) -                 // prefer bigger downhill
-      (UPHILL_PEN * Math.max(0, -delta)) -// punish going uphill
-      turnCost - uturnCost +
-      (Math.random() * CURIOSITY);
+    let inertia = 0;
+    if (prevDir) {
+      if (dir === prevDir) inertia += STRAIGHT_BONUS;       // prefer straight a bit
+      if (isReverse(dir, prevDir)) inertia -= BACKTRACK_PENALTY; // avoid 180° turns
+    }
+
+    const score = downhillScore + trailScore + inertia + jitter;
 
     if (score > bestScore) {
       bestScore = score;
@@ -254,14 +258,16 @@ export function chooseNextDirectionToExit(gs, e) {
     }
   }
 
+  // If every non-wall option was a backtrack, we still choose the least bad.
   return bestDir ?? heuristicFallback(gs, e);
 }
 
-// Helper: is this direction the opposite of the other?
-function isOpposite(a, b) {
+// Small helper
+function isReverse(a, b) {
   return (a === 'N' && b === 'S') || (a === 'S' && b === 'N') ||
          (a === 'E' && b === 'W') || (a === 'W' && b === 'E');
 }
+
 
 
 function heuristicFallback(gs, e) {
