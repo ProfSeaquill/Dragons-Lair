@@ -46,8 +46,8 @@ const LIGHT = {
   ambient: 0.72,                 // how dark the cave is overall (0..1)
   enemyR:  () => state.GRID.tile * 2.2,   // base light radius for normal units
   bossR:   () => state.GRID.tile * 3.1,   // bosses/minibosses
-  dragonR: () => state.GRID.tile * 3.6,   // warm glow at the lair
-  flickerAmp: () => state.GRID.tile * 0.25, // how much the radius flickers
+  dragonR: () => state.GRID.tile * 5.0,   // warm glow at the lair
+  flickerAmp: () => state.GRID.tile * 0.08, // how much the radius flickers
   color: 'rgba(255,180,80,0.55)', // additive warm light color
 };
 
