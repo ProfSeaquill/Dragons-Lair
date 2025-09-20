@@ -42,7 +42,7 @@ caveImg.onload = () => { caveReady = true; };
 caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
 
 const LIGHT = {
-  ambient: 0.50,  // was 0.72 — brighter scene so colors show through
+  ambient: 0.70,  // was 0.72 — brighter scene so colors show through
   enemyR:  () => state.GRID.tile * 1.0,
   bossR:   () => state.GRID.tile * 1.5,
   dragonR: () => state.GRID.tile * 2.0,
