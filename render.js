@@ -49,13 +49,13 @@ const LIGHT = {
   flickerAmp: () => state.GRID.tile * 0.15, // smaller wobble
 
   // Spotlight shape (fractions of base radius)
-  core: 0.45,   // fully clear
-  mid:  1.00,   // steep falloff ring
-  edge: 1.35,   // soft fringe
+  core: 0.15,   // fully clear
+  mid:  0.60,   // steep falloff ring
+  edge: 1.00,   // soft fringe
 
   // ring strengths
-  midAlpha: 0.85,
-  edgeAlpha: 0.35,
+  midAlpha: 0.35,
+  edgeAlpha: 0.15,
 };
 
 
