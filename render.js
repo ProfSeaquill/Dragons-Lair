@@ -679,7 +679,7 @@ function drawTorchLighting(ctx, gs) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   for (const L of lights) {
-    const rHalo = Math.max(4, L.R * 0.55);
+    const rHalo = Math.max(4, L.R * 0.25);
     // color hint: heroes get a cooler halo so shields read; others are warm
     let c0 = 'rgba(255,190,90,0.28)', c1 = 'rgba(255,140,40,0.00)';
     if (L.shield || L.type === 'hero') c0 = 'rgba(140,190,255,0.24)';
