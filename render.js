@@ -591,9 +591,6 @@ function drawBombs(ctx, gs) {
 
 /* ===================== primitives & helpers ===================== */
 
-function drawTorchLighting(ctx, gs) {
-// Determine if a cell reads like a corridor segment bounded by bone walls.
-// Heuristic: straight corridor if opposite sides are OPEN and the lateral sides are WALLS.
 function isCorridorCell(gs, x, y) {
   if (!state.inBounds(x, y)) return false;
   const nOpen = state.isOpen(gs, x, y, 'N');
