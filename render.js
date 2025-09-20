@@ -41,20 +41,6 @@ let caveReady = false;
 caveImg.onload = () => { caveReady = true; };
 caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
 
-// === Map lighting (trail torches) ===
-// === Tiny torch lights (point-light look) ===
-const TORCH = {
-  ambient: 0.35,                 // base darkness
-  // radii relative to one tile — small, like real torches
-  coreR: () => state.GRID.tile * 0.55,   // fully clear center
-  midR:  () => state.GRID.tile * 0.95,   // steep falloff
-  edgeR: () => state.GRID.tile * 1.35,   // soft fringe
-
-  // where to place torches along corridors
-  step: 3,          // every N cells (sparser = larger number)
-  junctionBoost: 1, // extra torches at 3/4-way intersections (0 to disable)
-  warmGlow: 0.14,   // 0..0.25 warm additive tint (set 0 for neutral)
-};
 
 /* -----------------------------------------------------------
  * Enemy type colors
@@ -199,7 +185,6 @@ drawVignette(ctx);
   // -------- Bombs (engineer)
   drawBombs(ctx, gs);
 
-   drawTorchPoints(ctx, gs);
 }
 
 /* ===================== visuals ===================== */
@@ -594,123 +579,6 @@ function drawBombs(ctx, gs) {
 }
 
 /* ===================== primitives & helpers ===================== */
-
-function drawTorchPoints(ctx, gs) {
-  const { width, height } = ctx.canvas;
-
-  // 1) Global darkness
-  ctx.save();
-  ctx.globalAlpha = TORCH.ambient;
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
-
-  // 2) Collect torch positions (grid centers)
-  const pts = computeTorchPoints(gs);
-
-  // 3) Carve 3-zone spots (destination-out) so sprites show true color
-  for (const p of pts) carveSpot(ctx, p.x, p.y);
-
-  // 4) Optional warm glow so it reads torchy, not neutral
-  if (TORCH.warmGlow > 0) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (const p of pts) {
-      const r = TORCH.midR() * 0.85;
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      g.addColorStop(0.00, `rgba(255,190,90,${TORCH.warmGlow})`);
-      g.addColorStop(1.00, 'rgba(255,140,40,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI*2); ctx.fill();
-    }
-    ctx.restore();
-  }
-}
-
-function carveSpot(ctx, x, y) {
-  const rCore = TORCH.coreR();
-  const rMid  = TORCH.midR();
-  const rEdge = TORCH.edgeR();
-
-  // Core: fully clear
-  ctx.save();
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.fillStyle = 'rgba(0,0,0,1)';
-  ctx.beginPath(); ctx.arc(x, y, rCore, 0, Math.PI*2); ctx.fill();
-  ctx.restore();
-
-  // Mid ring: steep falloff
-  ctx.save();
-  ctx.globalCompositeOperation = 'destination-out';
-  const gMid = ctx.createRadialGradient(x, y, rCore, x, y, rMid);
-  gMid.addColorStop(0.00, 'rgba(0,0,0,1)');
-  gMid.addColorStop(1.00, 'rgba(0,0,0,0.15)');
-  ctx.fillStyle = gMid;
-  ctx.beginPath(); ctx.arc(x, y, rMid, 0, Math.PI*2); ctx.fill();
-  ctx.restore();
-
-  // Edge feather
-  ctx.save();
-  ctx.globalCompositeOperation = 'destination-out';
-  const gEdge = ctx.createRadialGradient(x, y, rMid, x, y, rEdge);
-  gEdge.addColorStop(0.00, 'rgba(0,0,0,0.28)');
-  gEdge.addColorStop(1.00, 'rgba(0,0,0,0.00)');
-  ctx.fillStyle = gEdge;
-  ctx.beginPath(); ctx.arc(x, y, rEdge, 0, Math.PI*2); ctx.fill();
-  ctx.restore();
-}
-
-// Decide where torches go: sparse along straight corridors + at junctions,
-// plus anchors at ENTRY and EXIT. Cheap, frame-safe heuristic (no BFS needed).
-function computeTorchPoints(gs) {
-  const pts = [];
-  const t = state.GRID.tile;
-
-  // Always light ENTRY and EXIT
-  pts.push(tileCenterPx(state.ENTRY.x, state.ENTRY.y));
-  pts.push(tileCenterPx(state.EXIT.x,  state.EXIT.y));
-
-  for (let y = 0; y < state.GRID.rows; y++) {
-    for (let x = 0; x < state.GRID.cols; x++) {
-      const rec = state.ensureCell(gs, x, y);
-      const opens = [
-        state.isOpen(gs, x, y, 'N'),
-        state.isOpen(gs, x, y, 'E'),
-        state.isOpen(gs, x, y, 'S'),
-        state.isOpen(gs, x, y, 'W'),
-      ];
-      const openCount = opens.filter(Boolean).length;
-
-      // Only consider traversable cells
-      if (openCount === 0) continue;
-
-      // Straight corridors (N/S open or E/W open but not both)
-      const straight =
-        (opens[0] && opens[2] && !opens[1] && !opens[3]) || // N & S
-        (opens[1] && opens[3] && !opens[0] && !opens[2]);   // E & W
-
-      // Junctions (3 or 4 exits): put a light to anchor intersections
-      const junction = openCount >= 3;
-
-      if (junction) {
-        if (TORCH.junctionBoost) pts.push(tileCenterPx(x, y));
-        continue;
-      }
-
-      if (straight) {
-        // Place a torch every Nth cell along the corridor grid (checker / step)
-        if (((x + y) % TORCH.step) === 0) pts.push(tileCenterPx(x, y));
-        continue;
-      }
-
-      // Corners (two adjacent opens): occasional torch
-      if (openCount === 2 && !straight) {
-        if (((x * 7 + y * 11) % (TORCH.step + 1)) === 0) pts.push(tileCenterPx(x, y));
-      }
-    }
-  }
-  return pts;
-}
 
 function tileCenterPx(x, y) {
   return {
