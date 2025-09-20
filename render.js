@@ -612,7 +612,7 @@ function drawTorchLighting(ctx, gs) {
   // Helper: carve a 3-zone spotlight using destination-out
   function carveSpot(x, y, baseR, seed = 0) {
     // radius flicker (size only; keep alpha stable so colors stay true)
-    const flick = Math.sin(now * 7.5 + seed) * LIGHT.flickerAmp();
+    const flick = Math.sin(now * 4.5 + seed) * LIGHT.flickerAmp();
     const R = Math.max(6, baseR + flick);
     const rCore = R * LIGHT.core;
     const rMid  = R * LIGHT.mid;
