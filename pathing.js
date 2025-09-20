@@ -198,30 +198,30 @@ export function updateEnemyDistance(gs, e) {
   }
 }
 
-/** Choose next step using soft-downhill + trail + inertia. */
 export function chooseNextDirectionToExit(gs, e) {
   const D = gs.distToExit;
   if (!D) return e.dir || 'E';
-  const T = gs.successTrail || ensureSuccessField(gs);
+  const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
 
   const x = e.cx | 0, y = e.cy | 0;
   const here = D?.[y]?.[x];
   if (!isFinite(here)) return heuristicFallback(gs, e);
 
-  // Per-enemy weights (unitless, ~0..2 sane range)
+  // Per-enemy weights (unitless)
   const b = e.behavior || {};
   const SENSE     = (b.sense     ?? 0.5);   // likes smaller D (toward exit)
   const HERDING   = (b.herding   ?? 1.0);   // likes stronger success trail
-  const CURIOSITY = (b.curiosity ?? 0.12);  // small jitter to break ties
+  const CURIOSITY = Math.min(0.15, (b.curiosity ?? 0.12)); // clamp jitter so it never overwhelms sense
 
-  // Inertia controls
+  // Inertia
   const prevDir = e.dir || null;
-  const STRAIGHT_BONUS   = 0.25;            // slight nudge to keep heading
-  const BACKTRACK_PENALTY = 9.0;            // strongly avoid immediate 180°
-  const MAX_UPHILL = 1;                     // allow flat (0) or +1 uphill only
+  const STRAIGHT_BONUS    = 0.20;
+  const BACKTRACK_PENALTY = 8.0;
 
   let bestDir = null;
   let bestScore = -Infinity;
+  let bestD = Infinity; // for deterministic tie-breaks
+  let bestStraight = false;
 
   const candidates = [
     ['N', x, y - 1],
@@ -235,39 +235,43 @@ export function chooseNextDirectionToExit(gs, e) {
     const d = D?.[ny]?.[nx];
     if (!isFinite(d)) continue;
 
-    const delta = d - here;        // <0 downhill, 0 flat, >0 uphill
-    if (delta > MAX_UPHILL) continue; // too uphill => ignore
+    const delta = d - here;      // <0 downhill, 0 flat, >0 uphill
+    if (delta >= 0) continue;    // STRICTLY DOWNHILL ONLY
 
     // Components
-    const trail   = T?.[ny]?.[nx] || 0;
-    const downhillScore = -SENSE * Math.max(-3, Math.min(3, delta)); // soft: small uphill allowed
+    const trail         = T?.[ny]?.[nx] || 0;
+    const downhillScore =  SENSE   * (-delta); // larger drop in D is better
     const trailScore    =  HERDING * trail;
-    const jitter        = (Math.random() * CURIOSITY);
+    const jitter        =  Math.random() * CURIOSITY;
 
     let inertia = 0;
     if (prevDir) {
-      if (dir === prevDir) inertia += STRAIGHT_BONUS;       // prefer straight a bit
-      if (isReverse(dir, prevDir)) inertia -= BACKTRACK_PENALTY; // avoid 180° turns
+      if (dir === prevDir) inertia += STRAIGHT_BONUS;
+      if (isReverse(dir, prevDir)) inertia -= BACKTRACK_PENALTY;
     }
 
     const score = downhillScore + trailScore + inertia + jitter;
 
-    if (score > bestScore) {
+    // Primary: score; tie #1: steeper downhill (smaller d); tie #2: keep straight if possible
+    const isStraight = (prevDir && dir === prevDir);
+    if (
+      score > bestScore ||
+      (Math.abs(score - bestScore) < 1e-6 && (d < bestD || (d === bestD && isStraight && !bestStraight)))
+    ) {
       bestScore = score;
       bestDir = dir;
+      bestD = d;
+      bestStraight = isStraight;
     }
   }
 
-  // If every non-wall option was a backtrack, we still choose the least bad.
   return bestDir ?? heuristicFallback(gs, e);
 }
 
-// Small helper
 function isReverse(a, b) {
   return (a === 'N' && b === 'S') || (a === 'S' && b === 'N') ||
          (a === 'E' && b === 'W') || (a === 'W' && b === 'E');
 }
-
 
 
 function heuristicFallback(gs, e) {
