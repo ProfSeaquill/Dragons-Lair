@@ -44,7 +44,7 @@ caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
 // === Map lighting (trail torches) ===
 // === Tiny torch lights (point-light look) ===
 const TORCH = {
-  ambient: 0.70,                 // base darkness
+  ambient: 0.35,                 // base darkness
   // radii relative to one tile — small, like real torches
   coreR: () => state.GRID.tile * 0.55,   // fully clear center
   midR:  () => state.GRID.tile * 0.95,   // steep falloff
