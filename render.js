@@ -810,13 +810,6 @@ function tileCenterPx(x, y) {
   };
 }
 
-function tileCenterPx(x, y) {
-  return {
-    x: x * state.GRID.tile + state.GRID.tile / 2,
-    y: y * state.GRID.tile + state.GRID.tile / 2,
-  };
-}
-
 
 function centerOf(cx, cy) {
   return {
