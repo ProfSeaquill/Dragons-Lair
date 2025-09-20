@@ -20,10 +20,79 @@ import {
   step as combatStep,   // alias exported in combat.js; ok if unused
 } from './combat.js';
 
-// ---------- Canvas / Context ----------
-const canvas = document.getElementById('game');
-if (!canvas) throw new Error('Canvas #game not found');
-const ctx = canvas.getContext('2d');
+// Set up logical size
+const logicalW = state.GRID.cols * state.GRID.tile;
+const logicalH = state.GRID.rows * state.GRID.tile;
+
+// Output canvas (WebGL)
+const outCanvas = document.getElementById('game');
+// Keep CSS at 1:1 logical pixels; WebGL will be sized exactly:
+outCanvas.width = logicalW;
+outCanvas.height = logicalH;
+outCanvas.style.width = `${logicalW}px`;
+outCanvas.style.height = `${logicalH}px`;
+
+// Offscreen 2D scene buffer
+const sceneCanvas = document.createElement('canvas');
+sceneCanvas.width = logicalW;
+sceneCanvas.height = logicalH;
+const sceneCtx = sceneCanvas.getContext('2d', { alpha: true });
+sceneCtx.imageSmoothingEnabled = false;
+
+// Init post-process lighting
+const lighting = initLighting(outCanvas, logicalW, logicalH);
+
+// Torch list (ENTRY/EXIT + sparse corridor torches)
+function computeTorchLights(gs) {
+  const lights = [];
+  const t = state.GRID.tile;
+
+  // ENTRY / EXIT anchors
+  const entry = { x: (state.ENTRY.x + 0.5) * t, y: (state.ENTRY.y + 0.5) * t };
+  const exit  = { x: (state.EXIT.x  + 0.5) * t, y: (state.EXIT.y  + 0.5) * t };
+  lights.push({ x: entry.x, y: entry.y, r: t*1.2, color:[1.0,0.85,0.55] });
+  lights.push({ x: exit.x,  y: exit.y,  r: t*1.4, color:[1.0,0.75,0.45] });
+
+  // Sparse torches along straight corridors, every 3rd tile
+  for (let y = 0; y < state.GRID.rows; y++) {
+    for (let x = 0; x < state.GRID.cols; x++) {
+      const n = state.isOpen(gs, x, y, 'N');
+      const e = state.isOpen(gs, x, y, 'E');
+      const s = state.isOpen(gs, x, y, 'S');
+      const w = state.isOpen(gs, x, y, 'W');
+      const opens = (n?1:0)+(e?1:0)+(s?1:0)+(w?1:0);
+      if (opens === 0) continue;
+
+      const straight = (n&&s && !e && !w) || (e&&w && !n && !s);
+      const junction = opens >= 3;
+
+      if (junction || (straight && ((x + y) % 3 === 0))) {
+        lights.push({ x: (x+0.5)*t, y: (y+0.5)*t, r: t*1.0, color:[1.0,0.82,0.5] });
+      }
+    }
+  }
+  // Cap to 64 (shader limit)
+  return lights.slice(0, 64);
+}
+
+// Main frame
+function frame(ts) {
+  const gs = state.GameState;
+
+  // 1) Draw the scene into offscreen 2D
+  sceneCtx.globalCompositeOperation = 'source-over';
+  sceneCtx.globalAlpha = 1;
+  if ('filter' in sceneCtx) sceneCtx.filter = 'none';
+  render.draw(sceneCtx, gs);
+
+  // 2) Build lights & present via WebGL
+  const lights = computeTorchLights(gs);
+  const ambient = 0.65; // 0.60–0.75 is a good “cave” range
+  lighting.render(sceneCanvas, lights, ambient);
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
 
 // ---------- Boot ----------
 function boot() {
