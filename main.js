@@ -8,6 +8,7 @@ import {
   stepEnemyInterpolated,
   updateEnemyDistance,
 } from './pathing.js';
+import { initLighting } from './lighting-webgl.js';
 
 // ----- Combat (named imports; avoids "import * as ..." form) -----
 import {
