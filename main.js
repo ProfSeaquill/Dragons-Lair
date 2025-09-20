@@ -76,23 +76,30 @@ function computeTorchLights(gs) {
 }
 
 // Main frame
-function frame(ts) {
-  const gs = state.GameState;
+let lastT = 0;
+let waveJustStartedAt = 0;
 
-  // 1) Draw the scene into offscreen 2D
+function frame(now) {
+  if (!lastT) lastT = now;
+  const dt = Math.max(0, (now - lastT)) / 1000;
+  lastT = now;
+
+  // 1) update game state
+  update(dt);
+
+  // 2) draw scene into offscreen 2D
   sceneCtx.globalCompositeOperation = 'source-over';
   sceneCtx.globalAlpha = 1;
   if ('filter' in sceneCtx) sceneCtx.filter = 'none';
-  render.draw(sceneCtx, gs);
+  render.draw(sceneCtx, state.GameState);
 
-  // 2) Build lights & present via WebGL
-  const lights = computeTorchLights(gs);
-  const ambient = 0.65; // 0.60–0.75 is a good “cave” range
+  // 3) build lights & present via WebGL
+  const lights = computeTorchLights(state.GameState); // your helper
+  const ambient = 0.65;
   lighting.render(sceneCanvas, lights, ambient);
 
   requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
 
 // ---------- Boot ----------
 function boot() {
@@ -118,21 +125,6 @@ function startWave() {
     combatSpawnWave(state.GameState);
   }
   waveJustStartedAt = performance.now();
-}
-
-// ---------- Loop ----------
-let lastT = 0;
-let waveJustStartedAt = 0;
-
-function tick(now) {
-  const dtMs = Math.max(0, now - lastT);
-  lastT = now;
-  const dt = dtMs / 1000;
-
-  update(dt);
-  render.draw(ctx, state.GameState);
-
-  requestAnimationFrame(tick);
 }
 
 function update(dt) {
