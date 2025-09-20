@@ -41,23 +41,16 @@ let caveReady = false;
 caveImg.onload = () => { caveReady = true; };
 caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
 
-const LIGHT = {
-  ambient: 0.60,  // was 0.72 — brighter scene so colors show through
-  enemyR:  () => state.GRID.tile * 1.0,
-  bossR:   () => state.GRID.tile * 1.5,
-  dragonR: () => state.GRID.tile * 2.5,
-  flickerAmp: () => state.GRID.tile * 0.20, // smaller wobble
-
-  // Spotlight shape (fractions of base radius)
-  core: 0.15,   // fully clear
-  mid:  0.35,   // steep falloff ring
-  edge: 0.80,   // soft fringe
-
-  // ring strengths
-  midAlpha: 0.25,
-  edgeAlpha: 0.15,
+// === Map lighting (trail torches) ===
+const MAP_LIGHT = {
+  ambient: 0.70,             // darker base cave
+  entryR:  () => state.GRID.tile * 3.0,
+  exitR:   () => state.GRID.tile * 3.6,
+  cellCoreFrac: 0.42,        // inner fully-cleared circle (fraction of tile)
+  cellEdgeFrac: 0.95,        // soft fringe limit (fraction of tile)
+  cellBoost: 0.70,           // how much darkness to remove in trail cells (0..1)
+  warm: true,                // add subtle warm tint to trails
 };
-
 
 /* -----------------------------------------------------------
  * Enemy type colors
@@ -202,7 +195,7 @@ drawVignette(ctx);
   // -------- Bombs (engineer)
   drawBombs(ctx, gs);
 
-   drawTorchLighting(ctx, gs);
+   drawMapLighting(ctx, gs);
 }
 
 /* ===================== visuals ===================== */
@@ -599,100 +592,131 @@ function drawBombs(ctx, gs) {
 /* ===================== primitives & helpers ===================== */
 
 function drawTorchLighting(ctx, gs) {
-  const { width, height } = ctx.canvas;
-  const now = (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) * 0.001;
+// Determine if a cell reads like a corridor segment bounded by bone walls.
+// Heuristic: straight corridor if opposite sides are OPEN and the lateral sides are WALLS.
+function isCorridorCell(gs, x, y) {
+  if (!state.inBounds(x, y)) return false;
+  const nOpen = state.isOpen(gs, x, y, 'N');
+  const sOpen = state.isOpen(gs, x, y, 'S');
+  const eOpen = state.isOpen(gs, x, y, 'E');
+  const wOpen = state.isOpen(gs, x, y, 'W');
 
-  // ---- 1) Global darkness
+  const rec = state.ensureCell(gs, x, y);
+  const nWall = !!rec.N, sWall = !!rec.S, eWall = !!rec.E, wWall = !!rec.W;
+
+  // Vertical corridor: open N/S, walled E/W
+  const vertical = nOpen && sOpen && eWall && wWall;
+  // Horizontal corridor: open E/W, walled N/S
+  const horizontal = eOpen && wOpen && nWall && sWall;
+
+  // Looser read: any cell with at least 2 walls and at most 2 opens
+  const walls = (nWall|0)+(sWall|0)+(eWall|0)+(wWall|0);
+  const opens = (nOpen|0)+(sOpen|0)+(eOpen|0)+(wOpen|0);
+  const compact = walls >= 2 && opens <= 2;
+
+  return vertical || horizontal || compact;
+}
+
+// Draw map-driven lighting: global darkness, brighten entry/exit, brighten corridor cells.
+function drawMapLighting(ctx, gs) {
+  const { width, height } = ctx.canvas;
+
+  // 1) Global darkness pass
   ctx.save();
-  ctx.globalAlpha = LIGHT.ambient;
+  ctx.globalAlpha = MAP_LIGHT.ambient;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
 
-  // Helper: carve a 3-zone spotlight using destination-out
-  function carveSpot(x, y, baseR, seed = 0) {
-    // radius flicker (size only; keep alpha stable so colors stay true)
-    const flick = Math.sin(now * 4.5 + seed) * LIGHT.flickerAmp();
-    const R = Math.max(6, baseR + flick);
-    const rCore = R * LIGHT.core;
-    const rMid  = R * LIGHT.mid;
-    const rEdge = R * LIGHT.edge;
+  // 2) Carve spots at ENTRY and EXIT (destination-out)
+  carveSpotAtCell(ctx, state.ENTRY.x, state.ENTRY.y, MAP_LIGHT.entryR());
+  carveSpotAtCell(ctx, state.EXIT.x,  state.EXIT.y,  MAP_LIGHT.exitR());
 
-    // Core: fully clear
-    ctx.save();
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = 'rgba(0,0,0,1)';
-    ctx.beginPath();
-    ctx.arc(x, y, rCore, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+  // 3) Carve brighter “trail” cells (based on bones layout)
+  const t = state.GRID.tile;
+  const coreR = t * MAP_LIGHT.cellCoreFrac;
+  const edgeR = t * MAP_LIGHT.cellEdgeFrac;
 
-    // Mid: steep falloff ring
-    ctx.save();
-    ctx.globalCompositeOperation = 'destination-out';
-    const gMid = ctx.createRadialGradient(x, y, rCore, x, y, rMid);
-    gMid.addColorStop(0.00, 'rgba(0,0,0,1)');                       // stronger removal
-    gMid.addColorStop(1.00, `rgba(0,0,0,${1 - LIGHT.midAlpha})`);   // leaves some darkness
-    ctx.fillStyle = gMid;
-    ctx.beginPath();
-    ctx.arc(x, y, rMid, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
 
-    // Edge: gentle feather
-    ctx.save();
-    ctx.globalCompositeOperation = 'destination-out';
-    const gEdge = ctx.createRadialGradient(x, y, rMid, x, y, rEdge);
-    gEdge.addColorStop(0.00, `rgba(0,0,0,${LIGHT.edgeAlpha})`);
-    gEdge.addColorStop(1.00, 'rgba(0,0,0,0.0)');
-    ctx.fillStyle = gEdge;
-    ctx.beginPath();
-    ctx.arc(x, y, rEdge, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+  for (let y = 0; y < state.GRID.rows; y++) {
+    for (let x = 0; x < state.GRID.cols; x++) {
+      if (!isCorridorCell(gs, x, y)) continue;
 
-    return { R, rCore, rMid };
-  }
+      const c = tileCenterPx(x, y);
 
-  // ---- 2) Lights for enemies & dragon
-  const lights = [];
+      // Inner: remove a chunky portion (clearer)
+      let g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, coreR);
+      g.addColorStop(0, 'rgba(0,0,0,1.0)');
+      g.addColorStop(1, `rgba(0,0,0,${1 - MAP_LIGHT.cellBoost})`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, coreR, 0, Math.PI * 2);
+      ctx.fill();
 
-  if (Array.isArray(gs.enemies)) {
-    for (const e of gs.enemies) {
-      const p = enemyPixelPosition(e);
-      if (!p) continue;
-      const base = (e.miniboss || e.type === 'boss') ? LIGHT.bossR() : LIGHT.enemyR();
-      const seed = (e.id ?? (e.cx*17 + e.cy*13)) | 0;
-      const zone = carveSpot(p.x, p.y, base, seed);
-      lights.push({ x:p.x, y:p.y, R:zone.R, type:e.type, shield:!!e.shield });
+      // Outer: soft feather to edgeR
+      g = ctx.createRadialGradient(c.x, c.y, coreR, c.x, c.y, edgeR);
+      g.addColorStop(0, `rgba(0,0,0,${Math.max(0, MAP_LIGHT.cellBoost - 0.25)})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, edgeR, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
-  {
-    const p = centerOf(state.EXIT.x, state.EXIT.y);
-    const zone = carveSpot(p.x + state.GRID.tile*0.4, p.y - state.GRID.tile*0.1, LIGHT.dragonR(), 999);
-    lights.push({ x:p.x, y:p.y, R:zone.R, type:'dragon' });
-  }
-
-  // ---- 3) Add a subtle emissive halo that preserves sprite color readability
-  // Instead of a big orange wash, use a faint, tight halo (lighter blend).
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  for (const L of lights) {
-    const rHalo = Math.max(4, L.R * 0.35);
-    // color hint: heroes get a cooler halo so shields read; others are warm
-    let c0 = 'rgba(255,190,90,0.28)', c1 = 'rgba(255,140,40,0.00)';
-    if (L.shield || L.type === 'hero') c0 = 'rgba(140,190,255,0.24)';
-
-    const g = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, rHalo);
-    g.addColorStop(0.00, c0);
-    g.addColorStop(1.00, c1);
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(L.x, L.y, rHalo, 0, Math.PI * 2);
-    ctx.fill();
-  }
   ctx.restore();
+
+  // 4) Optional warm tint so trails feel torch-lit (lighter blend, very subtle)
+  if (MAP_LIGHT.warm) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.15;
+    for (let y = 0; y < state.GRID.rows; y++) {
+      for (let x = 0; x < state.GRID.cols; x++) {
+        if (!isCorridorCell(gs, x, y)) continue;
+        const c = tileCenterPx(x, y);
+        const rr = t * 0.75;
+        const warm = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, rr);
+        warm.addColorStop(0, 'rgba(255,190,90,0.5)');
+        warm.addColorStop(1, 'rgba(255,140,40,0.0)');
+        ctx.fillStyle = warm;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, rr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+}
+
+// Utility: carve a circular spot centered on a grid cell
+function carveSpotAtCell(ctx, cx, cy, radiusPx) {
+  const c = tileCenterPx(cx, cy);
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  // hard-ish inner clear
+  let g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, radiusPx * 0.55);
+  g.addColorStop(0, 'rgba(0,0,0,1)');
+  g.addColorStop(1, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(c.x, c.y, radiusPx * 0.55, 0, Math.PI * 2); ctx.fill();
+
+  // soft outer feather
+  g = ctx.createRadialGradient(c.x, c.y, radiusPx * 0.55, c.x, c.y, radiusPx);
+  g.addColorStop(0, 'rgba(0,0,0,0.35)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(c.x, c.y, radiusPx, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function tileCenterPx(x, y) {
+  return {
+    x: x * state.GRID.tile + state.GRID.tile / 2,
+    y: y * state.GRID.tile + state.GRID.tile / 2,
+  };
 }
 
 
