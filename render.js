@@ -42,11 +42,11 @@ caveImg.onload = () => { caveReady = true; };
 caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
 
 const LIGHT = {
-  ambient: 0.58,  // was 0.72 — brighter scene so colors show through
-  enemyR:  () => state.GRID.tile * 2.0,
-  bossR:   () => state.GRID.tile * 2.8,
-  dragonR: () => state.GRID.tile * 3.2,
-  flickerAmp: () => state.GRID.tile * 0.18, // smaller wobble
+  ambient: 0.30,  // was 0.72 — brighter scene so colors show through
+  enemyR:  () => state.GRID.tile * 0.2,
+  bossR:   () => state.GRID.tile * 0.2,
+  dragonR: () => state.GRID.tile * 0.2,
+  flickerAmp: () => state.GRID.tile * 0.05, // smaller wobble
 
   // Spotlight shape (fractions of base radius)
   core: 0.45,   // fully clear
