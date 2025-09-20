@@ -46,15 +46,15 @@ const LIGHT = {
   enemyR:  () => state.GRID.tile * 1.0,
   bossR:   () => state.GRID.tile * 1.5,
   dragonR: () => state.GRID.tile * 2.5,
-  flickerAmp: () => state.GRID.tile * 0.15, // smaller wobble
+  flickerAmp: () => state.GRID.tile * 0.20, // smaller wobble
 
   // Spotlight shape (fractions of base radius)
   core: 0.15,   // fully clear
-  mid:  0.60,   // steep falloff ring
-  edge: 1.00,   // soft fringe
+  mid:  0.35,   // steep falloff ring
+  edge: 0.80,   // soft fringe
 
   // ring strengths
-  midAlpha: 0.35,
+  midAlpha: 0.25,
   edgeAlpha: 0.15,
 };
 
