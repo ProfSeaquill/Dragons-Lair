@@ -106,12 +106,10 @@ function boot() {
   recomputePath(state.GameState);
   bindUI();
 
-  window.addEventListener('dl-start-wave', () => {
-    startWave();
-  });
+  window.addEventListener('dl-start-wave', () => { startWave(); });
 
   lastT = performance.now();
-  requestAnimationFrame(tick);
+  requestAnimationFrame(frame);     // <- use frame, not tick
 
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
 }
