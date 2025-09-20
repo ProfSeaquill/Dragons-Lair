@@ -42,11 +42,11 @@ caveImg.onload = () => { caveReady = true; };
 caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
 
 const LIGHT = {
-  ambient: 0.30,  // was 0.72 — brighter scene so colors show through
-  enemyR:  () => state.GRID.tile * 0.2,
-  bossR:   () => state.GRID.tile * 0.2,
-  dragonR: () => state.GRID.tile * 0.2,
-  flickerAmp: () => state.GRID.tile * 0.05, // smaller wobble
+  ambient: 0.50,  // was 0.72 — brighter scene so colors show through
+  enemyR:  () => state.GRID.tile * 1.0,
+  bossR:   () => state.GRID.tile * 1.5,
+  dragonR: () => state.GRID.tile * 2.0,
+  flickerAmp: () => state.GRID.tile * 0.15, // smaller wobble
 
   // Spotlight shape (fractions of base radius)
   core: 0.45,   // fully clear
@@ -679,7 +679,7 @@ function drawTorchLighting(ctx, gs) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   for (const L of lights) {
-    const rHalo = Math.max(4, L.R * 0.25);
+    const rHalo = Math.max(4, L.R * 0.35);
     // color hint: heroes get a cooler halo so shields read; others are warm
     let c0 = 'rgba(255,190,90,0.28)', c1 = 'rgba(255,140,40,0.00)';
     if (L.shield || L.type === 'hero') c0 = 'rgba(140,190,255,0.24)';
