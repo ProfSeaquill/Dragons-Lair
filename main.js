@@ -42,38 +42,121 @@ sceneCtx.imageSmoothingEnabled = false;
 // Init post-process lighting
 const lighting = initLighting(outCanvas, logicalW, logicalH);
 
-// Torch list (ENTRY/EXIT + sparse corridor torches)
+// ---------- Lights (ENTRY/EXIT + path torches + enemy torches + dragon fire) ----------
 function computeTorchLights(gs) {
-  const lights = [];
   const t = state.GRID.tile;
+  const lights = [];
 
-  // ENTRY / EXIT anchors
+  // --- 1) Anchors: ENTRY + EXIT (dragon lair) ---
   const entry = { x: (state.ENTRY.x + 0.5) * t, y: (state.ENTRY.y + 0.5) * t };
   const exit  = { x: (state.EXIT.x  + 0.5) * t, y: (state.EXIT.y  + 0.5) * t };
-  lights.push({ x: entry.x, y: entry.y, r: t*1.2, color:[1.0,0.85,0.55] });
-  lights.push({ x: exit.x,  y: exit.y,  r: t*1.4, color:[1.0,0.75,0.45] });
 
-  // Sparse torches along straight corridors, every 3rd tile
-  for (let y = 0; y < state.GRID.rows; y++) {
-    for (let x = 0; x < state.GRID.cols; x++) {
-      const n = state.isOpen(gs, x, y, 'N');
-      const e = state.isOpen(gs, x, y, 'E');
-      const s = state.isOpen(gs, x, y, 'S');
-      const w = state.isOpen(gs, x, y, 'W');
-      const opens = (n?1:0)+(e?1:0)+(s?1:0)+(w?1:0);
-      if (opens === 0) continue;
+  // Make dragon/lair pool bigger per your request
+  lights.push({ x: entry.x, y: entry.y, r: t * 1.2, color: [1.00, 0.85, 0.55] });
+  lights.push({ x: exit.x,  y: exit.y,  r: t * 1.9, color: [1.00, 0.75, 0.45] });
 
-      const straight = (n&&s && !e && !w) || (e&&w && !n && !s);
-      const junction = opens >= 3;
-
-      if (junction || (straight && ((x + y) % 3 === 0))) {
-        lights.push({ x: (x+0.5)*t, y: (y+0.5)*t, r: t*1.0, color:[1.0,0.82,0.5] });
-      }
+  // --- 2) Shortest-path torches (no more bottom-row “ghosts”) ---
+  // Place small torches every K steps along the monotonic increase of distFromEntry
+  const K = 3; // every 3 tiles
+  if (Array.isArray(gs.distFromEntry)) {
+    const pathCells = shortestPathCells(gs, state.ENTRY.x, state.ENTRY.y, state.EXIT.x, state.EXIT.y);
+    for (let i = 0; i < pathCells.length; i++) {
+      if (i % K !== 0) continue;
+      const { x, y } = pathCells[i];
+      lights.push({
+        x: (x + 0.5) * t,
+        y: (y + 0.5) * t,
+        r: t * 0.95,
+        color: [1.00, 0.82, 0.50],
+      });
     }
   }
-  // Cap to 64 (shader limit)
-  return lights.slice(0, 64);
+
+  // --- 3) Enemy-carried torches (every 5th enemy) ---
+  if (Array.isArray(gs.enemies)) {
+    for (let i = 0; i < gs.enemies.length; i++) {
+      if (i % 5 !== 0) continue; // “every fifth enemy”
+      const e = gs.enemies[i];
+      const p = enemyPixel(e, t);
+      if (!p) continue;
+      lights.push({
+        x: p.x,
+        y: p.y,
+        r: t * 0.85,           // small, just enough to reveal color nearby
+        color: [1.00, 0.86, 0.58],
+      });
+    }
+  }
+
+  // --- 4) Dragon mouth fire light while attacking ---
+  // Reuse the same mouth offset you use when drawing the fire sprite in render.js
+  const fx = gs.dragonFX;
+  if (fx && fx.attacking) {
+    const mouth = {
+      x: exit.x + t * 0.60,
+      y: exit.y - t * 0.15,
+    };
+
+    // Head light (at mouth)
+    lights.push({ x: mouth.x, y: mouth.y, r: t * 1.2, color: [1.00, 0.72, 0.32] });
+
+    // A couple of tiny trailing bulbs to suggest the breath projecting forward (to the right)
+    // If your dragon faces another direction, tweak dirX/dirY accordingly.
+    const dirX = 1, dirY = 0;
+    const segs = 2; // 2 extra points is enough for a hint
+    for (let i = 1; i <= segs; i++) {
+      const falloff = 1 - i / (segs + 1);
+      lights.push({
+        x: mouth.x + dirX * t * (0.70 * i),
+        y: mouth.y + dirY * t * (0.70 * i),
+        r: t * (0.9 * falloff + 0.45), // smaller farther away
+        color: [1.00, 0.65, 0.28],
+      });
+    }
+  }
+
+  // IMPORTANT: cap to shader limit
+  return lights.slice(0, 16);
 }
+
+// --- Helpers used above ---
+
+// Follow the steepest-ascent of distFromEntry to build a quick path from (sx,sy) to (tx,ty)
+function shortestPathCells(gs, sx, sy, tx, ty) {
+  const path = [];
+  const dist = gs.distFromEntry;
+  if (!dist || !isFinite(dist?.[sy]?.[sx])) return path;
+
+  let x = sx, y = sy, guard = state.GRID.cols * state.GRID.rows + 5;
+  path.push({ x, y });
+
+  while (guard-- > 0 && !(x === tx && y === ty)) {
+    let best = null, bestD = -Infinity;
+    const cand = [
+      [x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1],
+    ];
+    for (const [nx, ny] of cand) {
+      if (!state.inBounds(nx, ny)) continue;
+      const d = dist?.[ny]?.[nx];
+      if (isFinite(d) && d > bestD) { bestD = d; best = { x: nx, y: ny }; }
+    }
+    if (!best) break;
+    x = best.x; y = best.y;
+    path.push({ x, y });
+    // safety: avoid loops
+    if (path.length > guard) break;
+  }
+  return path;
+}
+
+function enemyPixel(e, t) {
+  if (typeof e.x === 'number' && typeof e.y === 'number') return { x: e.x, y: e.y };
+  if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
+    return { x: (e.cx + 0.5) * t, y: (e.cy + 0.5) * t };
+  }
+  return null;
+}
+
 
 // Main frame
 let lastT = 0;
