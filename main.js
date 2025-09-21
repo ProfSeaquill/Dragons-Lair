@@ -55,21 +55,21 @@ function computeTorchLights(gs) {
   lights.push({ x: entry.x, y: entry.y, r: t * 1.2, color: [1.00, 0.85, 0.55] });
   lights.push({ x: exit.x,  y: exit.y,  r: t * 1.9, color: [1.00, 0.75, 0.45] });
 
-  // --- 2) Enemy-carried torches (every 5th enemy) ---
-  if (Array.isArray(gs.enemies)) {
-    for (let i = 0; i < gs.enemies.length; i++) {
-      if (i % 5 !== 0) continue; // “every fifth enemy”
-      const e = gs.enemies[i];
-      const p = enemyPixel(e, t);
-      if (!p) continue;
-      lights.push({
-        x: p.x,
-        y: p.y,
-        r: t * 0.85,           // small, just enough to reveal color nearby
-        color: [1.00, 0.86, 0.58],
-      });
-    }
+  // --- Enemy-carried torches (sticky; die with the carrier) ---
+if (Array.isArray(gs.enemies)) {
+  for (const e of gs.enemies) {
+    if (!ensureTorchBearer(e)) continue;     // only those chosen once
+    const p = enemyPixel(e, state.GRID.tile);
+    if (!p) continue;
+    lights.push({
+      x: p.x,
+      y: p.y,
+      r: state.GRID.tile * 0.85,
+      color: [1.00, 0.86, 0.58],
+    });
   }
+}
+
 
   // --- Dragon mouth fire light that follows the animation ---
 const fx = gs.dragonFX;
@@ -149,6 +149,18 @@ function enemyPixel(e, t) {
   return null;
 }
 
+function ensureTorchBearer(e) {
+  // If your enemies already have a unique id, this keeps it deterministic:
+  if (e.torchBearer === undefined) {
+    if (e.id != null) {
+      e.torchBearer = (e.id % 5) === 0;      // ~20% carriers, stable across frames
+    } else {
+      // fallback: assign once, sticky thereafter
+      e.torchBearer = Math.random() < 0.20;
+    }
+  }
+  return e.torchBearer;
+}
 
 // Main frame
 let lastT = 0;
