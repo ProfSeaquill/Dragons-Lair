@@ -118,7 +118,7 @@ function makeEnemy(type, wave) {
     case 'squire':     return { ...base, name: 'Squire' };
     case 'knight':     return { ...base, name: 'Knight' };
     case 'hero':       return { ...base, name: 'Hero', shield: true };
-    case 'engineer':   return { ...base, name: 'Engineer', tunneling: true, tunnelT: FLAGS.engineerTravelTime };
+    case 'engineer':   return { ...base, name: 'Engineer', tunneling: true, tunnelT: FLAGS.engineerTravelTime, updateByCombat: true };
     case 'kingsguard': return { ...base, name: "King's Guard", miniboss: true };
     case 'boss':       return { ...base, name: 'Knight of the Round Table', miniboss: true };
     default:           return base;
