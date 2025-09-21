@@ -55,24 +55,7 @@ function computeTorchLights(gs) {
   lights.push({ x: entry.x, y: entry.y, r: t * 1.2, color: [1.00, 0.85, 0.55] });
   lights.push({ x: exit.x,  y: exit.y,  r: t * 1.9, color: [1.00, 0.75, 0.45] });
 
-  // --- 2) Shortest-path torches (no more bottom-row “ghosts”) ---
-  // Place small torches every K steps along the monotonic increase of distFromEntry
-  const K = 3; // every 3 tiles
-  if (Array.isArray(gs.distFromEntry)) {
-    const pathCells = shortestPathCells(gs, state.ENTRY.x, state.ENTRY.y, state.EXIT.x, state.EXIT.y);
-    for (let i = 0; i < pathCells.length; i++) {
-      if (i % K !== 0) continue;
-      const { x, y } = pathCells[i];
-      lights.push({
-        x: (x + 0.5) * t,
-        y: (y + 0.5) * t,
-        r: t * 0.95,
-        color: [1.00, 0.82, 0.50],
-      });
-    }
-  }
-
-  // --- 3) Enemy-carried torches (every 5th enemy) ---
+  // --- 2) Enemy-carried torches (every 5th enemy) ---
   if (Array.isArray(gs.enemies)) {
     for (let i = 0; i < gs.enemies.length; i++) {
       if (i % 5 !== 0) continue; // “every fifth enemy”
@@ -88,7 +71,7 @@ function computeTorchLights(gs) {
     }
   }
 
-  // --- 4) Dragon mouth fire light while attacking ---
+  // --- 3) Dragon mouth fire light while attacking ---
   // Reuse the same mouth offset you use when drawing the fire sprite in render.js
   const fx = gs.dragonFX;
   if (fx && fx.attacking) {
