@@ -202,6 +202,12 @@ export function updateEnemyDistance(gs, e) {
 
 
 export function chooseNextDirectionToExit(gs, e) {
+  // --- Defensive / useful logging for debugging ---
+  const dbg = (...args) => {
+    // Toggle this to false to silence logs
+    if (true) console.debug('[AI]', ...args);
+  };
+
   const D = gs.distToExit;
   if (!D) return e.dir || 'E';
 
@@ -209,73 +215,89 @@ export function chooseNextDirectionToExit(gs, e) {
   const cx = Math.floor(e.cx || 0);
   const cy = Math.floor(e.cy || 0);
 
-  // list of open neighbors (array of {x,y,side})
+  // neighbors (open edges)
   const neigh = state.neighborsByEdges(gs, cx, cy);
-  if (!neigh || neigh.length === 0) return e.dir || 'E';
+  if (!neigh || neigh.length === 0) {
+    dbg('no-neighbors', { type: e.type, cx, cy });
+    return e.dir || 'E';
+  }
 
-  // find the neighbor representing the previous cell (if any)
+  // find previous cell if present
   let prev = null;
   if (Number.isInteger(e.prevCX) && Number.isInteger(e.prevCY)) {
-    for (const n of neigh) {
-      if (n.x === e.prevCX && n.y === e.prevCY) { prev = n; break; }
+    prev = neigh.find(n => n.x === e.prevCX && n.y === e.prevCY) || null;
+  }
+
+  // helpful debug snapshot
+  const here = D?.[cy]?.[cx] ?? Infinity;
+  dbg('decide', {
+    id: e.id ?? null, type: e.type, cx, cy, dir: e.dir, neighLen: neigh.length, prev: prev ? {x:prev.x,y:prev.y} : null, here
+  });
+
+  // ---------- 1) Corridor rule: keep going straight in a corridor ----------
+  // Corridor = exactly two open neighbors and one of them is the previous cell (i.e., straight corridor).
+  if (prev && neigh.length === 2) {
+    const other = neigh.find(n => !(n.x === prev.x && n.y === prev.y));
+    if (other) {
+      const dir = directionFromTo(cx, cy, other.x, other.y) || e.dir || 'E';
+      dbg('corridor-continue', { dir, other });
+      return dir;
     }
   }
 
-  // 1) Corridor rule: if we have exactly 2 open neighbors and one is the previous cell,
-  //    then the other neighbor is the straight-forward corridor — keep going there.
-  if (prev && neigh.length === 2) {
-    const other = neigh.find(n => !(n.x === prev.x && n.y === prev.y));
-    if (other) return directionFromTo(cx, cy, other.x, other.y) || e.dir || 'E';
-  }
-
-  // 2) If the current facing Dir leads straight into an open cell and the node is not an intersection,
-  //    continue straight. (This covers the "head straight until wall or intersection" desire.)
+  // Also: if we are facing forward and forward is open and this location is not an intersection (<=2 neighbors)
   if (e.dir) {
-    const f = stepFrom(cx, cy, e.dir);
-    const straightOpen = state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.dir);
-    // If we are in a corridor-like situation (<=2 neighbors) and forward is open, keep going straight.
-    if (straightOpen && neigh.length <= 2) {
+    const forward = stepFrom(cx, cy, e.dir);
+    const forwardOK = state.inBounds(forward.nx, forward.ny) && state.isOpen(gs, cx, cy, e.dir);
+    if (forwardOK && neigh.length <= 2) {
+      dbg('forward-keep', { dir: e.dir });
       return e.dir;
     }
   }
 
-  // 3) If forward is blocked (wall) or we're at an intersection (neigh.length >= 3), choose.
-  // Build candidate set excluding prev (unless that's the only choice).
+  // ---------- 2) Dead-end: if no candidate except previous, backtrack ----------
+  // Build candidates excluding prev (we prefer not to immediately go back at intersections)
   let candidates = neigh.filter(n => !(prev && n.x === prev.x && n.y === prev.y));
 
-  // If excluding prev leaves nothing (dead-end), we must backtrack to prev.
   if (candidates.length === 0) {
-    if (prev) return directionFromTo(cx, cy, prev.x, prev.y) || e.dir || 'E';
-    // fallback
-    const fallback = neigh[0];
-    return directionFromTo(cx, cy, fallback.x, fallback.y) || e.dir || 'E';
+    // only previous is available -> must backtrack
+    if (prev) {
+      const backDir = directionFromTo(cx, cy, prev.x, prev.y) || e.dir || 'E';
+      dbg('dead-end-backtrack', { backDir });
+      return backDir;
+    }
+    // fallback: choose the first neighbor
+    const fb = neigh[0];
+    const fbDir = directionFromTo(cx, cy, fb.x, fb.y) || e.dir || 'E';
+    dbg('dead-end-fallback', { fbDir });
+    return fbDir;
   }
 
-  // 4) Score candidates at intersections
-  const here = D?.[cy]?.[cx] ?? Infinity;
+  // ---------- 3) Intersection: score candidates using sense/herding/curiosity ----------
   const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
   const b = e.behavior || {};
   const SENSE     = (b.sense     ?? 0.5);
   const HERDING   = (b.herding   ?? 1.0);
-  const CURIOSITY = Math.min(0.30, (b.curiosity ?? 0.12));
+  const CURIOSITY = Math.min(0.35, (b.curiosity ?? 0.12));
   const STRAIGHT_BONUS = 0.20;
 
   let best = null;
   let bestScore = -Infinity;
   let bestD = Infinity;
+  const neighInfo = [];
+
   for (const c of candidates) {
     const nx = c.x, ny = c.y;
     const d = D?.[ny]?.[nx];
     if (!isFinite(d)) {
-      // avoid unreachable candidate unless nothing else is reachable
+      // deprioritize unreachable candidate but still consider if all else fails
+      neighInfo.push({ nx, ny, d: Infinity, score: -Infinity });
       continue;
     }
-    // downhill preference: larger drop (here - d) is better
-    const downhill = (isFinite(here) && isFinite(d)) ? (here - d) : 0;
+    const downhill = (isFinite(here) && isFinite(d)) ? (here - d) : 0; // positive if downhill
     const trail = T?.[ny]?.[nx] || 0;
     const jitter = Math.random() * CURIOSITY;
 
-    // prefer straight if candidate aligns with current direction
     let straightBonus = 0;
     if (e.dir) {
       const dirToC = directionFromTo(cx, cy, nx, ny);
@@ -284,24 +306,28 @@ export function chooseNextDirectionToExit(gs, e) {
 
     const score = SENSE * downhill + HERDING * trail + straightBonus + jitter;
 
-    // tie-break: prefer smaller d (closer to exit)
-    if (score > bestScore || (Math.abs(score - bestScore) < 1e-6 && d < bestD)) {
+    neighInfo.push({ nx, ny, d, score });
+
+    if (score > bestScore || (Math.abs(score - bestScore) < 1e-8 && d < bestD)) {
       bestScore = score;
       best = c;
       bestD = d;
     }
   }
 
-  // If best is found, return that direction. Otherwise (rare) pick the first candidate.
-  if (best) return directionFromTo(cx, cy, best.x, best.y) || e.dir || 'E';
-  return directionFromTo(cx, cy, candidates[0].x, candidates[0].y) || e.dir || 'E';
-}
+  dbg('candidates', neighInfo);
 
+  if (best) {
+    const dir = directionFromTo(cx, cy, best.x, best.y) || e.dir || 'E';
+    dbg('choose-best', { dir, bestScore });
+    return dir;
+  }
 
-
-function isReverse(a, b) {
-  return (a === 'N' && b === 'S') || (a === 'S' && b === 'N') ||
-         (a === 'E' && b === 'W') || (a === 'W' && b === 'E');
+  // 4) Fallback: if all candidates unreachable (rare), just pick the first neighbor
+  const fallback = candidates[0] || neigh[0];
+  const fallbackDir = directionFromTo(cx, cy, fallback.x, fallback.y) || e.dir || 'E';
+  dbg('fallback-pick', { fallbackDir });
+  return fallbackDir;
 }
 
 
