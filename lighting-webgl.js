@@ -27,7 +27,7 @@ export function initLighting(glCanvas, W, H) {
   console.log('[lighting] caps', caps);
 
   // Keep lights well below uniform limits
-  const MAX_LIGHTS = 16;
+  const MAX_LIGHTS = 64;
 
   const vsSrc = `
     attribute vec2 aPos;
