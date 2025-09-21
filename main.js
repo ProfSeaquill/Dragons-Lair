@@ -47,6 +47,16 @@ function computeTorchLights(gs) {
   const t = state.GRID.tile;
   const lights = [];
 
+  // Ensure the FIRST enemy of the current wave gets a torch (exactly once)
+if (!gs.__firstTorchGiven && Array.isArray(gs.enemies) && gs.enemies.length > 0) {
+  const firstAlive = gs.enemies.find(en => en && !en.dead);
+  if (firstAlive) {
+    firstAlive.torchBearer = true;        // sticky flag on that enemy
+    firstAlive.__torchWaveId = gs.__torchWaveId || 0;
+    gs.__firstTorchGiven = true;
+  }
+}
+
   // --- 1) Anchors: ENTRY + EXIT (dragon lair) ---
   const entry = { x: (state.ENTRY.x + 0.5) * t, y: (state.ENTRY.y + 0.5) * t };
   const exit  = { x: (state.EXIT.x  + 0.5) * t, y: (state.EXIT.y  + 0.5) * t };
@@ -55,16 +65,16 @@ function computeTorchLights(gs) {
   lights.push({ x: entry.x, y: entry.y, r: t * 1.2, color: [1.00, 0.85, 0.55] });
   lights.push({ x: exit.x,  y: exit.y,  r: t * 1.9, color: [1.00, 0.75, 0.45] });
 
-  // --- Enemy-carried torches (sticky; die with the carrier) ---
+ // --- Enemy-carried torches (sticky; die with the carrier; special roles always carry) ---
 if (Array.isArray(gs.enemies)) {
   for (const e of gs.enemies) {
-    if (!ensureTorchBearer(e)) continue;     // only those chosen once
-    const p = enemyPixel(e, state.GRID.tile);
+    if (!ensureTorchBearer(e, gs)) continue;
+    const p = enemyPixel(e, t);
     if (!p) continue;
     lights.push({
       x: p.x,
       y: p.y,
-      r: state.GRID.tile * 0.85,
+      r: t * 0.85,
       color: [1.00, 0.86, 0.58],
     });
   }
@@ -149,17 +159,18 @@ function enemyPixel(e, t) {
   return null;
 }
 
-function ensureTorchBearer(e) {
-  // If your enemies already have a unique id, this keeps it deterministic:
-  if (e.torchBearer === undefined) {
-    if (e.id != null) {
-      e.torchBearer = (e.id % 5) === 0;      // ~20% carriers, stable across frames
-    } else {
-      // fallback: assign once, sticky thereafter
-      e.torchBearer = Math.random() < 0.20;
-    }
+function ensureTorchBearer(e, gs) {
+  // Already chosen? stay chosen.
+  if (e.torchBearer === true) return true;
+
+  // Always torch for these types
+  if (e.type === 'hero' || e.type === 'kingsguard' || e.type === 'boss') {
+    e.torchBearer = true;
+    return true;
   }
-  return e.torchBearer;
+
+  // Default: not a carrier unless explicitly picked (see step 3)
+  return false;
 }
 
 // Main frame
@@ -203,6 +214,9 @@ function boot() {
 }
 
 function startWave() {
+const gs = state.GameState;
+  gs.__torchWaveId = (gs.__torchWaveId || 0) + 1;
+  gs.__firstTorchGiven = false;
   if (typeof combatStartWave === 'function') {
     combatStartWave(state.GameState);
   } else if (typeof combatSpawnNextWave === 'function') {
