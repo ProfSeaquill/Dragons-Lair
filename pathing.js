@@ -191,12 +191,17 @@ function neighborFor(x, y, side) {
 
 /** Keep per-tick cache of distance-from-entry (used by combat’s shield rules). */
 export function updateEnemyDistance(gs, e) {
-  if (state.inBounds(e.cx, e.cy)) {
-    e.distFromEntry = gs.distFromEntry?.[e.cy]?.[e.cx] ?? Infinity;
+// use integer tile indices (defensive: e.cx/e.cy might be floats during interpolation)
+  const cx = (typeof e.cx === 'number') ? Math.floor(e.cx) : NaN;
+  const cy = (typeof e.cy === 'number') ? Math.floor(e.cy) : NaN;
+    if (Number.isInteger(cx) && Number.isInteger(cy) && state.inBounds(cx, cy)) {
+      e.distFromEntry = gs.distFromEntry?.[cy]?.[cx] ?? Infinity;
   } else {
-    e.distFromEntry = Infinity;
+      e.distFromEntry = Infinity;
   }
 }
+
+
 
 export function chooseNextDirectionToExit(gs, e) {
   const D = gs.distToExit;
