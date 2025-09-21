@@ -247,6 +247,12 @@ function wireCanvasEdgeBuild() {
     if (place && hasWall) return;
     if (remove && !hasWall) return;
 
+// Prevent building on/around the dragon
+if (edgeTouchesDragon(state.GameState, hover.x, hover.y, hover.side)) {
+  tell('Cannot build on or next to the dragon', '#f88');
+  return;
+}
+
     const res = toggleEdge(state.GameState, hover.x, hover.y, hover.side, place);
     if (!res.ok) {
       tell(`Blocked: ${res.reason || 'Action not allowed'}`, '#f88');
