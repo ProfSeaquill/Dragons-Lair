@@ -51,8 +51,10 @@ export function initLighting(glCanvas, W, H) {
     uniform vec3 uLightCol[MAX_LIGHTS]; // (r,g,b)
 
     void main() {
-      vec2 fragPx = vUV * uResolution;
-      vec3 base = texture2D(uScene, vUV).rgb;
+     vec2 fragPxGL = vUV * uResolution;                 // GL-style (0,0 bottom-left)
+vec2 fragPx   = vec2(fragPxGL.x, uResolution.y - fragPxGL.y); // convert to top-left
+vec3 base = texture2D(uScene, vUV).rgb;
+
 
       // start with ambient darkness
       float bright = 1.0 - clamp(uAmbient, 0.0, 1.0);
