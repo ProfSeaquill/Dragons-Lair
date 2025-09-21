@@ -99,7 +99,7 @@ export const GameState = {
   // Fields used by pathing/AI
   distFromEntry: makeScalarField(GRID.cols, GRID.rows, Infinity),
   distToExit:    makeScalarField(GRID.cols, GRID.rows, Infinity),
-  successField:  makeScalarField(GRID.cols, GRID.rows, 0),
+  successTrail:  makeScalarField(GRID.cols, GRID.rows, 0),
 
   // RNG / misc
   seed: 0,
@@ -244,7 +244,7 @@ export function loadState() {
     // Fresh fields (recomputed properly by pathing on boot/toggle)
     GameState.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
     GameState.distToExit    = makeScalarField(GRID.cols, GRID.rows, Infinity);
-    GameState.successField  = makeScalarField(GRID.cols, GRID.rows, 0);
+    GameState.successTrail  = makeScalarField(GRID.cols, GRID.rows, 0);
 
     return true;
   } catch (e) {
@@ -267,7 +267,7 @@ export function resetState(gs = GameState) {
   gs.cellWalls = new Map();
   gs.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
   gs.distToExit    = makeScalarField(GRID.cols, GRID.rows, Infinity);
-  gs.successField  = makeScalarField(GRID.cols, GRID.rows, 0);
+  gs.successTrail  = makeScalarField(GRID.cols, GRID.rows, 0);
   gs.seed = 0;
 }
 
