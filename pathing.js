@@ -189,108 +189,114 @@ function neighborFor(x, y, side) {
  * Greedy-to-Exit Enemy API (with trail bias)
  * ========================= */
 
-/** Keep per-tick cache of distance-from-entry (used by combat’s shield rules). */
 export function updateEnemyDistance(gs, e) {
-// use integer tile indices (defensive: e.cx/e.cy might be floats during interpolation)
   const cx = (typeof e.cx === 'number') ? Math.floor(e.cx) : NaN;
   const cy = (typeof e.cy === 'number') ? Math.floor(e.cy) : NaN;
-    if (Number.isInteger(cx) && Number.isInteger(cy) && state.inBounds(cx, cy)) {
-      e.distFromEntry = gs.distFromEntry?.[cy]?.[cx] ?? Infinity;
+
+  if (Number.isInteger(cx) && Number.isInteger(cy) && state.inBounds(cx, cy)) {
+    e.distFromEntry = gs.distFromEntry?.[cy]?.[cx] ?? Infinity;
   } else {
-      e.distFromEntry = Infinity;
+    e.distFromEntry = Infinity;
   }
 }
-
 
 
 export function chooseNextDirectionToExit(gs, e) {
   const D = gs.distToExit;
   if (!D) return e.dir || 'E';
-  const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
 
-  const x = Math.floor(e.cx || 0), y = Math.floor(e.cy || 0);
-  const here = D?.[y]?.[x];
-  if (!isFinite(here)) return heuristicFallback(gs, e);
+  // integer tile coords (defensive)
+  const cx = Math.floor(e.cx || 0);
+  const cy = Math.floor(e.cy || 0);
 
-  // Per-enemy weights (unitless)
-  const b = e.behavior || {};
-  const SENSE     = (b.sense     ?? 0.5);   // likes smaller D (toward exit)
-  const HERDING   = (b.herding   ?? 1.0);   // likes stronger success trail
-  const CURIOSITY = Math.min(0.30, (b.curiosity ?? 0.12)); // allow a bit more exploration
+  // list of open neighbors (array of {x,y,side})
+  const neigh = state.neighborsByEdges(gs, cx, cy);
+  if (!neigh || neigh.length === 0) return e.dir || 'E';
 
-  // Inertia / anti-pingpong
-  const prevDir = e.dir || null;
-  const STRAIGHT_BONUS    = 0.20;
-  const BACKTRACK_PENALTY = 6.0;   // strong penalty for reversing direction
-  const PREV_CELL_PENALTY = 4.0;   // penalty for stepping immediately back into the previous cell
-
-  // If combat set a short lock to avoid flips, consult it (dirLockT in seconds)
-  const dirLockT = (typeof e.dirLockT === 'number') ? e.dirLockT : 0;
-
-  let bestDir = null;
-  let bestScore = -Infinity;
-  let bestD = Infinity; // tie-breaker: prefer steeper downhill
-  let bestStraight = false;
-
-  const candidates = [
-    ['N', x, y - 1],
-    ['E', x + 1, y],
-    ['S', x, y + 1],
-    ['W', x - 1, y],
-  ];
-
-  for (const [dir, nx, ny] of candidates) {
-    if (!state.isOpen(gs, x, y, dir)) continue;
-    const d = D?.[ny]?.[nx];
-    if (!isFinite(d)) continue;
-
-    const delta = d - here;      // <0 downhill, 0 flat, >0 uphill
-    // Component: reward downhill, penalize uphill (simple linear)
-    const downhillScore = SENSE * (here - d); // positive for downhill, negative for uphill
-
-    const trail = T?.[ny]?.[nx] || 0;
-    const trailScore = HERDING * trail;
-    const jitter = Math.random() * CURIOSITY;
-
-    // inertia / anti-pingpong
-    let inertia = 0;
-    if (prevDir) {
-      if (dir === prevDir) inertia += STRAIGHT_BONUS;
-      if (isReverse(dir, prevDir)) {
-        // Strong penalty for reversing direction (unless lock expired and other scores dominate)
-        inertia -= BACKTRACK_PENALTY;
-      }
-    }
-
-    // Penalize stepping immediately back into the previous tile to avoid ping-pong
-    if (Number.isInteger(e.prevCX) && Number.isInteger(e.prevCY)) {
-      if (nx === e.prevCX && ny === e.prevCY) {
-        inertia -= PREV_CELL_PENALTY;
-      }
-    }
-
-    // If a short lock is active, make reverse nearly impossible
-    if (dirLockT > 0 && prevDir && isReverse(dir, prevDir)) {
-      inertia -= Math.max(0, BACKTRACK_PENALTY * 1.5);
-    }
-
-    const score = downhillScore + trailScore + inertia + jitter;
-
-    // Primary: score; tie #1: steeper downhill (smaller d); tie #2: keep straight if possible
-    const isStraight = (prevDir && dir === prevDir);
-    if (
-      score > bestScore ||
-      (Math.abs(score - bestScore) < 1e-6 && (d < bestD || (d === bestD && isStraight && !bestStraight)))
-    ) {
-      bestScore = score;
-      bestDir = dir;
-      bestD = d;
-      bestStraight = isStraight;
+  // find the neighbor representing the previous cell (if any)
+  let prev = null;
+  if (Number.isInteger(e.prevCX) && Number.isInteger(e.prevCY)) {
+    for (const n of neigh) {
+      if (n.x === e.prevCX && n.y === e.prevCY) { prev = n; break; }
     }
   }
 
-  return bestDir ?? heuristicFallback(gs, e);
+  // 1) Corridor rule: if we have exactly 2 open neighbors and one is the previous cell,
+  //    then the other neighbor is the straight-forward corridor — keep going there.
+  if (prev && neigh.length === 2) {
+    const other = neigh.find(n => !(n.x === prev.x && n.y === prev.y));
+    if (other) return directionFromTo(cx, cy, other.x, other.y) || e.dir || 'E';
+  }
+
+  // 2) If the current facing Dir leads straight into an open cell and the node is not an intersection,
+  //    continue straight. (This covers the "head straight until wall or intersection" desire.)
+  if (e.dir) {
+    const f = stepFrom(cx, cy, e.dir);
+    const straightOpen = state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.dir);
+    // If we are in a corridor-like situation (<=2 neighbors) and forward is open, keep going straight.
+    if (straightOpen && neigh.length <= 2) {
+      return e.dir;
+    }
+  }
+
+  // 3) If forward is blocked (wall) or we're at an intersection (neigh.length >= 3), choose.
+  // Build candidate set excluding prev (unless that's the only choice).
+  let candidates = neigh.filter(n => !(prev && n.x === prev.x && n.y === prev.y));
+
+  // If excluding prev leaves nothing (dead-end), we must backtrack to prev.
+  if (candidates.length === 0) {
+    if (prev) return directionFromTo(cx, cy, prev.x, prev.y) || e.dir || 'E';
+    // fallback
+    const fallback = neigh[0];
+    return directionFromTo(cx, cy, fallback.x, fallback.y) || e.dir || 'E';
+  }
+
+  // 4) Score candidates at intersections
+  const here = D?.[cy]?.[cx] ?? Infinity;
+  const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
+  const b = e.behavior || {};
+  const SENSE     = (b.sense     ?? 0.5);
+  const HERDING   = (b.herding   ?? 1.0);
+  const CURIOSITY = Math.min(0.30, (b.curiosity ?? 0.12));
+  const STRAIGHT_BONUS = 0.20;
+
+  let best = null;
+  let bestScore = -Infinity;
+  let bestD = Infinity;
+  for (const c of candidates) {
+    const nx = c.x, ny = c.y;
+    const d = D?.[ny]?.[nx];
+    if (!isFinite(d)) {
+      // avoid unreachable candidate unless nothing else is reachable
+      continue;
+    }
+    // downhill preference: larger drop (here - d) is better
+    const downhill = (isFinite(here) && isFinite(d)) ? (here - d) : 0;
+    const trail = T?.[ny]?.[nx] || 0;
+    const jitter = Math.random() * CURIOSITY;
+
+    // prefer straight if candidate aligns with current direction
+    let straightBonus = 0;
+    if (e.dir) {
+      const dirToC = directionFromTo(cx, cy, nx, ny);
+      if (dirToC === e.dir) straightBonus = STRAIGHT_BONUS;
+    }
+
+    const score = SENSE * downhill + HERDING * trail + straightBonus + jitter;
+
+    // tie-break: prefer smaller d (closer to exit)
+    if (score > bestScore || (Math.abs(score - bestScore) < 1e-6 && d < bestD)) {
+      bestScore = score;
+      best = c;
+      bestD = d;
+    }
+  }
+
+  // If best is found, return that direction. Otherwise (rare) pick the first candidate.
+  if (best) return directionFromTo(cx, cy, best.x, best.y) || e.dir || 'E';
+  return directionFromTo(cx, cy, candidates[0].x, candidates[0].y) || e.dir || 'E';
 }
+
 
 
 function isReverse(a, b) {
@@ -346,7 +352,7 @@ export function advanceEnemyOneCell(gs, e) {
 }
 
 export function stepEnemyInterpolated(gs, e, dtSec) {
-  // Decrement any dir lock (prevents immediate reversal for a short time window)
+  // Ensure we have a short dirLockT and prev memory fields defined (defaults)
   if (typeof e.dirLockT !== 'number') e.dirLockT = 0;
   e.dirLockT = Math.max(0, e.dirLockT - dtSec);
 
@@ -370,26 +376,25 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
     e.x = e.tx; e.y = e.ty;
 
     const dir = directionFromDelta(dx, dy) ?? e.dir;
-    const { nx, ny } = stepFrom(e.cx, e.cy, dir);
+    const { nx, ny } = stepFrom(Math.floor(e.cx), Math.floor(e.cy), dir);
 
-    // Save previous cell so chooseNextDirectionToExit can avoid immediate backtrack
+    // Save previous cell so steering can avoid immediate backtrack at intersections
     e.prevCX = e.cx;
     e.prevCY = e.cy;
 
     e.cx = nx; e.cy = ny;
 
-    // If the move actually changed the facing/direction, set a small lock to avoid flip-flopping
+    // If the move actually changed facing/direction, set a tiny lock to avoid flip-flopping
     const oldDir = e.dir || null;
     e.dir = dir;
     if (oldDir && oldDir !== dir) {
-      // lock out instantaneous reversals for a short interval (tunable)
-      e.dirLockT = Math.max(e.dirLockT || 0, 0.12); // 120ms lock
+      e.dirLockT = Math.max(e.dirLockT || 0, 0.12); // 120ms lock; tweak if needed
     }
 
     bumpSuccess(gs, e.cx, e.cy, 0.5); // trail breadcrumb
     updateEnemyDistance(gs, e);
 
-    // Immediately pick the next greedy target (adapts to any wall edit)
+    // Immediately pick the next greedy target (adapts to wall edits)
     const nxt = chooseNextTargetGreedy(gs, e);
     e.tx = nxt.tx; e.ty = nxt.ty;
   } else if (dist > 0) {
@@ -397,6 +402,7 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
     e.y += (dy / dist) * step;
   }
 }
+
 
 
 function chooseNextTargetGreedy(gs, e) {
