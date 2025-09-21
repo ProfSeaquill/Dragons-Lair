@@ -457,3 +457,17 @@ export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
 export function devClearEnemies(gs = state.GameState) {
   gs.enemies = [];
 }
+
+// Dev helper: return compact per-enemy debug info
+export function debugEnemy(e) {
+  return {
+    type: e.type,
+    cx: e.cx, cy: e.cy,
+    x: e.x, y: e.y,
+    dir: e.dir,
+    distFromEntry: e.distFromEntry,
+    tunneling: !!e.tunneling,
+    hp: e.hp,
+    updateByCombat: !!e.updateByCombat,
+  };
+}
