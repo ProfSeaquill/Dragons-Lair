@@ -71,32 +71,41 @@ function computeTorchLights(gs) {
     }
   }
 
-  // --- 3) Dragon mouth fire light while attacking ---
-  // Reuse the same mouth offset you use when drawing the fire sprite in render.js
-  const fx = gs.dragonFX;
-  if (fx && fx.attacking) {
-    const mouth = {
-      x: exit.x + t * 0.60,
-      y: exit.y - t * 0.15,
-    };
+  // --- Dragon mouth fire light that follows the animation ---
+const fx = gs.dragonFX;
+if (fx && fx.attacking && fx.dur > 0) {
+  // Mouth position (match your render.js offsets)
+  const mouth = { x: exit.x + t * 0.60, y: exit.y - t * 0.15 };
 
-    // Head light (at mouth)
-    lights.push({ x: mouth.x, y: mouth.y, r: t * 1.2, color: [1.00, 0.72, 0.32] });
+  // Progress 0..1 across the breath animation
+  const progress = Math.max(0, Math.min(1, fx.t / fx.dur));
 
-    // A couple of tiny trailing bulbs to suggest the breath projecting forward (to the right)
-    // If your dragon faces another direction, tweak dirX/dirY accordingly.
-    const dirX = 1, dirY = 0;
-    const segs = 2; // 2 extra points is enough for a hint
-    for (let i = 1; i <= segs; i++) {
-      const falloff = 1 - i / (segs + 1);
-      lights.push({
-        x: mouth.x + dirX * t * (0.70 * i),
-        y: mouth.y + dirY * t * (0.70 * i),
-        r: t * (0.9 * falloff + 0.45), // smaller farther away
-        color: [1.00, 0.65, 0.28],
-      });
-    }
+  // How far the light extends away from the mouth (in tiles)
+  // Starts short, grows with progress; tweak the 0.2 and 1.4 to taste
+  const maxTiles = 0.2 + 1.4 * progress;
+
+  // Direction: if your dragon breath points RIGHT, dir = (1,0).
+  // Change to (-1,0) or (0,±1) if your art faces other directions.
+  const dirX = 1, dirY = 0;
+
+  // Place a small chain of lights along the breath
+  const segments = 3; // 3 points reads well without being noisy
+  for (let i = 0; i <= segments; i++) {
+    const f = i / segments;                // 0..1 along the beam
+    const dist = f * maxTiles * t;         // pixels from mouth
+    const px = mouth.x + dirX * dist;
+    const py = mouth.y + dirY * dist;
+
+    // Shrink radius farther from mouth; keep lights tiny
+    const r = t * (i === 0 ? 1.2 : 0.85 * (1.0 - 0.25 * f));
+
+    // Warm, slightly dimmer as it travels
+    const col = [1.00, 0.70 - 0.10 * f, 0.32 - 0.08 * f];
+
+    lights.push({ x: px, y: py, r, color: col });
   }
+}
+
 
   // IMPORTANT: cap to shader limit
   return lights.slice(0, 16);
