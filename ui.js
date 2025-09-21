@@ -488,6 +488,24 @@ async function ensureDevPanel() {
   });
   utilRow.appendChild(clearBtn);
 
+  const logBtn = document.createElement('button');
+  logBtn.className = 'btn';
+  logBtn.textContent = 'Log Enemies';
+  logBtn.addEventListener('click', async () => {
+    const c = await getCombat();
+    if (typeof c.debugEnemy === 'function') {
+      console.group('Enemies');
+      for (const e of state.GameState.enemies) {
+        console.log(c.debugEnemy(e));
+      }
+      console.groupEnd();
+      tell('Enemy debug logged to console');
+    } else {
+      tell('combat.debugEnemy not available', '#f88');
+    }
+  });
+  utilRow.appendChild(logBtn);
+
   const setWaveBtn = document.createElement('button');
   setWaveBtn.className = 'btn';
   setWaveBtn.textContent = 'Set Wave…';
