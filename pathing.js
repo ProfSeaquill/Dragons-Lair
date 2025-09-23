@@ -403,10 +403,10 @@ export function chooseNextDirectionToExit(gs, e) {
   // Use precise cell-type classification to decide whether this is a decision point
   const ttype = gs.cellType?.[cy]?.[cx] || 'corridor';
 
-  // If not a decision tile and forward is OK, keep going straight (no personality / no randomness)
-  if ((ttype === 'corridor' || ttype === 'deadend') && forwardOK && prev) {
-    return e.dir;
-  }
+// new
+if ((ttype === 'corridor' || ttype === 'deadend') && forwardOK) {
+  return e.dir;
+}
 
   // Build candidates excluding prev (avoid immediate backtrack at junctions)
   let candidates = neigh.filter(n => !(prev && n.x === prev.x && n.y === prev.y));
