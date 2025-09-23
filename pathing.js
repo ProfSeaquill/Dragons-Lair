@@ -215,123 +215,139 @@ function softmaxSample(items, scoreKey, temperature = 1) {
   return items[items.length - 1];
 }
 
+// softmax helper (keep or paste above this function)
+function softmaxSample(items, scoreKey, temperature = 1) {
+  const eps = 1e-9;
+  const exps = items.map(it => Math.exp((it[scoreKey] || 0) / Math.max(eps, temperature)));
+  const sum = exps.reduce((s, v) => s + v, 0);
+  if (!(sum > 0)) return items[(Math.random() * items.length) | 0];
+  let r = Math.random() * sum;
+  for (let i = 0; i < items.length; i++) {
+    r -= exps[i];
+    if (r <= 0) return items[i];
+  }
+  return items[items.length - 1];
+}
+
 export function chooseNextDirectionToExit(gs, e) {
   const D = gs.distToExit;
   if (!D) return e.dir || 'E';
 
-  const cx = Math.floor(e.cx || 0);
-  const cy = Math.floor(e.cy || 0);
-
+  const cx = Math.floor(e.cx || 0), cy = Math.floor(e.cy || 0);
   const neigh = state.neighborsByEdges(gs, cx, cy);
   if (!neigh || neigh.length === 0) return e.dir || 'E';
 
-  // If a short commitment is active, prefer it while it's available
+  // honor short commit if present
   if (e.commitDir && (e.commitSteps || 0) > 0) {
     const f = stepFrom(cx, cy, e.commitDir);
-    if (state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.commitDir)) {
-      return e.commitDir;
-    }
-    // otherwise drop it if blocked
-    e.commitDir = null;
-    e.commitSteps = 0;
+    if (state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.commitDir)) return e.commitDir;
+    e.commitDir = null; e.commitSteps = 0;
   }
 
-  // identify previous cell (so we can avoid immediate backtracking at intersections)
+  // previous cell (if any)
   let prev = null;
   if (Number.isInteger(e.prevCX) && Number.isInteger(e.prevCY)) {
     prev = neigh.find(n => n.x === e.prevCX && n.y === e.prevCY) || null;
   }
 
-  // ---------- Strong corridor rule: keep going straight when in a corridor ----------
-  // Corridor = exactly 2 open neighbors and one is the previous cell -> continue to the other.
+  // Corridor rule: if exactly 2 open neighbors and one is prev, continue to the other
   if (prev && neigh.length === 2) {
     const other = neigh.find(n => !(n.x === prev.x && n.y === prev.y));
     if (other) return directionFromTo(cx, cy, other.x, other.y) || e.dir || 'E';
   }
 
-  // If forward is open and we're not at an intersection, continue forward.
+  // Check forward availability
+  let forwardOK = false;
   if (e.dir) {
     const f = stepFrom(cx, cy, e.dir);
-    const forwardOK = state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.dir);
-    if (forwardOK && neigh.length <= 2) return e.dir;
+    forwardOK = state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.dir);
   }
 
-  // ---------- Build candidate set (prefer not to immediately go back into prev) ----------
-  let candidates = neigh.filter(n => !(prev && n.x === prev.x && n.y === prev.y));
+  // If forward open and this cell is NOT an intersection, keep going straight (no randomness or scoring)
+  // We'll define intersection precisely below.
+  // Quick forward shortcut:
+  if (forwardOK && neigh.length <= 2 && prev) {
+    // corridor-like, keep heading straight
+    return e.dir;
+  }
 
-  // If no candidate (dead-end), backtrack to prev
+  // Build candidate set excluding prev (prefer not to immediately backtrack)
+  let candidates = neigh.filter(n => !(prev && n.x === prev.x && n.y === prev.y));
   if (candidates.length === 0) {
+    // only prev available -> backtrack
     if (prev) return directionFromTo(cx, cy, prev.x, prev.y) || e.dir || 'E';
-    // fallback — should rarely happen
+    // fallback
     return directionFromTo(cx, cy, neigh[0].x, neigh[0].y) || e.dir || 'E';
   }
 
-  // ---------- Optional tiny random override ----------
-  // Give a small guaranteed-explore chance (useful when scores are very lopsided).
-  // Tied to curiosity so more curious units explore more.
-  const btemp = e.behavior || {};
-  const curiosityBase = Math.min(1, Math.max(0, btemp.curiosity ?? 0.12));
-  // Small override probability (tunable). Use 0.08 - 0.35 range; scale with curiosity.
+  // === Precisely detect intersection / decision points ===
+  // Rules for isIntersection:
+  //  - current cell has 3+ open neighbors (true junction)
+  //  - forward is blocked (must choose/backtrack)
+  //  - spawn/no-prev and more than one neighbor (initial branching)
+  //  - OR any adjacent neighbor itself has degree >= 3 (room detection)
+  let isIntersection = false;
+  if (neigh.length >= 3) isIntersection = true;
+  if (!forwardOK) isIntersection = true;
+  if (!prev && neigh.length > 1) isIntersection = true;
+
+  // Room detection: if any neighbor is itself a junction, treat current as decision area.
+  // You can comment this block out if you prefer not to treat rooms specially.
+  for (const n of neigh) {
+    const nd = state.neighborsByEdges(gs, n.x, n.y);
+    if (nd.length >= 3) { isIntersection = true; break; }
+  }
+
+  // If this is NOT an intersection/decision, then continue forward if possible (no stats/randomness)
+  if (!isIntersection) {
+    if (forwardOK) return e.dir;
+    // If forward not ok but we didn't count this as an intersection (rare), fallback:
+    const fallback = candidates[0];
+    return directionFromTo(cx, cy, fallback.x, fallback.y) || e.dir || 'E';
+  }
+
+  // === At this point: we are at a decision point. Apply personality/softmax/etc. ===
+  // Small guaranteed exploratory override (tied to curiosity)
+  const b = e.behavior || {};
+  const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12));
   const randOverrideProb = Math.min(0.35, 0.08 + curiosityBase * 0.45);
   if (Math.random() < randOverrideProb) {
-    // pick uniformly at random among candidates (guaranteed exploration)
     const r = candidates[(Math.random() * candidates.length) | 0];
-    // If at an intersection, set a short commit so they don't immediately flip around in a room.
-    if (neigh.length >= 3) {
-      e.commitDir = directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
-      e.commitSteps = Math.max(e.commitSteps || 0, 3); // try 3 tile commits; tune if desired
-    }
+    if (neigh.length >= 3) { e.commitDir = directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E'; e.commitSteps = Math.max(e.commitSteps || 0, 3); }
     return directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
   }
 
-  // ---------- Score candidates using sense/herding/straight bias + tiny jitter ----------
+  // Score candidates and sample via softmax
   const here = D?.[cy]?.[cx] ?? Infinity;
   const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
-  const SENSE   = (btemp.sense   ?? 0.5);
-  const HERDING = (btemp.herding ?? 1.0);
-  const CURIOSITY = curiosityBase;
+  const SENSE = (b.sense ?? 0.5);
+  const HERDING = (b.herding ?? 1.0);
   const STRAIGHT_BONUS = 0.18;
 
   const info = [];
   for (const c of candidates) {
     const nx = c.x, ny = c.y;
     const d = D?.[ny]?.[nx];
-    if (!isFinite(d)) {
-      info.push({ nx, ny, d: Infinity, score: -Infinity });
-      continue;
-    }
+    if (!isFinite(d)) { info.push({ nx, ny, d: Infinity, score: -Infinity }); continue; }
     const downhill = (isFinite(here) && isFinite(d)) ? (here - d) : 0;
     const trail = T?.[ny]?.[nx] || 0;
-    // small centered jitter so scores are not identical; curiosity also affects softmax temperature below
     const jitter = (Math.random() - 0.5) * 0.02;
     let straightBonus = 0;
-    if (e.dir) {
-      const dirToC = directionFromTo(cx, cy, nx, ny);
-      if (dirToC === e.dir) straightBonus = STRAIGHT_BONUS;
-    }
+    if (e.dir && directionFromTo(cx, cy, nx, ny) === e.dir) straightBonus = STRAIGHT_BONUS;
     const score = SENSE * downhill + HERDING * trail + straightBonus + jitter;
     info.push({ nx, ny, d, score });
   }
 
-  // Prefer reachable candidates for sampling
   const reachable = info.filter(it => isFinite(it.d));
   if (reachable.length === 0) {
-    // fallback: pick any candidate
-    const f = candidates[0];
-    return directionFromTo(cx, cy, f.x, f.y) || e.dir || 'E';
+    const f = candidates[0]; return directionFromTo(cx, cy, f.x, f.y) || e.dir || 'E';
   }
 
-  // ---------- Softmax sampling: map curiosity -> temperature ----------
-  // higher curiosity => higher temperature => more uniform sampling
-  const temperature = 0.35 + CURIOSITY * 1.5; // tune if you want more/less randomness
+  const temperature = 0.35 + curiosityBase * 1.5;
   const chosen = softmaxSample(reachable, 'score', temperature);
 
-  // If decision happens at an intersection/room, commit to the chosen direction for a few steps
-  if (neigh.length >= 3) {
-    const COMMIT_STEPS = 3; // 3 tile advances is a good default
-    e.commitDir = directionFromTo(cx, cy, chosen.nx, chosen.ny) || e.dir || 'E';
-    e.commitSteps = Math.max(e.commitSteps || 0, COMMIT_STEPS);
-  }
+  // commit for a few tiles if at a junction/room
+  if (neigh.length >= 3) { e.commitDir = directionFromTo(cx, cy, chosen.nx, chosen.ny) || e.dir || 'E'; e.commitSteps = Math.max(e.commitSteps || 0, 3); }
 
   return directionFromTo(cx, cy, chosen.nx, chosen.ny) || e.dir || 'E';
 }
