@@ -201,20 +201,6 @@ export function updateEnemyDistance(gs, e) {
 }
 
 
-// softmax helper used by the steering policy
-function softmaxSample(items, scoreKey, temperature = 1) {
-  const eps = 1e-9;
-  const exps = items.map(it => Math.exp((it[scoreKey] || 0) / Math.max(eps, temperature)));
-  const sum = exps.reduce((s, v) => s + v, 0);
-  if (!(sum > 0)) return items[(Math.random() * items.length) | 0];
-  let r = Math.random() * sum;
-  for (let i = 0; i < items.length; i++) {
-    r -= exps[i];
-    if (r <= 0) return items[i];
-  }
-  return items[items.length - 1];
-}
-
 // softmax helper (keep or paste above this function)
 function softmaxSample(items, scoreKey, temperature = 1) {
   const eps = 1e-9;
