@@ -1,38 +1,33 @@
-// pathing.js — edge-walls pathing with live shortest-path-to-exit steering + success trail
+// pathing.js — edge-walls pathing with live shortest-path-to-exit steering,
+// success trail, and room/corridor/junction classification for smarter decisions.
 
 import * as state from './state.js';
 
-// ---------- Edge Toggling (UI hook) ----------
+/* =========================
+ * Edge toggling (UI hook)
+ * ========================= */
+
 export function toggleEdge(gs, x, y, side, place = true) {
-  // Bounds
   if (!state.inBounds(x, y)) {
     return { ok: false, reason: 'Out of bounds' };
   }
-
-  // Cost check for placing
   if (place && !state.canAffordEdge(gs, true)) {
     return { ok: false, reason: 'Not enough bones' };
   }
-
-  // Connectivity guard: don’t allow fully blocking entry↔exit
   if (wouldDisconnectEntryAndExit(gs, x, y, side, place)) {
     return { ok: false, reason: 'Would fully block the cave' };
   }
 
-  // Apply symmetric edge wall
   const applied = state.setEdgeWall(gs, x, y, side, !!place);
-  if (!applied) {
-    return { ok: false, reason: 'Invalid neighbor' };
-  }
+  if (!applied) return { ok: false, reason: 'Invalid neighbor' };
 
-  // Spend / refund bones
   if (place) state.spendBones(gs, state.COSTS.edgeWall);
   else       state.refundBones(gs, state.COSTS.edgeRefund);
 
-  // Recompute distance fields so enemies immediately adapt
+  // Recompute pathing artifacts (distance fields + cell-type classification)
   recomputeDistanceField(gs);
   recomputeExitField(gs);
-  // (Do NOT clear successTrail here; it should persist while enemies are alive.)
+  computeCellTypes(gs);
 
   return { ok: true };
 }
@@ -50,35 +45,30 @@ function ensureSuccessField(gs = state.GameState) {
   return gs.successTrail;
 }
 
-/** Increment trail intensity at a cell (call when an enemy ENTERS that cell). */
 export function bumpSuccess(gs, cx, cy, amt = 1) {
   const T = ensureSuccessField(gs);
   if (state.inBounds(cx, cy)) T[cy][cx] = (T[cy][cx] || 0) + amt;
 }
 
-/** Reset the trail to all zeros (we’ll call this when field is clear). */
 export function clearSuccessTrail(gs = state.GameState) {
   gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0);
   return gs.successTrail;
 }
 
 /* =========================
- * Distance Fields (BFS)
+ * Distance fields (BFS)
  * ========================= */
 
-/** Recompute gs.distFromEntry[y][x]: shortest steps from ENTRY through open edges. */
 export function recomputeDistanceField(gs = state.GameState) {
   gs.distFromEntry = bfsField(gs, state.ENTRY.x, state.ENTRY.y);
   return gs.distFromEntry;
 }
 
-/** Recompute gs.distToExit[y][x]: shortest steps TO EXIT (BFS from EXIT). */
 export function recomputeExitField(gs = state.GameState) {
   gs.distToExit = bfsField(gs, state.EXIT.x, state.EXIT.y);
   return gs.distToExit;
 }
 
-/** Shared BFS helper (walls respected). Infinity = unreachable. */
 function bfsField(gs, sx, sy) {
   const W = state.GRID.cols, H = state.GRID.rows;
   const dist = state.makeScalarField(W, H, Infinity);
@@ -117,9 +107,7 @@ function bfsField(gs, sx, sy) {
 export function wouldDisconnectEntryAndExit(gs, x, y, side, placeWall) {
   const snap = snapshotEdgePair(gs, x, y, side);
   if (!applyEdgeSim(gs, x, y, side, !!placeWall)) return true;
-
   const ok = isReachable(gs, state.ENTRY.x, state.ENTRY.y, state.EXIT.x, state.EXIT.y);
-
   restoreEdgePair(gs, x, y, side, snap);
   return !ok;
 }
@@ -139,7 +127,7 @@ function isReachable(gs, sx, sy, tx, ty) {
     if (state.isOpen(gs, x, y, 'N')) push(x, y - 1);
     if (state.isOpen(gs, x, y, 'E')) push(x + 1, y);
     if (state.isOpen(gs, x, y, 'S')) push(x, y + 1);
-    if (state.isOpen(gs, x, y, 'W')) push(x - 1, y);
+    if (state.isOpen(gs, x, y, 'W')) push(x, y - 1);
   }
   return false;
 
@@ -186,7 +174,168 @@ function neighborFor(x, y, side) {
 }
 
 /* =========================
- * Greedy-to-Exit Enemy API (with trail bias)
+ * Map classification: rooms/corridors/junctions/deadends
+ * ========================= */
+
+/*
+ Tunables:
+  - ROOM_FLOOD_RADIUS: how far (in steps) to look for local openness
+  - ROOM_SIZE_THRESHOLD: reachable-cell count threshold to consider an area a room
+*/
+const ROOM_FLOOD_RADIUS = 3;
+const ROOM_SIZE_THRESHOLD = 10;
+
+/**
+ * BFS-limited flood that returns a Set of "x,y" reachable from (sx,sy) within maxSteps.
+ * If full=true, floods the entire connected component (no depth limit).
+ */
+export function floodRegion(gs, sx, sy, maxSteps = ROOM_FLOOD_RADIUS, full = false) {
+  const W = state.GRID.cols, H = state.GRID.rows;
+  const seen = new Uint8Array(W * H);
+  const qx = [], qy = [], qd = [];
+  qx.push(sx); qy.push(sy); qd.push(0);
+  seen[sy * W + sx] = 1;
+  const set = new Set([`${sx},${sy}`]);
+
+  for (let qi = 0; qi < qx.length; qi++) {
+    const x = qx[qi], y = qy[qi], d = qd[qi];
+    if (!full && d >= maxSteps) continue;
+    const neigh = state.neighborsByEdges(gs, x, y);
+    for (const n of neigh) {
+      const nx = n.x, ny = n.y;
+      if (!state.inBounds(nx, ny)) continue;
+      const idx = ny * W + nx;
+      if (seen[idx]) continue;
+      seen[idx] = 1;
+      qx.push(nx); qy.push(ny); qd.push(d + 1);
+      set.add(`${nx},${ny}`);
+    }
+  }
+  return set;
+}
+
+/** Count unique exit tiles adjacent to a region (region is Set of "x,y"). */
+export function countRegionExits(gs, regionSet) {
+  const exitTiles = new Set();
+  for (const key of regionSet) {
+    const [sx, sy] = key.split(',').map(n => +n);
+    const neigh = state.neighborsByEdges(gs, sx, sy);
+    for (const n of neigh) {
+      const nx = n.x, ny = n.y;
+      const nk = `${nx},${ny}`;
+      if (!regionSet.has(nk)) exitTiles.add(nk);
+    }
+  }
+  return { exits: exitTiles.size, exitTiles };
+}
+
+/**
+ * Analyze region: returns { size, bbox, exits, exitTiles, regionSet }.
+ * If full=true, computes full connected component, otherwise bounded by maxSteps.
+ */
+export function analyzeRegion(gs, sx, sy, maxSteps = ROOM_FLOOD_RADIUS, full = false) {
+  const region = floodRegion(gs, sx, sy, maxSteps, full);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const k of region) {
+    const [x, y] = k.split(',').map(n => +n);
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  const exitsInfo = countRegionExits(gs, region);
+  return {
+    size: region.size,
+    bbox: { minX, minY, maxX, maxY, w: (maxX - minX + 1), h: (maxY - minY + 1) },
+    exits: exitsInfo.exits,
+    exitTiles: exitsInfo.exitTiles,
+    regionSet: region,
+  };
+}
+
+/**
+ * Compute gs.cellType[y][x] with values:
+ *  'corridor' | 'junction' | 'room_multi' | 'room_deadend' | 'room_enclosed' | 'deadend'
+ *
+ * This is relatively cheap for small grids and is called after recomputePath.
+ */
+export function computeCellTypes(gs = state.GameState) {
+  const W = state.GRID.cols, H = state.GRID.rows;
+  const types = new Array(H);
+  for (let y = 0; y < H; y++) {
+    const row = new Array(W);
+    for (let x = 0; x < W; x++) row[x] = 'corridor';
+    types[y] = row;
+  }
+
+  const visited = new Set();
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const key = `${x},${y}`;
+      if (visited.has(key)) continue;
+
+      if (!state.inBounds(x, y)) { types[y][x] = 'deadend'; visited.add(key); continue; }
+
+      const neigh = state.neighborsByEdges(gs, x, y);
+      const deg = neigh.length;
+
+      if (deg <= 1) {
+        types[y][x] = 'deadend';
+        visited.add(key);
+        continue;
+      }
+
+      // Quick local openness measure
+      const regionLocal = floodRegion(gs, x, y, ROOM_FLOOD_RADIUS, false);
+      const area = regionLocal.size;
+
+      if (area >= ROOM_SIZE_THRESHOLD) {
+        // compute full connected region for accuracy and exit count
+        const fullInfo = analyzeRegion(gs, x, y, ROOM_FLOOD_RADIUS, true);
+
+        // decide room subtype using exit count
+        if (fullInfo.exits >= 2) {
+          // multi-exit room
+          for (const k of fullInfo.regionSet) {
+            const [rx, ry] = k.split(',').map(n => +n);
+            types[ry][rx] = 'room_multi';
+            visited.add(k);
+          }
+        } else if (fullInfo.exits === 1) {
+          for (const k of fullInfo.regionSet) {
+            const [rx, ry] = k.split(',').map(n => +n);
+            types[ry][rx] = 'room_deadend';
+            visited.add(k);
+          }
+        } else {
+          // isolated/enclosed
+          for (const k of fullInfo.regionSet) {
+            const [rx, ry] = k.split(',').map(n => +n);
+            types[ry][rx] = 'room_enclosed';
+            visited.add(k);
+          }
+        }
+        continue;
+      }
+
+      // area small -> not a room; classify by degree
+      if (deg >= 3) {
+        types[y][x] = 'junction';
+      } else {
+        // deg === 2 is corridor-like
+        types[y][x] = 'corridor';
+      }
+      visited.add(key);
+    }
+  }
+
+  gs.cellType = types;
+  return types;
+}
+
+/* =========================
+ * Enemy helpers (distance cache)
  * ========================= */
 
 export function updateEnemyDistance(gs, e) {
@@ -200,8 +349,10 @@ export function updateEnemyDistance(gs, e) {
   }
 }
 
+/* =========================
+ * Steering helpers
+ * ========================= */
 
-// softmax helper (keep or paste above this function)
 function softmaxSample(items, scoreKey, temperature = 1) {
   const eps = 1e-9;
   const exps = items.map(it => Math.exp((it[scoreKey] || 0) / Math.max(eps, temperature)));
@@ -223,7 +374,7 @@ export function chooseNextDirectionToExit(gs, e) {
   const neigh = state.neighborsByEdges(gs, cx, cy);
   if (!neigh || neigh.length === 0) return e.dir || 'E';
 
-  // honor short commit if present
+  // honor short commitment
   if (e.commitDir && (e.commitSteps || 0) > 0) {
     const f = stepFrom(cx, cy, e.commitDir);
     if (state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.commitDir)) return e.commitDir;
@@ -236,74 +387,71 @@ export function chooseNextDirectionToExit(gs, e) {
     prev = neigh.find(n => n.x === e.prevCX && n.y === e.prevCY) || null;
   }
 
-  // Corridor rule: if exactly 2 open neighbors and one is prev, continue to the other
+  // Corridor rule: exactly 2 neighbors and one is prev -> continue to the other
   if (prev && neigh.length === 2) {
     const other = neigh.find(n => !(n.x === prev.x && n.y === prev.y));
     if (other) return directionFromTo(cx, cy, other.x, other.y) || e.dir || 'E';
   }
 
-  // Check forward availability
+  // Forward check
   let forwardOK = false;
   if (e.dir) {
     const f = stepFrom(cx, cy, e.dir);
     forwardOK = state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.dir);
   }
 
-  // If forward open and this cell is NOT an intersection, keep going straight (no randomness or scoring)
-  // We'll define intersection precisely below.
-  // Quick forward shortcut:
-  if (forwardOK && neigh.length <= 2 && prev) {
-    // corridor-like, keep heading straight
+  // Use precise cell-type classification to decide whether this is a decision point
+  const ttype = gs.cellType?.[cy]?.[cx] || 'corridor';
+
+  // If not a decision tile and forward is OK, keep going straight (no personality / no randomness)
+  if ((ttype === 'corridor' || ttype === 'deadend') && forwardOK && prev) {
     return e.dir;
   }
 
-  // Build candidate set excluding prev (prefer not to immediately backtrack)
+  // Build candidates excluding prev (avoid immediate backtrack at junctions)
   let candidates = neigh.filter(n => !(prev && n.x === prev.x && n.y === prev.y));
   if (candidates.length === 0) {
-    // only prev available -> backtrack
     if (prev) return directionFromTo(cx, cy, prev.x, prev.y) || e.dir || 'E';
-    // fallback
     return directionFromTo(cx, cy, neigh[0].x, neigh[0].y) || e.dir || 'E';
   }
 
-  // === Precisely detect intersection / decision points ===
-  // Rules for isIntersection:
-  //  - current cell has 3+ open neighbors (true junction)
-  //  - forward is blocked (must choose/backtrack)
-  //  - spawn/no-prev and more than one neighbor (initial branching)
-  //  - OR any adjacent neighbor itself has degree >= 3 (room detection)
-  let isIntersection = false;
-  if (neigh.length >= 3) isIntersection = true;
-  if (!forwardOK) isIntersection = true;
-  if (!prev && neigh.length > 1) isIntersection = true;
-
-  // Room detection: if any neighbor is itself a junction, treat current as decision area.
-  // You can comment this block out if you prefer not to treat rooms specially.
-  for (const n of neigh) {
-    const nd = state.neighborsByEdges(gs, n.x, n.y);
-    if (nd.length >= 3) { isIntersection = true; break; }
+  // If tile is a deadend or room_deadend -> prefer deterministic exit
+  if (ttype === 'deadend' || ttype === 'room_deadend') {
+    // analyze region fully to find the single exit if possible
+    const info = analyzeRegion(gs, cx, cy, ROOM_FLOOD_RADIUS, true);
+    if (info.exits === 1) {
+      // exitTiles are outside-region coords; pick candidate that matches an exit tile
+      for (const c of candidates) {
+        const key = `${c.x},${c.y}`;
+        if (info.exitTiles.has(key)) {
+          // set a small commit to avoid flipping in the small room
+          e.commitDir = directionFromTo(cx, cy, c.x, c.y) || e.dir || 'E';
+          e.commitSteps = Math.max(e.commitSteps || 0, 3);
+          return e.commitDir;
+        }
+      }
+    }
+    // fallback: continue with normal selection if we couldn't find matching candidate
   }
 
-  // If this is NOT an intersection/decision, then continue forward if possible (no stats/randomness)
-  if (!isIntersection) {
-    if (forwardOK) return e.dir;
-    // If forward not ok but we didn't count this as an intersection (rare), fallback:
-    const fallback = candidates[0];
-    return directionFromTo(cx, cy, fallback.x, fallback.y) || e.dir || 'E';
-  }
-
-  // === At this point: we are at a decision point. Apply personality/softmax/etc. ===
-  // Small guaranteed exploratory override (tied to curiosity)
+  // Now this is a decision point (junction or room_multi or otherwise)
   const b = e.behavior || {};
   const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12));
   const randOverrideProb = Math.min(0.35, 0.08 + curiosityBase * 0.45);
+
+  // small guaranteed exploratory override
   if (Math.random() < randOverrideProb) {
     const r = candidates[(Math.random() * candidates.length) | 0];
-    if (neigh.length >= 3) { e.commitDir = directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E'; e.commitSteps = Math.max(e.commitSteps || 0, 3); }
+    if (neigh.length >= 3) {
+      // commit length depends on tile type
+      const commitByType = { corridor: 0, junction: 3, room_multi: 4, room_deadend: 3, room_enclosed: 3, deadend: 0 };
+      e.commitDir = directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
+      e.commitSteps = Math.max(e.commitSteps || 0, commitByType[ttype] || 3);
+    }
     return directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
   }
 
-  // Score candidates and sample via softmax
+  // Score candidates using downhill (sense), trail (herding), straight bias, small jitter
   const here = D?.[cy]?.[cx] ?? Infinity;
   const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
   const SENSE = (b.sense ?? 0.5);
@@ -326,21 +474,29 @@ export function chooseNextDirectionToExit(gs, e) {
 
   const reachable = info.filter(it => isFinite(it.d));
   if (reachable.length === 0) {
-    const f = candidates[0]; return directionFromTo(cx, cy, f.x, f.y) || e.dir || 'E';
+    const f = candidates[0];
+    return directionFromTo(cx, cy, f.x, f.y) || e.dir || 'E';
   }
 
+  // temperature mapping: curiosity -> more uniform sampling
   const temperature = 0.35 + curiosityBase * 1.5;
   const chosen = softmaxSample(reachable, 'score', temperature);
 
-  // commit for a few tiles if at a junction/room
-  if (neigh.length >= 3) { e.commitDir = directionFromTo(cx, cy, chosen.nx, chosen.ny) || e.dir || 'E'; e.commitSteps = Math.max(e.commitSteps || 0, 3); }
+  // commit length mapping by tile type
+  if (neigh.length >= 3) {
+    const commitByType = { corridor: 0, junction: 3, room_multi: 4, room_deadend: 3, room_enclosed: 3, deadend: 0 };
+    e.commitDir = directionFromTo(cx, cy, chosen.nx, chosen.ny) || e.dir || 'E';
+    e.commitSteps = Math.max(e.commitSteps || 0, commitByType[ttype] || 3);
+  }
 
   return directionFromTo(cx, cy, chosen.nx, chosen.ny) || e.dir || 'E';
 }
 
+/* =========================
+ * Fallback heuristics & small utilities
+ * ========================= */
 
 function heuristicFallback(gs, e) {
-  // If no improving neighbor (rare), pick any open edge closer to EXIT (Manhattan)
   const ns = state.neighborsByEdges(gs, e.cx, e.cy);
   if (ns.length) {
     let best = ns[0], bestHeu = Infinity;
@@ -373,24 +529,23 @@ function stepFrom(x, y, dir) {
   }
 }
 
-/**
- * Instant hop by one cell using greedy-to-exit direction.
- */
+/* =========================
+ * Movement API
+ * ========================= */
+
 export function advanceEnemyOneCell(gs, e) {
   const dir = chooseNextDirectionToExit(gs, e);
   const { nx, ny } = stepFrom(e.cx, e.cy, dir);
   if (!state.inBounds(nx, ny)) return;
   e.cx = nx; e.cy = ny; e.dir = dir;
-  bumpSuccess(gs, e.cx, e.cy, 0.5); // lay a small trail as they move
+  bumpSuccess(gs, e.cx, e.cy, 0.5);
   updateEnemyDistance(gs, e);
 }
 
 export function stepEnemyInterpolated(gs, e, dtSec) {
-  // Ensure dirLock and commit defaults
   if (typeof e.dirLockT !== 'number') e.dirLockT = 0;
   e.dirLockT = Math.max(0, e.dirLockT - dtSec);
 
-  // Initialize target to the center of the next greedy cell
   if (e.tx === undefined || e.ty === undefined) {
     const c = tileCenter(e.cx, e.cy);
     e.x = e.x ?? c.x; e.y = e.y ?? c.y;
@@ -406,39 +561,30 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
   const step = pxPerSec * dtSec;
 
   if (dist <= step) {
-    // Snap and commit cell advance
     e.x = e.tx; e.y = e.ty;
 
     const dir = directionFromDelta(dx, dy) ?? e.dir;
     const { nx, ny } = stepFrom(Math.floor(e.cx), Math.floor(e.cy), dir);
 
-    // Save previous cell coordinates for next decision
     e.prevCX = e.cx;
     e.prevCY = e.cy;
 
     e.cx = nx; e.cy = ny;
 
-    // decrement commitment when we advanced one committed cell
     if (typeof e.commitSteps === 'number' && e.commitSteps > 0) {
       e.commitSteps = Math.max(0, e.commitSteps - 1);
-      if (e.commitSteps === 0) {
-        e.commitDir = null;
-      }
+      if (e.commitSteps === 0) e.commitDir = null;
     }
 
-    // If the move changed facing, set a tiny lock to avoid instant flip-flop
     const oldDir = e.dir || null;
     e.dir = dir;
     if (oldDir && oldDir !== dir) {
-      e.dirLockT = Math.max(e.dirLockT || 0, 0.12); // 120ms lock; tweak as needed
+      e.dirLockT = Math.max(e.dirLockT || 0, 0.12);
     }
 
-    // Trail bump (reduce magnitude if earlier tests show runaway monopolies)
     bumpSuccess(gs, e.cx, e.cy, 0.12);
-
     updateEnemyDistance(gs, e);
 
-    // Immediately pick the next greedy target (adapts to wall edits)
     const nxt = chooseNextTargetGreedy(gs, e);
     e.tx = nxt.tx; e.ty = nxt.ty;
   } else if (dist > 0) {
@@ -446,7 +592,6 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
     e.y += (dy / dist) * step;
   }
 }
-
 
 function chooseNextTargetGreedy(gs, e) {
   const dir = chooseNextDirectionToExit(gs, e);
@@ -475,23 +620,10 @@ function directionFromDelta(dx, dy) {
  * Public convenience
  * ========================= */
 
-/** Call on boot and after any edge toggle. */
-export function recomputePath(gs = state.GameState) {
-  // Keep existing distFromEntry for UI/shielding, and add distToExit for steering
-  recomputeDistanceField(gs);
-  recomputeExitField(gs);
-  ensureSuccessField(gs); // make sure the trail exists
-  return gs.distToExit;
-}
-
-/** UI helper: list of open neighbors from a cell. */
 export function openNeighbors(gs, x, y) {
   return state.neighborsByEdges(gs, x, y);
 }
 
-// Returns open cells starting from EXIT and walking toward ENTRY.
-// Prefers to keep the same heading; only turns when straight is invalid.
-// Never goes through walls; never steps "uphill" in the distance field.
 export function raycastOpenCellsFromExit(gs, maxSteps) {
   const dist = gs?.distFromEntry;
   if (!dist) return [];
@@ -526,7 +658,6 @@ export function raycastOpenCellsFromExit(gs, maxSteps) {
   const out = [];
   let cx = state.EXIT.x, cy = state.EXIT.y;
 
-  // Seed heading by choosing the best downhill neighbor first.
   let nbs = downhillNeighbors(cx, cy);
   if (!nbs.length) return out;
   nbs.sort((a, b) => dist[a.y][a.x] - dist[b.y][b.x]);
@@ -583,7 +714,6 @@ export function raycastOpenCellsFromExit(gs, maxSteps) {
   return out;
 }
 
-/** Greedy hint (if you need it elsewhere). */
 export function downhillNeighborTowardExit(gs, x, y) {
   const D = gs.distToExit;
   const here = D?.[y]?.[x] ?? Infinity;
@@ -599,5 +729,24 @@ export function downhillNeighborTowardExit(gs, x, y) {
       if (h < bestHeu) { best = n; bestHeu = h; }
     }
   }
-  return best; // may be null
+  return best;
 }
+
+/** Call on boot and after any edge toggle. */
+export function recomputePath(gs = state.GameState) {
+  recomputeDistanceField(gs);
+  recomputeExitField(gs);
+  ensureSuccessField(gs);
+  computeCellTypes(gs);
+  return gs.distToExit;
+}
+
+/* =========================
+ * Exports for debugging / tools
+ * ========================= */
+
+export {
+  computeCellTypes as computeCellTypes,
+  floodRegion as floodRegion,
+  analyzeRegion as analyzeRegion,
+};
