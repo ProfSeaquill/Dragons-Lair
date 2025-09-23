@@ -456,7 +456,7 @@ export function chooseNextDirectionToExit(gs, e) {
   const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
   const SENSE = (b.sense ?? 0.5);
   const HERDING = (b.herding ?? 1.0);
-  const STRAIGHT_BONUS = 0.18;
+  const STRAIGHT_BONUS = 0.40;
 
   const info = [];
   for (const c of candidates) {
