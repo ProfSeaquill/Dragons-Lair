@@ -13,6 +13,31 @@ function spawnMouthFire(gs, dur = 0.6) {
   });
 }
 
+// --- Spawn helper: give freshly-spawned enemies a "previous cell" (if available)
+// and a short forward commit so they don't immediately reconsider direction.
+//
+// e: enemy object (must already have e.cx, e.cy, e.dir set)
+function initializeSpawnPrevAndCommit(e) {
+  // Derive a backward offset from the facing direction (dir points where they are heading)
+  const dx = (e.dir === 'E' ? 1 : e.dir === 'W' ? -1 : 0);
+  const dy = (e.dir === 'S' ? 1 : e.dir === 'N' ? -1 : 0);
+
+  // prev cell is one step behind current position
+  const prevX = e.cx - dx;
+  const prevY = e.cy - dy;
+
+  if (Number.isInteger(prevX) && Number.isInteger(prevY) && state.inBounds(prevX, prevY)) {
+    e.prevCX = prevX;
+    e.prevCY = prevY;
+  }
+
+  // Give a short commitment so the first few steps are forced straight.
+  // This prevents immediate decision logic at the spawn tile (esp. at edges).
+  e.commitDir = e.dir;
+  // 2 steps is a conservative default; increase to 3 if you want stronger initial straight bias.
+  e.commitSteps = Math.max(e.commitSteps || 0, 2);
+}
+
 // Return nearest dragon cell (tile coords) to a given tile (ox, oy)
 function nearestDragonCell(gs, ox, oy) {
   const cells = state.dragonCells(gs); // assumes you exported this from state.js
@@ -352,8 +377,13 @@ function spawnOne(gs, type) {
   e.cx = state.ENTRY.x;
   e.cy = state.ENTRY.y;
   e.dir = 'E';
+
+  // initialize prev/commit so freshly-spawned enemies head straight initially
+  initializeSpawnPrevAndCommit(e);
+
   gs.enemies.push(e);
 }
+
 
 let fireCooldown = 0;
 
@@ -450,6 +480,7 @@ export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
     e.cx = state.ENTRY.x;
     e.cy = state.ENTRY.y;
     e.dir = 'E';
+    initializeSpawnPrevAndCommit(e);
     gs.enemies.push(e);
   }
 }
