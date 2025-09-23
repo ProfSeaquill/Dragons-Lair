@@ -387,8 +387,6 @@ function spawnOne(gs, type) {
 
 let fireCooldown = 0;
 
-let fireCooldown = 0;
-
 function dragonBreathTick(gs, dt, ds) {
   fireCooldown -= dt;
   const firePeriod = 1 / Math.max(0.01, ds.fireRate);
