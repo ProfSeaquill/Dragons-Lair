@@ -387,70 +387,97 @@ function spawnOne(gs, type) {
 
 let fireCooldown = 0;
 
+let fireCooldown = 0;
+
 function dragonBreathTick(gs, dt, ds) {
   fireCooldown -= dt;
   const firePeriod = 1 / Math.max(0.01, ds.fireRate);
-  if (fireCooldown > 0) return;
 
-  // Build a corridor path starting at the dragon (EXIT) walking “downhill” toward ENTRY.
+  // 1) Build path out to breath range, along open cells from EXIT (no walls).
   const maxTiles = Math.max(1, Math.round(ds.breathRange / state.GRID.tile));
   const path = raycastOpenCellsFromExit(gs, maxTiles);
-  if (!path || path.length === 0) { fireCooldown = firePeriod; return; }
+  if (!path || path.length === 0) {
+    if (gs.dragonFX) { gs.dragonFX.attacking = false; gs.dragonFX.t = 0; }
+    return;
+  }
 
-  // Visuals: add a traveling flame wave along that corridor (render.js will draw it).
+  // Fast index lookup for tiles along the path
+  const key = (x, y) => state.tileKey(x, y);
+  const indexByKey = new Map();
+  for (let i = 0; i < path.length; i++) indexByKey.set(key(path[i].x, path[i].y), i);
+
+  // 2) Find the NEAREST *reachable* enemy on that path (ignore tunneling)
+  let nearestIdx = Infinity;
+  for (const e of gs.enemies) {
+    if (!e || e.type === 'engineer' && e.tunneling) continue;
+    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
+    const idx = indexByKey.get(key(e.cx, e.cy));
+    if (idx !== undefined && idx < nearestIdx) nearestIdx = idx;
+  }
+
+  // No reachable enemy -> stop anim, no damage.
+  if (!isFinite(nearestIdx)) {
+    gs.dragonFX = gs.dragonFX || { attacking: false, t: 0, dur: 0.25 };
+    gs.dragonFX.attacking = false;
+    gs.dragonFX.t = 0;
+    return;
+  }
+
+  // 3) Sustain mouth animation while someone reachable is in range (loop in main.js)
+  gs.dragonFX = gs.dragonFX || { attacking: false, t: 0, dur: 0.25 };
+  if (!gs.dragonFX.attacking) {
+    gs.dragonFX.attacking = true;
+    gs.dragonFX.t = 0;          // start once on transition; main.js will loop fx.t %= dur
+    gs.dragonFX.dur = 0.25;     // keep in sync with your sprite timing
+  }
+
+  // 4) Visual: spawn a traveling flame wave limited to the nearest enemy
+  //    (Optional but looks great; prevents the wave from overshooting.)
+  const truncatedPath = path.slice(0, Math.min(path.length, nearestIdx + 1));
   (gs.effects || (gs.effects = [])).push({
     type: 'flameWave',
-    path,                // [{ x, y, from:'N'|'E'|'S'|'W' }, ...]
+    path: truncatedPath,
     headIdx: 0,
     t: 0,
-    dur: 0.7,            // linger time for the glow
-    tilesPerSec: 16,     // how fast the wave head advances
+    dur: 0.7,
+    tilesPerSec: 16,
     widthPx: state.GRID.tile * 0.85,
   });
 
-  // Prepare a fast lookup of the corridor tiles we hit this tick.
-  const hit = new Set(path.map(seg => state.tileKey(seg.x, seg.y)));
+  // 5) Only DEAL DAMAGE on fire-rate ticks; still target only tiles up to nearest enemy
+  if (fireCooldown > 0) return;
 
-  // Front-most hero (largest distance-from-entry) provides the shield line.
+  // Shield line (unchanged)
   let maxHeroDist = -1;
   for (const h of gs.enemies) {
-    if (h.type === 'hero' && isFinite(h.distFromEntry)) {
+    if (h.type === 'hero' && isFinite(h.distFromEntry))
       if (h.distFromEntry > maxHeroDist) maxHeroDist = h.distFromEntry;
-    }
   }
-
-  // Helper: is this enemy behind (or at) the front-most hero line?
   const shieldedByHero = (e) =>
     (maxHeroDist >= 0) &&
     isFinite(e.distFromEntry) &&
-    (e.distFromEntry < maxHeroDist); // strictly behind the front hero (closer to ENTRY)
+    (e.distFromEntry < maxHeroDist);
 
-  // Apply damage only to units that are on the corridor tiles (no wall clipping).
+  // Apply damage to enemies on truncated path (reachable up to nearest)
+  const hitUpToNearest = new Set(truncatedPath.map(s => key(s.x, s.y)));
   for (const e of gs.enemies) {
-    if (e.type === 'engineer' && e.tunneling) continue; // ignore underground
-    if (!hit.has(state.tileKey(e.cx, e.cy))) continue;  // not in corridor this tick
+    if (!e || (e.type === 'engineer' && e.tunneling)) continue;
+    if (!hitUpToNearest.has(key(e.cx, e.cy))) continue;
 
     const shielded = shieldedByHero(e);
 
-    // 1) Direct fire is blocked by shield line.
     if (!shielded) {
       e.hp -= ds.breathPower;
       markHit(e, ds.breathPower);
     }
-
-    // 2) Burn always applies, even to shielded units.
     if (ds.burnDPS > 0 && ds.burnDuration > 0) {
       e.burnDps = ds.burnDPS;
       e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
-      // ensure HP bar shows even if only burn was applied this frame
       markHit(e, 0.0001);
     }
   }
 
-  // Kick the mouth FX so the sprite animates while breathing
-  gs.dragonFX = { attacking: true, t: 0, dur: 0.25 };
-
-  fireCooldown = firePeriod;
+  fireCooldown = firePeriod; // cadence of damage only
 }
 
 /* =========================
