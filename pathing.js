@@ -740,13 +740,3 @@ export function recomputePath(gs = state.GameState) {
   computeCellTypes(gs);
   return gs.distToExit;
 }
-
-/* =========================
- * Exports for debugging / tools
- * ========================= */
-
-export {
-  computeCellTypes as computeCellTypes,
-  floodRegion as floodRegion,
-  analyzeRegion as analyzeRegion,
-};
