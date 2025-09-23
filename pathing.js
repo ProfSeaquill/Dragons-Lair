@@ -1,7 +1,23 @@
 // pathing.js — edge-walls pathing with live shortest-path-to-exit steering,
-// success trail, and room/corridor/junction classification for smarter decisions.
+// success trail, room/corridor/junction classification, per-enemy memory, and
+// forward-vision gating so enemies only "decide" when progress may be blocked.
 
 import * as state from './state.js';
+
+/* =========================
+ * Tunables (global to this module)
+ * ========================= */
+
+// Room detection
+const ROOM_FLOOD_RADIUS = 3;
+const ROOM_SIZE_THRESHOLD = 10;
+
+// Per-enemy memory / vision
+const VISION_TILES = 3;            // how many tiles to look ahead when evaluating a candidate
+const MEMORY_PENALTY = 0.6;        // subtract this from score if immediate target tile was visited
+const FORWARD_UNVISITED_BONUS = 0.25; // add this per unvisited tile in look-ahead
+const VISITED_CAP = 200;           // max tiles remembered per enemy
+const MEMORY_DECAY_MS = 60_000;    // optional: expire visited marks older than this (ms)
 
 /* =========================
  * Edge toggling (UI hook)
@@ -177,14 +193,6 @@ function neighborFor(x, y, side) {
  * Map classification: rooms/corridors/junctions/deadends
  * ========================= */
 
-/*
- Tunables:
-  - ROOM_FLOOD_RADIUS: how far (in steps) to look for local openness
-  - ROOM_SIZE_THRESHOLD: reachable-cell count threshold to consider an area a room
-*/
-const ROOM_FLOOD_RADIUS = 3;
-const ROOM_SIZE_THRESHOLD = 10;
-
 /**
  * BFS-limited flood that returns a Set of "x,y" reachable from (sx,sy) within maxSteps.
  * If full=true, floods the entire connected component (no depth limit).
@@ -350,6 +358,58 @@ export function updateEnemyDistance(gs, e) {
 }
 
 /* =========================
+ * Per-enemy memory helpers
+ * ========================= */
+
+function ensureVisitedStruct(e) {
+  if (!e) return;
+  if (!e._visitedSet) {
+    e._visitedSet = new Set();
+    e._visitedOrder = [];
+    e._visitedAt = Object.create(null);
+  }
+}
+
+function recordVisitForEnemy(e, x, y) {
+  if (!Number.isInteger(x) || !Number.isInteger(y)) return;
+  ensureVisitedStruct(e);
+  const k = state.tileKey(x, y);
+  if (!e._visitedSet.has(k)) {
+    e._visitedSet.add(k);
+    e._visitedOrder.push(k);
+    e._visitedAt[k] = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+
+    if (e._visitedOrder.length > VISITED_CAP) {
+      const old = e._visitedOrder.shift();
+      if (old) {
+        e._visitedSet.delete(old);
+        delete e._visitedAt[old];
+      }
+    }
+  } else {
+    // refresh timestamp so decay behaves nicely
+    e._visitedAt[k] = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  }
+}
+
+function isVisitedByEnemy(e, x, y) {
+  if (!e || !e._visitedSet) return false;
+  const k = state.tileKey(x, y);
+  if (MEMORY_DECAY_MS > 0 && e._visitedAt && e._visitedAt[k] != null) {
+    const age = ((typeof performance !== 'undefined') ? performance.now() : Date.now()) - e._visitedAt[k];
+    if (age > MEMORY_DECAY_MS) {
+      // expire
+      e._visitedSet.delete(k);
+      delete e._visitedAt[k];
+      const idx = e._visitedOrder.indexOf(k);
+      if (idx >= 0) e._visitedOrder.splice(idx, 1);
+      return false;
+    }
+  }
+  return e._visitedSet.has(k);
+}
+
+/* =========================
  * Steering helpers
  * ========================= */
 
@@ -366,6 +426,15 @@ function softmaxSample(items, scoreKey, temperature = 1) {
   return items[items.length - 1];
 }
 
+/**
+ * Decide next grid direction for an enemy using:
+ * - short-commit (commitDir / commitSteps)
+ * - corridor continuation (prev + degree)
+ * - forward-vision gating: if forward is clear for several tiles, keep straight
+ * - otherwise: softmax over candidate directions using downhill (toward exit),
+ *   herding (successTrail), straight bonus, per-enemy visited penalties, forward-unvisited bonus,
+ *   and a small curiosity-driven rand override.
+ */
 export function chooseNextDirectionToExit(gs, e) {
   const D = gs.distToExit;
   if (!D) return e.dir || 'E';
@@ -393,20 +462,34 @@ export function chooseNextDirectionToExit(gs, e) {
     if (other) return directionFromTo(cx, cy, other.x, other.y) || e.dir || 'E';
   }
 
-  // Forward check
+  // Forward check (one tile)
   let forwardOK = false;
   if (e.dir) {
     const f = stepFrom(cx, cy, e.dir);
     forwardOK = state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.dir);
   }
 
-  // Use precise cell-type classification to decide whether this is a decision point
+  // cell type
   const ttype = gs.cellType?.[cy]?.[cx] || 'corridor';
 
-// new
-if ((ttype === 'corridor' || ttype === 'deadend') && forwardOK) {
-  return e.dir;
-}
+  // helper: detect blocked within vision (if there's a wall in the current heading within VISION_TILES)
+  function blockedWithinVision(gs, cx, cy, dir, vision) {
+    if (!dir) return false;
+    let tx = cx, ty = cy;
+    for (let i = 0; i < vision; i++) {
+      const s = stepFrom(tx, ty, dir);
+      if (!state.inBounds(s.nx, s.ny)) return true;
+      if (!state.isOpen(gs, tx, ty, dir)) return true;
+      tx = s.nx; ty = s.ny;
+    }
+    return false;
+  }
+
+  // If forward is OK and not blocked soon, keep going straight (fast-path).
+  const blockedSoon = !forwardOK || blockedWithinVision(gs, cx, cy, e.dir, VISION_TILES);
+  if (!blockedSoon && forwardOK && prev) {
+    return e.dir;
+  }
 
   // Build candidates excluding prev (avoid immediate backtrack at junctions)
   let candidates = neigh.filter(n => !(prev && n.x === prev.x && n.y === prev.y));
@@ -417,33 +500,28 @@ if ((ttype === 'corridor' || ttype === 'deadend') && forwardOK) {
 
   // If tile is a deadend or room_deadend -> prefer deterministic exit
   if (ttype === 'deadend' || ttype === 'room_deadend') {
-    // analyze region fully to find the single exit if possible
     const info = analyzeRegion(gs, cx, cy, ROOM_FLOOD_RADIUS, true);
     if (info.exits === 1) {
-      // exitTiles are outside-region coords; pick candidate that matches an exit tile
       for (const c of candidates) {
         const key = `${c.x},${c.y}`;
         if (info.exitTiles.has(key)) {
-          // set a small commit to avoid flipping in the small room
           e.commitDir = directionFromTo(cx, cy, c.x, c.y) || e.dir || 'E';
           e.commitSteps = Math.max(e.commitSteps || 0, 3);
           return e.commitDir;
         }
       }
     }
-    // fallback: continue with normal selection if we couldn't find matching candidate
   }
 
-  // Now this is a decision point (junction or room_multi or otherwise)
+  // Decision point: apply behavior
   const b = e.behavior || {};
   const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12));
   const randOverrideProb = Math.min(0.35, 0.08 + curiosityBase * 0.45);
 
-  // small guaranteed exploratory override
+  // small guaranteed exploratory override (curiosity)
   if (Math.random() < randOverrideProb) {
     const r = candidates[(Math.random() * candidates.length) | 0];
     if (neigh.length >= 3) {
-      // commit length depends on tile type
       const commitByType = { corridor: 0, junction: 3, room_multi: 4, room_deadend: 3, room_enclosed: 3, deadend: 0 };
       e.commitDir = directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
       e.commitSteps = Math.max(e.commitSteps || 0, commitByType[ttype] || 3);
@@ -451,7 +529,8 @@ if ((ttype === 'corridor' || ttype === 'deadend') && forwardOK) {
     return directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
   }
 
-  // Score candidates using downhill (sense), trail (herding), straight bias, small jitter
+  // Score candidates using downhill (sense), trail (herding), straight bias, small jitter,
+  // and add per-enemy memory penalty + forward-unvisited bonus.
   const here = D?.[cy]?.[cx] ?? Infinity;
   const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
   const SENSE = (b.sense ?? 0.5);
@@ -468,7 +547,29 @@ if ((ttype === 'corridor' || ttype === 'deadend') && forwardOK) {
     const jitter = (Math.random() - 0.5) * 0.02;
     let straightBonus = 0;
     if (e.dir && directionFromTo(cx, cy, nx, ny) === e.dir) straightBonus = STRAIGHT_BONUS;
-    const score = SENSE * downhill + HERDING * trail + straightBonus + jitter;
+
+    // Per-enemy memory penalty for the immediate candidate tile
+    const immediateVisited = isVisitedByEnemy(e, nx, ny) ? 1 : 0;
+    const visitedPenalty = immediateVisited ? MEMORY_PENALTY : 0;
+
+    // Forward-unvisited count in candidate dir (scan up to VISION_TILES)
+    let forwardUnvisited = 0;
+    const candidateDir = directionFromTo(cx, cy, nx, ny);
+    let scanX = nx, scanY = ny;
+    for (let L = 0; L < VISION_TILES; L++) {
+      // if out-of-bounds or blocked from this scan cell in candidateDir, stop scanning further
+      if (!state.inBounds(scanX, scanY)) break;
+      if (!isVisitedByEnemy(e, scanX, scanY)) forwardUnvisited++;
+      const st = stepFrom(scanX, scanY, candidateDir);
+      if (!state.inBounds(st.nx, st.ny)) break;
+      if (!state.isOpen(gs, scanX, scanY, candidateDir)) break;
+      scanX = st.nx; scanY = st.ny;
+    }
+
+    const score = SENSE * downhill + HERDING * trail + straightBonus + jitter
+                - visitedPenalty
+                + (FORWARD_UNVISITED_BONUS * forwardUnvisited);
+
     info.push({ nx, ny, d, score });
   }
 
@@ -478,7 +579,6 @@ if ((ttype === 'corridor' || ttype === 'deadend') && forwardOK) {
     return directionFromTo(cx, cy, f.x, f.y) || e.dir || 'E';
   }
 
-  // temperature mapping: curiosity -> more uniform sampling
   const temperature = 0.35 + curiosityBase * 1.5;
   const chosen = softmaxSample(reachable, 'score', temperature);
 
@@ -539,6 +639,8 @@ export function advanceEnemyOneCell(gs, e) {
   if (!state.inBounds(nx, ny)) return;
   e.cx = nx; e.cy = ny; e.dir = dir;
   bumpSuccess(gs, e.cx, e.cy, 0.5);
+  // record visit for memory (so teleport-style moves also record)
+  recordVisitForEnemy(e, e.cx, e.cy);
   updateEnemyDistance(gs, e);
 }
 
@@ -570,6 +672,9 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
     e.prevCY = e.cy;
 
     e.cx = nx; e.cy = ny;
+
+    // record visit for per-enemy memory (bounded)
+    recordVisitForEnemy(e, e.cx, e.cy);
 
     if (typeof e.commitSteps === 'number' && e.commitSteps > 0) {
       e.commitSteps = Math.max(0, e.commitSteps - 1);
