@@ -172,6 +172,46 @@ function wireButtons() {
       }
     });
   }
+    // === Ability buttons ===
+  const gustBtn  = hud.gustBtn;
+  const roarBtn  = hud.roarBtn;
+  const stompBtn = hud.stompBtn;
+
+  if (gustBtn && roarBtn && stompBtn) {
+    // Click → set request flags; combat.js will consume + enforce cooldowns
+    gustBtn.addEventListener('click',  () => { state.GameState.reqWingGust = true; });
+    roarBtn.addEventListener('click',  () => { state.GameState.reqRoar     = true; });
+    stompBtn.addEventListener('click', () => { state.GameState.reqStomp    = true; });
+
+    // Cooldown text / disabled state updater
+    (async function abilityHudLoop() {
+      // lazy load once
+      const combat = await getCombat();
+      const label = (name, s) => (s > 0.05 ? `${name} (${s.toFixed(1)}s)` : name);
+
+      function tick() {
+        // If combat exported getCooldowns (we added it), read numbers
+        if (typeof combat.getCooldowns === 'function') {
+          const cds = combat.getCooldowns();
+          if (gustBtn) {
+            gustBtn.disabled   = cds.gust  > 0.05;
+            gustBtn.textContent = label('Wing Gust', cds.gust || 0);
+          }
+          if (roarBtn) {
+            roarBtn.disabled   = cds.roar  > 0.05;
+            roarBtn.textContent = label('Roar', cds.roar || 0);
+          }
+          if (stompBtn) {
+            stompBtn.disabled  = cds.stomp > 0.05;
+            stompBtn.textContent = label('Stomp', cds.stomp || 0);
+          }
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    })();
+  }
+
 }
 
 // ---------- Upgrades panel ----------
