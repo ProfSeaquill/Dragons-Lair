@@ -237,7 +237,10 @@ function makeEnemy(type, wave) {
   const hp   = Math.round(approachCap(hp0,  hp0  * CURVES.hpCapMult,  wave, CURVES.kHP));
   const spd  =           approachCap(spd0, spd0 * CURVES.spdCapMult, wave, CURVES.kSPD);
   const tDmg = Math.round(approachCap(dmg0, dmg0 * CURVES.dmgCapMult, wave, CURVES.kDMG));
-
+  
+const leaderTypes = new Set(['hero', 'kingsguard', 'boss']);
+  const trailStrength = leaderTypes.has(type) ? 2.5 : 0.5; // tune these
+  
   const base = {
     type,
     name: type,
@@ -253,6 +256,7 @@ function makeEnemy(type, wave) {
     lastHitAt: 0,
     showHpUntil: 0,
     behavior: BEHAVIOR[type] || { sense: 0.5, herding: 1.0, curiosity: 0.12 },
+    isLeader: leaderTypes.has(type),
     trailStrength,
   };
 
