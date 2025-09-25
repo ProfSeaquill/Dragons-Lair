@@ -4,9 +4,6 @@
 
 import * as state from './state.js';
 
-// debug helper: expose state in window for console inspection
-if (typeof window !== 'undefined') window.__STATE = state;
-
 /* =========================
  * Tunables (global to this module)
  * ========================= */
@@ -459,11 +456,21 @@ export function chooseNextDirectionToExit(gs, e) {
     prev = neigh.find(n => n.x === e.prevCX && n.y === e.prevCY) || null;
   }
 
-  // Corridor rule: exactly 2 neighbors and one is prev -> continue to the other
-  if (prev && neigh.length === 2) {
-    const other = neigh.find(n => !(n.x === prev.x && n.y === prev.y));
-    if (other) return directionFromTo(cx, cy, other.x, other.y) || e.dir || 'E';
+// Corridor rule: exactly 2 neighbors and one is prev -> continue to the other
+// BUT only auto-continue if doing so moves downhill in distToExit (i.e. closes on EXIT).
+if (prev && neigh.length === 2) {
+  const other = neigh.find(n => !(n.x === prev.x && n.y === prev.y));
+  if (other) {
+    const hereD = D?.[cy]?.[cx];
+    const otherD = D?.[other.y]?.[other.x];
+    // If other is strictly closer to EXIT than current, continue to it.
+    if (isFinite(hereD) && isFinite(otherD) && otherD < hereD) {
+      return directionFromTo(cx, cy, other.x, other.y) || e.dir || 'E';
+    }
+    // Otherwise DON'T auto-continue; fall through to decision logic so they can turn.
   }
+}
+
 
   // Forward check (one tile)
   let forwardOK = false;
