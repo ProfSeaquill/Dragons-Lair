@@ -8,6 +8,15 @@ let gustCooldown  = 0;
 let roarCooldown  = 0;
 let stompCooldown = 0;
 
+// expose cooldowns for UI
+export function getCooldowns() {
+  return {
+    gust:  Math.max(0, gustCooldown  || 0),
+    roar:  Math.max(0, roarCooldown  || 0),
+    stomp: Math.max(0, stompCooldown || 0),
+  };
+}
+
 // Quick helper: any tile adjacent to any dragon cell?
 function isAdjacentToDragon(gs, cx, cy) {
   if (!Number.isInteger(cx) || !Number.isInteger(cy)) return false;
