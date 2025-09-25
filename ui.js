@@ -21,11 +21,15 @@ const hud = {
   upgrades: $('upgrades'),
   preview:  $('preview'),
   timer: $('timer'),
+    gustBtn:  $('gustBtn'),
+  roarBtn:  $('roarBtn'),
+  stompBtn: $('stompBtn'),
+
   buildHelp: (function(){
     const n = document.querySelector('.gridHelp');
     if (n) {
       n.textContent =
-        'Build Mode: Click a TILE EDGE to add a wall (10 bones). Right-click an edge wall to remove (refund 5). Walls cannot fully block entry <-> exit.';
+        'Build Mode: Click a TILE EDGE to add a wall (1 bone). Right-click an edge wall to remove. Walls cannot fully block entry <-> exit.';
     }
     return n;
   })(),
