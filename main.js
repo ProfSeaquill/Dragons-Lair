@@ -20,6 +20,9 @@ import {
   step as combatStep,   // alias exported in combat.js; ok if unused
 } from './combat.js';
 
+// debug helper: expose state in window for console inspection
+if (typeof window !== 'undefined') window.__STATE = state;
+
 // Set up logical size
 const logicalW = state.GRID.cols * state.GRID.tile;
 const logicalH = state.GRID.rows * state.GRID.tile;
