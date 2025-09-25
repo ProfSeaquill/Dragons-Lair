@@ -378,6 +378,19 @@ export function update(gs = state.GameState, dt) {
   const enemies = gs.enemies || (gs.enemies = []);
   gs.effects = gs.effects || []; // bombs
 
+  // small global decay: each tick, fade the successTrail a tiny bit
+const T = gs.successTrail;
+if (T) {
+  const decayPerSec = 0.08; // tune: 0.08 per second
+  const decay = Math.max(0, 1 - decayPerSec * dt);
+  for (let y=0;y<T.length;y++){
+    for (let x=0;x<T[y].length;x++){
+      T[y][x] *= decay;
+      if (T[y][x] < 1e-3) T[y][x] = 0;
+    }
+  }
+}
+
   // 1) Spawning
   if (R.spawning && R.queue.length > 0) {
     R.spawnTimer -= dt;
@@ -569,6 +582,13 @@ function spawnOne(gs, type) {
   initializeSpawnPrevAndCommit(e);
 
   gs.enemies.push(e);
+  // seed an initial trail at the spawn tile so followers can latch on quickly
+if (typeof e.trailStrength === 'number') {
+  import('./pathing.js').then(m => m.bumpSuccess(gs, e.cx, e.cy, e.trailStrength)); // if top-level import isn't allowed here
+  // OR if pathing.bumpSuccess is already imported in this file:
+  // bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
+}
+
 }
 
 
