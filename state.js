@@ -55,6 +55,65 @@ const DRAGON_BASE = {
   burnDuration: 1,
   fireRate: 0.5, // shots/sec
 };
+// ===== Ability Upgrade Levels =====
+// (0 = base; you can unlock/level these however you like)
+export const Upgrades = {
+  claw:  0,
+  gust:  0,
+  roar:  0,
+  stomp: 0,
+};
+
+// --- tiny helpers for scaling
+function stepDownCooldown(base, min, level, every, factor) {
+  // every N levels, cooldown *= factor; clamp to min
+  const steps = Math.floor(level / every);
+  return Math.max(min, base * Math.pow(factor, steps));
+}
+function lin(base, perLvl, level) { return base + perLvl * level; }
+function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
+// ===== Ability Stat Getters (exported) =====
+export function getClawStats(gs) {
+  const lv = (gs.Upgrades?.claw | 0);
+  return {
+    dmg:         Math.round(lin(40, 8, lv)),             // big hit
+    cd:          stepDownCooldown(6.0, 2.5, lv, 3, 0.85), // every 3 lv -> -15%
+    radiusCells: 1,                                       // adjacents around dragon
+  };
+}
+
+export function getGustStats(gs) {
+  const lv = (gs.Upgrades?.gust | 0);
+  return {
+    pushTiles: Math.min(6, lin(2, 1, lv)),               // +1 tile per level up to 6
+    cd:        stepDownCooldown(14.0, 6.0, lv, 2, 0.85),
+  };
+}
+
+export function getRoarStats(gs) {
+  const lv = (gs.Upgrades?.roar | 0);
+  return {
+    stunSec:     lin(1.5, 0.25, lv),                     // longer stun per level
+    cd:          stepDownCooldown(40.0, 20.0, lv, 2, 0.85),
+    rangeTiles:  10,                                     // “long range”
+    // fear behavior buffs (no penalty increase over time—per your request)
+    senseMult:   1.4,
+    herdingMult: 1.5,
+    buffDur:     8.0,
+  };
+}
+
+export function getStompStats(gs) {
+  const lv = (gs.Upgrades?.stomp | 0);
+  return {
+    dmg:        Math.round(lin(6, 3, lv)),               // chip damage
+    slowMult:   clamp01(1.0 - (0.20 + 0.03 * lv)),       // base 20% slow +3%/lvl
+    slowSec:    4.0,
+    cd:         stepDownCooldown(18.0, 8.0, lv, 2, 0.85),
+    rangeTiles: 6,
+  };
+}
 
 // ===== Utility: Field allocation =====
 export function makeScalarField(w, h, fill = 0) {
@@ -89,6 +148,12 @@ export const GameState = {
   enemies: [],
   projectiles: [],
   effects: [],
+
+    // Ability upgrades + UI requests (set by HUD buttons)
+  Upgrades: { ...Upgrades },   // levels
+  reqWingGust: false,
+  reqRoar:     false,
+  reqStomp:    false,
 
   // Upgrades
   upgrades: {},
