@@ -648,7 +648,7 @@ export function advanceEnemyOneCell(gs, e) {
   const { nx, ny } = stepFrom(e.cx, e.cy, dir);
   if (!state.inBounds(nx, ny)) return;
   e.cx = nx; e.cy = ny; e.dir = dir;
-  bumpSuccess(gs, e.cx, e.cy, 0.5);
+  bumpSuccess(gs, e.cx, e.cy, (e.trailStrength ?? 0.5));
   // record visit for memory (so teleport-style moves also record)
   recordVisitForEnemy(e, e.cx, e.cy);
   updateEnemyDistance(gs, e);
@@ -697,7 +697,7 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
       e.dirLockT = Math.max(e.dirLockT || 0, 0.12);
     }
 
-    bumpSuccess(gs, e.cx, e.cy, 0.12);
+    bumpSuccess(gs, e.cx, e.cy, (e.trailStrength ?? 0.5) * 0.12);
     updateEnemyDistance(gs, e);
 
     const nxt = chooseNextTargetGreedy(gs, e);
