@@ -2,6 +2,115 @@
 import * as state from './state.js';
 import { updateEnemyDistance, raycastOpenCellsFromExit } from './pathing.js';
 
+// === Ability cooldown timers (module-local) ===
+let clawCooldown  = 0;
+let gustCooldown  = 0;
+let roarCooldown  = 0;
+let stompCooldown = 0;
+
+// Quick helper: any tile adjacent to any dragon cell?
+function isAdjacentToDragon(gs, cx, cy) {
+  if (!Number.isInteger(cx) || !Number.isInteger(cy)) return false;
+  // Manhattan distance 1 to any dragon cell
+  for (const c of state.dragonCells(gs)) {
+    if (Math.abs(c.x - cx) + Math.abs(c.y - cy) === 1) return true;
+  }
+  return false;
+}
+
+// Push one step along grid if the edge is open (no walls). Returns new (x,y).
+function stepIfOpen(gs, x, y, dir) {
+  const side = (dir === 'E') ? 'E' : (dir === 'W') ? 'W' : (dir === 'S') ? 'S' : 'N';
+  if (!state.isOpen(gs, x, y, side)) return { x, y }; // blocked by wall/out of bounds
+  switch (side) {
+    case 'E': return { x: x + 1, y };
+    case 'W': return { x: x - 1, y };
+    case 'S': return { x, y: y + 1 };
+    case 'N': return { x, y: y - 1 };
+  }
+  return { x, y };
+}
+
+// Wing Gust: push enemies and bombs away from EXIT by N tiles, respecting walls
+function wingGustPush(gs, tiles) {
+  const ex = state.EXIT.x, ey = state.EXIT.y;
+
+  // Enemies
+  for (const e of gs.enemies) {
+    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
+
+    // Choose axis away from EXIT (stronger axis first)
+    const dx = e.cx - ex, dy = e.cy - ey;
+    let dir;
+    if (Math.abs(dx) >= Math.abs(dy)) dir = (dx >= 0) ? 'E' : 'W';
+    else                              dir = (dy >= 0) ? 'S' : 'N';
+
+    let nx = e.cx, ny = e.cy;
+    for (let k = 0; k < tiles; k++) {
+      const step = stepIfOpen(gs, nx, ny, dir);
+      if (step.x === nx && step.y === ny) break; // blocked
+      nx = step.x; ny = step.y;
+    }
+    e.cx = nx; e.cy = ny;
+  }
+
+  // Bombs (effects.type === 'bomb'): approximate as tile-steps with wall checks
+  for (const fx of (gs.effects || [])) {
+    if (fx.type !== 'bomb') continue;
+    // convert to tile coords
+    let cx = Math.floor(fx.x / state.GRID.tile);
+    let cy = Math.floor(fx.y / state.GRID.tile);
+
+    const dx = cx - ex, dy = cy - ey;
+    let dir;
+    if (Math.abs(dx) >= Math.abs(dy)) dir = (dx >= 0) ? 'E' : 'W';
+    else                              dir = (dy >= 0) ? 'S' : 'N';
+
+    for (let k = 0; k < tiles; k++) {
+      const step = stepIfOpen(gs, cx, cy, dir);
+      if (step.x === cx && step.y === cy) break; // blocked
+      cx = step.x; cy = step.y;
+    }
+
+    // back to pixels (center of the tile)
+    fx.x = (cx + 0.5) * state.GRID.tile;
+    fx.y = (cy + 0.5) * state.GRID.tile;
+  }
+
+  // TODO (nice-to-have FX): add wind streak effect here
+}
+
+// Roar: stun + temporary behavior buff within range
+function roarAffect(gs, rs) {
+  for (const e of gs.enemies) {
+    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
+    const distMan = Math.abs(e.cx - state.EXIT.x) + Math.abs(e.cy - state.EXIT.y);
+    if (distMan <= rs.rangeTiles) {
+      e.stunLeft     = Math.max(e.stunLeft || 0, rs.stunSec);
+      e.roarBuffLeft = Math.max(e.roarBuffLeft || 0, rs.buffDur);
+      e.senseBuff    = rs.senseMult;
+      e.herdingBuff  = rs.herdingMult;
+      markHit(e, 0.0001);
+    }
+  }
+  // TODO (FX): roar shockwave ring / screen shake
+}
+
+// Stomp: low dmg + slow in a big radius
+function stompAffect(gs, ss) {
+  for (const e of gs.enemies) {
+    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
+    const distMan = Math.abs(e.cx - state.EXIT.x) + Math.abs(e.cy - state.EXIT.y);
+    if (distMan <= ss.rangeTiles) {
+      e.hp -= ss.dmg;
+      markHit(e, ss.dmg);
+      e.slowLeft = Math.max(e.slowLeft || 0, ss.slowSec);
+      e.slowMult = Math.min(e.slowMult || 1, ss.slowMult); // strongest slow wins
+    }
+  }
+  // TODO (FX): cracks/dust ring
+}
+
 // --- VISUAL: spawn a one-shot mouth fire effect
 function spawnMouthFire(gs, dur = 0.6) {
   gs.effects = gs.effects || [];
@@ -317,6 +426,12 @@ gs.effects.push({
       }
     }
 
+    // Ability cooldowns tick
+clawCooldown  = Math.max(0, clawCooldown  - dt);
+gustCooldown  = Math.max(0, gustCooldown  - dt);
+roarCooldown  = Math.max(0, roarCooldown  - dt);
+stompCooldown = Math.max(0, stompCooldown - dt);
+
     // Burn DoT (burn always ticks; shield only blocks direct fire)
     if (e.burnLeft > 0 && e.burnDps > 0) {
       const tick = Math.min(dt, e.burnLeft);
@@ -324,6 +439,14 @@ gs.effects.push({
       e.hp -= e.burnDps * tick;
       markHit(e, e.burnDps * tick);
     }
+
+    // Stun/slow/roar-buff timers
+if (e.stunLeft > 0) e.stunLeft -= dt;
+if (e.slowLeft > 0) e.slowLeft -= dt;
+if (e.roarBuffLeft > 0) e.roarBuffLeft -= dt;
+
+// NOTE: Movement speed application (slow) and junction “sense/herding” usage
+// should happen where you actually move/decide paths. Here we only manage timers.
 
     // Contact with dragon (supports multi-tile hitbox)
 if (
@@ -355,6 +478,55 @@ if (
     }
   }
 
+  // --- Claw: high dmg melee, auto when any adjacent enemy exists (gated by CD)
+{
+  const cs = state.getClawStats(gs);
+  if (clawCooldown <= 0) {
+    let hitAny = false;
+    // strike any enemy in a tile adjacent to the dragon footprint
+    for (let i = gs.enemies.length - 1; i >= 0; i--) {
+      const e = gs.enemies[i];
+      if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
+      if (isAdjacentToDragon(gs, e.cx, e.cy)) {
+        e.hp -= cs.dmg;
+        markHit(e, cs.dmg);
+        hitAny = true;
+        // optional: add a slash FX in render using gs.effects
+        if (e.hp <= 0) {
+          gs.gold  = (gs.gold  | 0) + 5;
+          gs.bones = (gs.bones | 0) + 1;
+          gs.enemies.splice(i, 1);
+        }
+      }
+    }
+    if (hitAny) clawCooldown = cs.cd;
+  }
+}
+
+  // --- Wing Gust (button request → push away, respect walls)
+if (gs.reqWingGust && gustCooldown <= 0) {
+  gs.reqWingGust = false;
+  const ps = state.getGustStats(gs);
+  wingGustPush(gs, ps.pushTiles);
+  gustCooldown = ps.cd;
+}
+
+// --- Roar (button request → stun + fear buffs)
+if (gs.reqRoar && roarCooldown <= 0) {
+  gs.reqRoar = false;
+  const rs = state.getRoarStats(gs);
+  roarAffect(gs, rs);
+  roarCooldown = rs.cd;
+}
+
+// --- Stomp (button request → AoE slow + chip dmg)
+if (gs.reqStomp && stompCooldown <= 0) {
+  gs.reqStomp = false;
+  const ss = state.getStompStats(gs);
+  stompAffect(gs, ss);
+  stompCooldown = ss.cd;
+}
+
   // 4) Dragon breath (with shield rule)
   if (enemies.length > 0) {
     dragonBreathTick(gs, dt, state.getDragonStats(gs));
@@ -367,6 +539,7 @@ if (
     gs.wave = (gs.wave | 0) + 1;
   }
 }
+
 
 /* =========================
  * Spawning
