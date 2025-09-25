@@ -4,6 +4,9 @@
 
 import * as state from './state.js';
 
+// debug helper: expose state in window for console inspection
+if (typeof window !== 'undefined') window.__STATE = state;
+
 /* =========================
  * Tunables (global to this module)
  * ========================= */
