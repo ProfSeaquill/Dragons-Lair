@@ -243,7 +243,8 @@ function makeEnemy(type, wave) {
     updateByCombat: false,
     lastHitAt: 0,
     showHpUntil: 0,
-    behavior: BEHAVIOR[type] || { sense: 0.5, herding: 1.0, curiosity: 0.12 }, // <- add this
+    behavior: BEHAVIOR[type] || { sense: 0.5, herding: 1.0, curiosity: 0.12 },
+    trailStrength,
   };
 
   // (keep your existing switch with names/flags)
