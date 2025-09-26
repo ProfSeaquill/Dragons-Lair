@@ -353,6 +353,15 @@ export function debugEnemy(e) {
   };
 }
 
+// Module runtime state for the spawner / wave system
+// (keeps spawn queue/timer and whether a wave is active)
+const R = {
+  spawning: false,
+  queue: [],
+  spawnTimer: 0,
+  waveActive: false,
+};
+
 /* =========================
  * Update loop
  * ========================= */
