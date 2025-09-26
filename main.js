@@ -10,14 +10,23 @@ import {
 } from './pathing.js';
 import { initLighting } from './lighting-webgl.js';
 
-// ----- Combat (named imports; avoids "import * as ..." form) -----
-import {
-  startWave as combatStartWave,
-  spawnNextWave as combatSpawnNextWave,
-  spawnWave as combatSpawnWave,
-  update as combatUpdate,
-  tick as combatTick,   // alias exported in combat.js; ok if unused
-} from './combat.js';
+// ----- Combat (robust namespace import; tolerant of export name variants) -----
+import * as combat from './combat.js';
+
+// pick the per-frame update function (support update | tick | step)
+const combatUpdate = (typeof combat.update === 'function')
+  ? combat.update
+  : (typeof combat.tick === 'function')
+    ? combat.tick
+    : (typeof combat.step === 'function')
+      ? combat.step
+      : null;
+
+// pick start/spawn helpers (support multiple historical names)
+const combatStartWave = combat.startWave ?? combat.spawnNextWave ?? combat.spawnWave ?? null;
+const combatSpawnNextWave = combat.spawnNextWave ?? combat.spawnWave ?? combat.startWave ?? null;
+const combatSpawnWave = combat.spawnWave ?? combat.spawnNextWave ?? combat.startWave ?? null;
+
 
 // debug helper: expose state in window for console inspection
 if (typeof window !== 'undefined') window.__STATE = state;
