@@ -17,7 +17,6 @@ import {
   spawnWave as combatSpawnWave,
   update as combatUpdate,
   tick as combatTick,   // alias exported in combat.js; ok if unused
-  step as combatStep,   // alias exported in combat.js; ok if unused
 } from './combat.js';
 
 // debug helper: expose state in window for console inspection
@@ -265,8 +264,6 @@ function update(dt) {
     combatUpdate(gs, dt);
   } else if (typeof combatTick === 'function') {
     combatTick(gs, dt);
-  } else if (typeof combatStep === 'function') {
-    combatStep(gs, dt);
   }
 
   // 2) Fallback enemy movement using interpolated center-to-center steps
