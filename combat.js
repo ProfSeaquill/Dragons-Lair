@@ -374,10 +374,6 @@ export { update as tick, update as step };
  * Update loop
  * ========================= */
 
-export function update(gs = state.GameState, dt) {
-  const enemies = gs.enemies || (gs.enemies = []);
-  gs.effects = gs.effects || []; // bombs
-
  export function update(gs = state.GameState, dt) {
   const enemies = gs.enemies || (gs.enemies = []);
   gs.effects = gs.effects || []; // bombs
