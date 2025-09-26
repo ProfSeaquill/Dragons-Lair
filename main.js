@@ -272,18 +272,17 @@ function update(dt) {
   }
 
   // 2) Fallback enemy movement using interpolated center-to-center steps
-  //    (Skip enemies explicitly owned by combat)
   for (const enemy of gs.enemies) {
-    if (enemy.updateByCombat) continue;
+    // skip entities that want to be driven by other systems or are paused to attack
+    if (enemy.updateByCombat || enemy.pausedForAttack) continue;
 
     if (Number.isInteger(enemy.cx) && Number.isInteger(enemy.cy)) {
-      if (typeof enemy.pxPerSec !== 'number' && typeof enemy.speed !== 'number') {
-        enemy.speed = enemy.speed || 2.5; // sane default tiles/sec
-      }
+      ...
       stepEnemyInterpolated(gs, enemy, dt);
-      updateEnemyDistance(gs, enemy);
+      ...
     }
   }
+
 
   // 2b) Dragon fire animation FX timer (visual only; optional)
   const dfx = gs.dragonFX;
