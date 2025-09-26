@@ -456,21 +456,20 @@ export function chooseNextDirectionToExit(gs, e) {
     prev = neigh.find(n => n.x === e.prevCX && n.y === e.prevCY) || null;
   }
 
-// Corridor rule: exactly 2 neighbors and one is prev -> continue to the other
-// BUT only auto-continue if doing so moves downhill in distToExit (i.e. closes on EXIT).
-if (prev && neigh.length === 2) {
-  const other = neigh.find(n => !(n.x === prev.x && n.y === prev.y));
-  if (other) {
-    const hereD = D?.[cy]?.[cx];
-    const otherD = D?.[other.y]?.[other.x];
-    // If other is strictly closer to EXIT than current, continue to it.
-    if (isFinite(hereD) && isFinite(otherD) && otherD < hereD) {
-      return directionFromTo(cx, cy, other.x, other.y) || e.dir || 'E';
+  // Corridor rule: exactly 2 neighbors and one is prev -> continue to the other
+  // BUT only auto-continue if doing so moves downhill in distToExit (i.e. closes on EXIT).
+  if (prev && neigh.length === 2) {
+    const other = neigh.find(n => !(n.x === prev.x && n.y === prev.y));
+    if (other) {
+      const hereD = D?.[cy]?.[cx];
+      const otherD = D?.[other.y]?.[other.x];
+      // If other is strictly closer to EXIT than current, continue to it.
+      if (isFinite(hereD) && isFinite(otherD) && otherD < hereD) {
+        return directionFromTo(cx, cy, other.x, other.y) || e.dir || 'E';
+      }
+      // Otherwise DON'T auto-continue; fall through to decision logic so they can turn.
     }
-    // Otherwise DON'T auto-continue; fall through to decision logic so they can turn.
   }
-}
-
 
   // Forward check (one tile)
   let forwardOK = false;
@@ -501,8 +500,15 @@ if (prev && neigh.length === 2) {
     return e.dir;
   }
 
-  // Build candidates excluding prev (avoid immediate backtrack at junctions)
-  let candidates = neigh.filter(n => !(prev && n.x === prev.x && n.y === prev.y));
+  // Build candidates excluding prev (avoid immediate backtrack at junctions) and also
+  // avoid stepping *into* dragon hitbox tiles (we want enemies to stop adjacent instead).
+  let candidates = neigh.filter(n => !(prev && n.x === prev.x && n.y === prev.y)
+                                      && !state.isDragonCell(n.x, n.y, gs));
+  // If removing dragon tiles left us with nothing, allow them back as a last resort.
+  if (candidates.length === 0) {
+    candidates = neigh.filter(n => !(prev && n.x === prev.x && n.y === prev.y));
+  }
+
   if (candidates.length === 0) {
     if (prev) return directionFromTo(cx, cy, prev.x, prev.y) || e.dir || 'E';
     return directionFromTo(cx, cy, neigh[0].x, neigh[0].y) || e.dir || 'E';
@@ -601,6 +607,7 @@ if (prev && neigh.length === 2) {
 
   return directionFromTo(cx, cy, chosen.nx, chosen.ny) || e.dir || 'E';
 }
+
 
 /* =========================
  * Fallback heuristics & small utilities
