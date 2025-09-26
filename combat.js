@@ -394,12 +394,30 @@ function dragonBreathTick(gs, dt, ds) {
   // 2) Find the NEAREST *reachable* enemy on that path (ignore tunneling)
   let nearestIdx = Infinity;
   for (const e of gs.enemies) {
-    if (!e || (e.type === 'engineer' && e.tunneling)) continue;
-    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    const idx = indexByKey.get(key(e.cx, e.cy));
-    if (idx !== undefined && idx < nearestIdx) nearestIdx = idx;
+  if (e.type === 'engineer' && e.tunneling) continue; // ignore underground
+  if (!hit.has(state.tileKey(e.cx, e.cy))) continue;  // not in corridor this tick
+
+  const isHero = (e.type === 'hero');
+  const shielded = shieldedByHero(e);
+
+  // Decide what kinds of fire affect this unit
+  const canTakeDirect = !isHero && !shielded;   // hero never takes direct; shielded never take direct
+  const canTakeBurn   =  isHero || !shielded;   // hero always burns; followers burn only if not shielded
+
+  // Direct hit
+  if (canTakeDirect) {
+    e.hp -= ds.breathPower;
+    markHit(e, ds.breathPower);
   }
 
+  // Burn DoT
+  if (canTakeBurn && ds.burnDPS > 0 && ds.burnDuration > 0) {
+    e.burnDps = ds.burnDPS;
+    e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
+    // ensure HP bar shows even if this tick was burn-only
+    if (!canTakeDirect) markHit(e, 0.0001);
+  }
+}
   // No reachable enemy -> stop anim, no damage.
   if (!isFinite(nearestIdx)) {
     gs.dragonFX = gs.dragonFX || { attacking: false, t: 0, dur: 0.25 };
