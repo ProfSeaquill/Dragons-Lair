@@ -378,18 +378,29 @@ export function update(gs = state.GameState, dt) {
   const enemies = gs.enemies || (gs.enemies = []);
   gs.effects = gs.effects || []; // bombs
 
-  // small global decay: each tick, fade the successTrail a tiny bit
-const T = gs.successTrail;
-if (T) {
-  const decayPerSec = 0.08; // tune: 0.08 per second
-  const decay = Math.max(0, 1 - decayPerSec * dt);
-  for (let y=0;y<T.length;y++){
-    for (let x=0;x<T[y].length;x++){
-      T[y][x] *= decay;
-      if (T[y][x] < 1e-3) T[y][x] = 0;
+ export function update(gs = state.GameState, dt) {
+  const enemies = gs.enemies || (gs.enemies = []);
+  gs.effects = gs.effects || []; // bombs
+
+  // ---- Success-trail global decay (fade the herd trail each frame) ----
+  // Place this here so all per-frame maintenance happens in one place.
+  // Tuning: decayPerSec is the *fraction* of the trail removed per second.
+  //   e.g. 0.6 removes ~60% of a value per second (fast fade),
+  //   0.08 removes 8% per second (slow fade).
+  const T = gs.successTrail;
+  if (T) {
+    const decayPerSec = 0.6;    // <--- tweak this number to taste
+    const mul = Math.max(0, 1 - decayPerSec * dt);
+    for (let y = 0; y < T.length; y++) {
+      const row = T[y];
+      for (let x = 0; x < row.length; x++) {
+        // multiplicative fade keeps relative differences between tiles
+        row[x] = row[x] * mul;
+        // clean up tiny residuals to keep the values sparse
+        if (row[x] < 1e-4) row[x] = 0;
+      }
     }
   }
-}
 
   // 1) Spawning
   if (R.spawning && R.queue.length > 0) {
