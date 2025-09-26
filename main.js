@@ -23,9 +23,8 @@ const combatUpdate = (typeof combat.update === 'function')
       : null;
 
 // pick start/spawn helpers (support multiple historical names)
-const combatStartWave = combat.startWave ?? combat.spawnNextWave ?? combat.spawnWave ?? null;
-const combatSpawnNextWave = combat.spawnNextWave ?? combat.spawnWave ?? combat.startWave ?? null;
-const combatSpawnWave = combat.spawnWave ?? combat.spawnNextWave ?? combat.startWave ?? null;
+const combatStartWave = combat.startWave ?? combat.spawnWave ?? null;
+const combatSpawnWave = combat.spawnWave ?? combat.startWave ?? null;
 
 
 // debug helper: expose state in window for console inspection
@@ -228,8 +227,6 @@ function startWave() {
   gs.__firstTorchGiven = false;
   if (typeof combatStartWave === 'function') {
     combatStartWave(state.GameState);
-  } else if (typeof combatSpawnNextWave === 'function') {
-    combatSpawnNextWave(state.GameState);
   } else if (typeof combatSpawnWave === 'function') {
     combatSpawnWave(state.GameState);
   }
