@@ -361,6 +361,127 @@ const R = {
   spawnTimer: 0,
   waveActive: false,
 };
+// module-scope breath cooldown (must be top-level)
+let fireCooldown = 0;
+
+/**
+ * Dragon breath tick:
+ * - builds a reachable path of tiles from the EXIT (via raycastOpenCellsFromExit)
+ * - finds the nearest reachable enemy on that path
+ * - spawns a flameWave effect for visuals
+ * - applies damage on a cadence (fireCooldown)
+ *
+ * ds should be getDragonStats(gs) (precomputed caller-side is fine).
+ */
+function dragonBreathTick(gs, dt, ds) {
+  // manage the visual/attack cadence
+  fireCooldown = Math.max(0, fireCooldown - dt);
+  const firePeriod = 1 / Math.max(0.0001, ds.fireRate);
+
+  // 1) Build path out to breath range, along open cells from EXIT (no walls).
+  const maxTiles = Math.max(1, Math.round(ds.breathRange / state.GRID.tile));
+  const path = raycastOpenCellsFromExit(gs, maxTiles);
+  if (!path || path.length === 0) {
+    if (gs.dragonFX) { gs.dragonFX.attacking = false; gs.dragonFX.t = 0; }
+    return;
+  }
+
+  // fast key helper & index
+  const key = (x, y) => state.tileKey(x, y);
+  const indexByKey = new Map();
+  for (let i = 0; i < path.length; i++) indexByKey.set(key(path[i].x, path[i].y), i);
+
+  // 2) Find the NEAREST *reachable* enemy on that path (ignore tunneling)
+  let nearestIdx = Infinity;
+  for (const e of gs.enemies) {
+    if (!e || (e.type === 'engineer' && e.tunneling)) continue;
+    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
+    const idx = indexByKey.get(key(e.cx, e.cy));
+    if (idx !== undefined && idx < nearestIdx) nearestIdx = idx;
+  }
+
+  // No reachable enemy -> stop anim, no damage.
+  if (!isFinite(nearestIdx)) {
+    gs.dragonFX = gs.dragonFX || { attacking: false, t: 0, dur: 0.25 };
+    gs.dragonFX.attacking = false;
+    gs.dragonFX.t = 0;
+    return;
+  }
+
+  // 3) Sustain mouth animation while someone reachable is in range
+  gs.dragonFX = gs.dragonFX || { attacking: false, t: 0, dur: 0.25 };
+  if (!gs.dragonFX.attacking) {
+    gs.dragonFX.attacking = true;
+    gs.dragonFX.t = 0;
+    gs.dragonFX.dur = 0.25;
+  }
+
+  // 4) Visual: spawn a traveling flame wave limited to the nearest enemy
+  const truncatedPath = path.slice(0, Math.min(path.length, nearestIdx + 1));
+  (gs.effects || (gs.effects = [])).push({
+    type: 'flameWave',
+    path: truncatedPath,
+    headIdx: 0,
+    t: 0,
+    dur: 0.7,
+    tilesPerSec: 16,
+    widthPx: state.GRID.tile * 0.85,
+  });
+
+  // 5) Only DEAL DAMAGE on fire-rate ticks; still target only tiles up to nearest enemy
+  if (fireCooldown > 0) return;
+
+  // Shield line: heroes closer to ENTRY than other enemies shield them (existing logic)
+  let maxHeroDist = -1;
+  for (const h of gs.enemies) {
+    if (h.type === 'hero' && isFinite(h.distFromEntry))
+      if (h.distFromEntry > maxHeroDist) maxHeroDist = h.distFromEntry;
+  }
+  const shieldedByHero = (e) =>
+    (maxHeroDist >= 0) &&
+    isFinite(e.distFromEntry) &&
+    (e.distFromEntry < maxHeroDist);
+
+  // Apply damage to enemies on truncated path (reachable up to nearest)
+  const hitUpToNearest = new Set(truncatedPath.map(s => key(s.x, s.y)));
+  for (const e of gs.enemies) {
+    if (!e || (e.type === 'engineer' && e.tunneling)) continue;
+    if (!hitUpToNearest.has(key(e.cx, e.cy))) continue;
+
+    const shielded = shieldedByHero(e);
+
+    if (!shielded) {
+      e.hp -= ds.breathPower;
+      markHit(e, ds.breathPower);
+    }
+    if (ds.burnDPS > 0 && ds.burnDuration > 0) {
+      e.burnDps = ds.burnDPS;
+      e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
+      markHit(e, 0.0001);
+    }
+  }
+
+  // Reset fire cooldown to cadence
+  fireCooldown = firePeriod;
+}
+
+/* small helpers used elsewhere in this module */
+
+// simple in-place Fisher–Yates shuffle (used by engineer spawn spots)
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// mark an enemy as recently hit (controls HP bar visibility + timestamp)
+function markHit(e, amount = 0) {
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  e.lastHitAt = now;
+  e.showHpUntil = now + 1000; // visible for 1s since last damage tick
+}
 
 /* =========================
  * Update loop
