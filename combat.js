@@ -207,15 +207,15 @@ const BEHAVIOR = {
 const FLAGS = {
   kingsguardEvery: 5,        // miniboss cadence
   bossEvery: 10,             // Knight of the Round Table cadence
-  engineerBombTimer: 10,     // seconds until detonation
-  engineerTravelTime: 2.0,   // seconds "digging" underground before popping up
+  engineerBombTimer: 5,     // seconds until detonation
+  engineerTravelTime: 4.0,   // seconds "digging" underground before popping up
   engineerBombDmg: 35,       // damage to the dragon on bomb detonation
-  spawnGap: 0.55,            // seconds between spawns
+  spawnGap: 0.45,            // seconds between spawns
 };
 
 function waveCountFor(wave) {
   const base = 7;          // wave 1 size
-  const cap  = 50;         // hard-ish ceiling you wanted (~50)
+  const cap  = 70;         // hard-ish ceiling you wanted (~50)
   const k    = 0.07;       // growth tempo
   return Math.max(1, Math.round(approachCap(base, cap, wave, k)));
 }
@@ -243,13 +243,13 @@ function makeEnemy(type, wave) {
   
   // --- per-type attack tuning (range in tiles, attacks/sec, damage per hit)
   const ATTACK_PROFILE = {
-    villager:   { range: 1, rate: 0.45, dmg: Math.max(1, Math.round(tDmg * 0.8)) },
-    squire:     { range: 1, rate: 0.65, dmg: Math.round(tDmg * 0.95) },
-    knight:     { range: 1, rate: 0.9,  dmg: Math.round(tDmg * 1.0) },
-    hero:       { range: 1, rate: 0.8,  dmg: Math.round(tDmg * 1.2) },
-    engineer:   { range: 1, rate: 0.5,  dmg: Math.round(tDmg * 0.9) }, // engineers still plant bombs
-    kingsguard: { range: 1, rate: 1.0,  dmg: Math.round(tDmg * 1.25) },
-    boss:       { range: 1, rate: 0.7,  dmg: Math.round(tDmg * 1.6)  },
+    villager:   { range: 1, rate: 0.45, dmg: Math.max(1, Math.round(tDmg * 0.4)) },
+    squire:     { range: 1, rate: 0.5, dmg: Math.round(tDmg * 0.5) },
+    knight:     { range: 1, rate: 0.7,  dmg: Math.round(tDmg * 0.7) },
+    hero:       { range: 1, rate: 1.0,  dmg: Math.round(tDmg * 1.0) },
+    engineer:   { range: 1, rate: 0.01,  dmg: Math.round(tDmg * 0.1) }, // engineers still plant bombs
+    kingsguard: { range: 1, rate: 0.5,  dmg: Math.round(tDmg * 1.2) },
+    boss:       { range: 1, rate: 0.3,  dmg: Math.round(tDmg * 1.7)  },
   };
   const prof = ATTACK_PROFILE[type] || { range: 1, rate: 0.8, dmg: tDmg };
 
