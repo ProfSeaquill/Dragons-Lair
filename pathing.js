@@ -443,6 +443,25 @@ function blockedWithinVision(gs, cx, cy, dir, vision) {
   return false;
 }
 
+// NEW: treat any change in the number of open sides (degree) within vision as an "intersection"
+function degreeChangeWithinVision(gs, cx, cy, dir, vision) {
+  if (!dir) return false;
+  const baseDeg = degreeAt(gs, cx, cy);
+
+  let tx = cx, ty = cy;
+  for (let i = 0; i < vision; i++) {
+    const s = stepFrom(tx, ty, dir);
+    // If we're going to hit OOB or a wall, that's also a "change" (forces a decision)
+    if (!state.inBounds(s.nx, s.ny)) return true;
+    if (!state.isOpen(gs, tx, ty, dir)) return true;
+
+    tx = s.nx; ty = s.ny;
+    const deg = degreeAt(gs, tx, ty);
+    if (deg !== baseDeg) return true; // wall-count changed ahead → intersection
+  }
+  return false; // same wall-count all the way → keep going straight
+}
+
 function softmaxSample(items, scoreKey, temperature = 1) {
   const eps = 1e-9;
   const exps = items.map(it => Math.exp((it[scoreKey] || 0) / Math.max(eps, temperature)));
@@ -509,11 +528,21 @@ if (Number.isInteger(e.planTurnAtX) && Number.isInteger(e.planTurnAtY)
   }
 
   // Forward check (one tile)
-  let forwardOK = false;
-  if (e.dir) {
-    const f = stepFrom(cx, cy, e.dir);
-    forwardOK = state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.dir);
-  }
+let forwardOK = false;
+if (e.dir) {
+  const f = stepFrom(cx, cy, e.dir);
+  forwardOK = state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.dir);
+}
+
+// Decide only when (a) a wall blocks ahead within vision, or (b) the wall count will change
+const changeSoon  = degreeChangeWithinVision(gs, cx, cy, e.dir, VISION_TILES);
+const blockedSoon = !forwardOK || blockedWithinVision(gs, cx, cy, e.dir, VISION_TILES);
+
+// If nothing forces a decision, keep going straight (even in rooms)
+if (!blockedSoon && !changeSoon) {
+  return e.dir || 'E';
+}
+
 
   const ttype = gs.cellType?.[cy]?.[cx] || 'corridor';
 
@@ -537,12 +566,13 @@ if (!blockedSoon && forwardOK && prev && !atNode && neigh.length === 2 && ttype 
 }
 
   // NEW: pre-node planning — if a node is visible ahead while in a corridor,
-// decide the turn AT the node now, then step into the node (keep e.dir today).
-if (!atNode && forwardOK && topoSoon && neigh.length === 2 && e.dir) {
-  const f = stepFrom(cx, cy, e.dir);  // the node tile we will enter next
+// If a degree change is visible ahead while still in a corridor, decide the node turn now.
+if (forwardOK && changeSoon && neigh.length === 2 && e.dir) {
+  const f = stepFrom(cx, cy, e.dir);  // node tile we'll step into
   if (state.inBounds(f.nx, f.ny)) {
     let fNeigh = state.neighborsByEdges(gs, f.nx, f.ny)
       .filter(n => !(n.x === cx && n.y === cy) && !state.isDragonCell(n.x, n.y, gs));
+
     if (fNeigh.length >= 2) {
       const D = gs.distToExit;
       const hereNext = D?.[f.ny]?.[f.nx] ?? Infinity;
@@ -550,22 +580,22 @@ if (!atNode && forwardOK && topoSoon && neigh.length === 2 && e.dir) {
       const b = e.behavior || {};
       const touched = !!e.hasTouchedDragon;
 
-      // Softer weights at nodes so side branches compete
-      const nodeSenseScale = 0.35;
-      const nodeHerdScale  = 0.60;
-      const SENSE_NODE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1) * nodeSenseScale;
-      const HERDING_NODE = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1) * nodeHerdScale;
+      // Node weights (keep modest; we only reach here when an actual change is coming)
+      const SENSE_NODE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1) * 0.35;
+      const HERDING_NODE = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1) * 0.60;
+
+      const STRAIGHT_BONUS = 0.40; // always available; gate prevents abuse in rooms
 
       const infoNext = [];
       for (const n of fNeigh) {
         const d = D?.[n.y]?.[n.x];
         if (!isFinite(d)) { infoNext.push({ n, score: -Infinity }); continue; }
         const downhill = (isFinite(hereNext) && isFinite(d)) ? (hereNext - d) : 0;
-        const trail    = T?.[n.y]?.[n.x] || 0;
+        const trail = T?.[n.y]?.[n.x] || 0;
 
         const visitedPenalty = isVisitedByEnemy(e, n.x, n.y) ? MEMORY_PENALTY : 0;
 
-        // Forward-unvisited bonus from the node toward that neighbor
+        // Forward-unvisited from the node toward that neighbor
         const dir2 = directionFromTo(f.nx, f.ny, n.x, n.y);
         let forwardUnvisited = 0, sx = n.x, sy = n.y;
         for (let L = 0; L < VISION_TILES; L++) {
@@ -577,16 +607,15 @@ if (!atNode && forwardOK && topoSoon && neigh.length === 2 && e.dir) {
           sx = st.nx; sy = st.ny;
         }
 
-        // Room-edge bias unchanged
+        // Room-edge bias
         const cType = gs.cellType?.[n.y]?.[n.x];
         let edgeBias = 0;
-        if (isRoomType(cType)) {
+        if (cType === 'room_multi' || cType === 'room_deadend' || cType === 'room_enclosed') {
           const degAtCand = state.neighborsByEdges(gs, n.x, n.y).length;
-          const wallCount = 4 - degAtCand;
-          edgeBias = ROOM_EDGE_BIAS * wallCount;
+          edgeBias = ROOM_EDGE_BIAS * (4 - degAtCand);
         }
 
-        // No straight bonus at nodes
+        // No straight bonus inside node planning
         const score = SENSE_NODE * downhill + HERDING_NODE * trail
                     - visitedPenalty + (FORWARD_UNVISITED_BONUS * forwardUnvisited)
                     + edgeBias;
@@ -601,7 +630,7 @@ if (!atNode && forwardOK && topoSoon && neigh.length === 2 && e.dir) {
         e.planTurnAtX = f.nx;
         e.planTurnAtY = f.ny;
         e.plannedTurnDir = directionFromTo(f.nx, f.ny, chosenNext.n.x, chosenNext.n.y);
-        // Execute: step into the node this tick, turn next tick.
+        // Step into the node now; the turn executes next tick
         return e.dir;
       }
     }
@@ -641,25 +670,21 @@ if (!atNode && forwardOK && topoSoon && neigh.length === 2 && e.dir) {
   // Decision point: apply behavior (node-aware weights)
 const b = e.behavior || {};
 const touched = !!e.hasTouchedDragon;
-
-const nodeSenseScale = atNode ? 0.35 : 1.0;
-const nodeHerdScale  = atNode ? 0.60 : 1.0;
-
-const SENSE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1) * nodeSenseScale;
-const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1) * nodeHerdScale;
-
-const STRAIGHT_BONUS = atNode ? 0.0 : 0.40;
-
 const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12)) * (touched ? 0.1 : 1);
 const randOverrideProb = Math.min(0.35, 0.08 + curiosityBase * 0.45);
 
-// small exploratory override
-if (Math.random() < randOverrideProb) {
+// Only allow randomness when an actual decision is warranted:
+//   - we *see* a degree change coming (changeSoon), or
+//   - we just *hit* a degree change (current degree differs from prev tile)
+const prevDeg = (prev ? degreeAt(gs, prev.x, prev.y) : degreeAt(gs, cx, cy));
+const degreeChangedNow = !!prev && degreeAt(gs, cx, cy) !== prevDeg;
+
+if ((changeSoon || degreeChangedNow) && Math.random() < randOverrideProb) {
   const r = candidates[(Math.random() * candidates.length) | 0];
   if (neigh.length >= 3) {
     const commitByType = { corridor: 0, junction: 3, room_multi: 4, room_deadend: 3, room_enclosed: 3, deadend: 0 };
     e.commitDir = directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
-    e.commitSteps = Math.max(e.commitSteps || 0, commitByType[ttype] || 3);
+    e.commitSteps = Math.max(e.commitSteps || 0, commitByType[gs.cellType?.[cy]?.[cx] || 'corridor'] || 3);
   }
   return directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
 }
@@ -680,7 +705,7 @@ if (Math.random() < randOverrideProb) {
     const jitter = (Math.random() - 0.5) * 0.02;
 
     let straightBonus = 0;
-    if (!atNode && e.dir && directionFromTo(cx, cy, nx, ny) === e.dir) {
+if (e.dir && directionFromTo(cx, cy, nx, ny) === e.dir) {
   straightBonus = STRAIGHT_BONUS;
 }
 
@@ -725,7 +750,7 @@ if (Math.random() < randOverrideProb) {
     return directionFromTo(cx, cy, f.x, f.y) || e.dir || 'E';
   }
 
-  const temperature = (atNode ? 0.7 : 0.35) + curiosityBase * (atNode ? 2.0 : 1.5);
+  const temperature = 0.35 + curiosityBase * 1.5;
   const chosen = softmaxSample(reachable, 'score', temperature);
 
   // Commit length mapping by tile type at real junctions/rooms
