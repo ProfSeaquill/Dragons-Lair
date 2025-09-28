@@ -518,7 +518,7 @@ export function chooseNextDirectionToExit(gs, e) {
     blockedWithinVision(gs, cx, cy, e.dir, VISION_TILES) ||
     topoSoon; // topology triggers a re-eval
 
-  if (!blockedSoon && forwardOK && prev) {
+  if (!blockedSoon && forwardOK && prev && neigh.length === 2 && ttype === 'corridor') {
     return e.dir;
   }
 
@@ -633,16 +633,6 @@ export function chooseNextDirectionToExit(gs, e) {
 
   const temperature = 0.35 + curiosityBase * 1.5;
   const chosen = softmaxSample(reachable, 'score', temperature);
-
-  // Hysteresis on approach: if we saw a topology change ahead,
-  // pre-commit a couple of grid steps even in corridors.
-  if (topoSoon) {
-    e.commitDir = directionFromTo(cx, cy, chosen.nx, chosen.ny) || e.dir || 'E';
-    e.commitSteps = Math.max(
-      e.commitSteps || 0,
-      Math.min(VISION_TILES, PRECOMMIT_STEPS_ON_TOPO)
-    );
-  }
 
   // Commit length mapping by tile type at real junctions/rooms
   if (neigh.length >= 3) {
