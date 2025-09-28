@@ -264,7 +264,7 @@ function makeEnemy(type, wave) {
     attackRate: prof.rate,
     attackRange: prof.range,
     attackTimer: Math.random() * (1 / Math.max(0.0001, prof.rate)), // jitter so not every attacker hits same frame
-    pausedForAttack: true,
+    pausedForAttack: false,
     shield: false,
     miniboss: false,
     burnLeft: 0,
