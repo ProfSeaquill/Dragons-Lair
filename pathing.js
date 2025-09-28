@@ -1,6 +1,7 @@
 // pathing.js — edge-walls pathing with live shortest-path-to-exit steering,
 // success trail, room/corridor/junction classification, per-enemy memory, and
-// forward-vision gating so enemies only "decide" when progress may be blocked.
+// anticipatory decision triggers (vision-based topology change), short hysteresis
+// pre-commit on approach, and room-edge bias to reduce milling in open rooms.
 
 import * as state from './state.js';
 
@@ -13,11 +14,15 @@ const ROOM_FLOOD_RADIUS = 3;
 const ROOM_SIZE_THRESHOLD = 6;
 
 // Per-enemy memory / vision
-const VISION_TILES = 3;            // how many tiles to look ahead when evaluating a candidate
-const MEMORY_PENALTY = 10;        // subtract this from score if immediate target tile was visited
-const FORWARD_UNVISITED_BONUS = 2; // add this per unvisited tile in look-ahead
-const VISITED_CAP = 150;           // max tiles remembered per enemy
-const MEMORY_DECAY_MS = 60_000;    // optional: expire visited marks older than this (ms)
+const VISION_TILES = 3;             // how many tiles to look ahead when evaluating a candidate
+const MEMORY_PENALTY = 10;          // subtract this from score if immediate target tile was visited
+const FORWARD_UNVISITED_BONUS = 2;  // add this per unvisited tile in look-ahead
+const VISITED_CAP = 150;            // max tiles remembered per enemy
+const MEMORY_DECAY_MS = 60_000;     // optional: expire visited marks older than this (ms)
+
+// Anticipatory refinements
+const ROOM_EDGE_BIAS = 0.08;        // gentle bias toward hugging walls in rooms (0.05–0.12 works well)
+const PRECOMMIT_STEPS_ON_TOPO = 2;  // how many grid steps to commit when a topology change is spotted ahead
 
 /* =========================
  * Edge toggling (UI hook)
@@ -143,7 +148,7 @@ function isReachable(gs, sx, sy, tx, ty) {
     if (state.isOpen(gs, x, y, 'N')) push(x, y - 1);
     if (state.isOpen(gs, x, y, 'E')) push(x + 1, y);
     if (state.isOpen(gs, x, y, 'S')) push(x, y + 1);
-    if (state.isOpen(gs, x, y, 'W')) push(x, y - 1);
+    if (state.isOpen(gs, x, y, 'W')) push(x - 1, y); // fixed west-step
   }
   return false;
 
@@ -193,10 +198,6 @@ function neighborFor(x, y, side) {
  * Map classification: rooms/corridors/junctions/deadends
  * ========================= */
 
-/**
- * BFS-limited flood that returns a Set of "x,y" reachable from (sx,sy) within maxSteps.
- * If full=true, floods the entire connected component (no depth limit).
- */
 export function floodRegion(gs, sx, sy, maxSteps = ROOM_FLOOD_RADIUS, full = false) {
   const W = state.GRID.cols, H = state.GRID.rows;
   const seen = new Uint8Array(W * H);
@@ -222,7 +223,6 @@ export function floodRegion(gs, sx, sy, maxSteps = ROOM_FLOOD_RADIUS, full = fal
   return set;
 }
 
-/** Count unique exit tiles adjacent to a region (region is Set of "x,y"). */
 export function countRegionExits(gs, regionSet) {
   const exitTiles = new Set();
   for (const key of regionSet) {
@@ -237,10 +237,6 @@ export function countRegionExits(gs, regionSet) {
   return { exits: exitTiles.size, exitTiles };
 }
 
-/**
- * Analyze region: returns { size, bbox, exits, exitTiles, regionSet }.
- * If full=true, computes full connected component, otherwise bounded by maxSteps.
- */
 export function analyzeRegion(gs, sx, sy, maxSteps = ROOM_FLOOD_RADIUS, full = false) {
   const region = floodRegion(gs, sx, sy, maxSteps, full);
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -264,8 +260,6 @@ export function analyzeRegion(gs, sx, sy, maxSteps = ROOM_FLOOD_RADIUS, full = f
 /**
  * Compute gs.cellType[y][x] with values:
  *  'corridor' | 'junction' | 'room_multi' | 'room_deadend' | 'room_enclosed' | 'deadend'
- *
- * This is relatively cheap for small grids and is called after recomputePath.
  */
 export function computeCellTypes(gs = state.GameState) {
   const W = state.GRID.cols, H = state.GRID.rows;
@@ -304,7 +298,6 @@ export function computeCellTypes(gs = state.GameState) {
 
         // decide room subtype using exit count
         if (fullInfo.exits >= 2) {
-          // multi-exit room
           for (const k of fullInfo.regionSet) {
             const [rx, ry] = k.split(',').map(n => +n);
             types[ry][rx] = 'room_multi';
@@ -317,7 +310,6 @@ export function computeCellTypes(gs = state.GameState) {
             visited.add(k);
           }
         } else {
-          // isolated/enclosed
           for (const k of fullInfo.regionSet) {
             const [rx, ry] = k.split(',').map(n => +n);
             types[ry][rx] = 'room_enclosed';
@@ -331,7 +323,6 @@ export function computeCellTypes(gs = state.GameState) {
       if (deg >= 3) {
         types[y][x] = 'junction';
       } else {
-        // deg === 2 is corridor-like
         types[y][x] = 'corridor';
       }
       visited.add(key);
@@ -417,7 +408,7 @@ function degreeAt(gs, x, y) {
   return state.neighborsByEdges(gs, x, y).length;
 }
 
-// Returns true if, within VISION_TILES ahead, degree or cellType changes
+// Treat as change if we go OOB or hit a wall within vision, or if degree/cellType opens ahead.
 function topologyChangeWithinVision(gs, cx, cy, dir, vision) {
   if (!dir) return false;
   const baseDeg  = degreeAt(gs, cx, cy);
@@ -426,17 +417,32 @@ function topologyChangeWithinVision(gs, cx, cy, dir, vision) {
   let tx = cx, ty = cy;
   for (let i = 0; i < vision; i++) {
     const s = stepFrom(tx, ty, dir);
-    if (!state.inBounds(s.nx, s.ny)) return true;           // treat OOB as change
-    if (!state.isOpen(gs, tx, ty, dir)) return true;        // wall ahead → change
+    if (!state.inBounds(s.nx, s.ny)) return true;           // OOB => treat as change
+    if (!state.isOpen(gs, tx, ty, dir)) return true;        // wall ahead => change
     tx = s.nx; ty = s.ny;
 
     const deg  = degreeAt(gs, tx, ty);
     const type = gs.cellType?.[ty]?.[tx];
 
-    // Ignore tiny wiggles: only react when the path "opens" or "branches"
-    const degOpens = (baseDeg <= 2 && deg >= 3);
-    const typeOpens = (baseType === 'corridor' && (type === 'junction' || type?.startsWith('room_')));
+    const degOpens  = (baseDeg <= 2 && deg >= 3);
+    const typeOpens = (baseType === 'corridor' && (type === 'junction' || (typeof type === 'string' && type.startsWith('room_'))));
     if (degOpens || typeOpens) return true;
+  }
+  return false;
+}
+
+function isRoomType(t) {
+  return t === 'room_multi' || t === 'room_deadend' || t === 'room_enclosed';
+}
+
+function blockedWithinVision(gs, cx, cy, dir, vision) {
+  if (!dir) return false;
+  let tx = cx, ty = cy;
+  for (let i = 0; i < vision; i++) {
+    const s = stepFrom(tx, ty, dir);
+    if (!state.inBounds(s.nx, s.ny)) return true;
+    if (!state.isOpen(gs, tx, ty, dir)) return true;
+    tx = s.nx; ty = s.ny;
   }
   return false;
 }
@@ -457,11 +463,11 @@ function softmaxSample(items, scoreKey, temperature = 1) {
 /**
  * Decide next grid direction for an enemy using:
  * - short-commit (commitDir / commitSteps)
- * - corridor continuation (prev + degree)
- * - forward-vision gating: if forward is clear for several tiles, keep straight
- * - otherwise: softmax over candidate directions using downhill (toward exit),
- *   herding (successTrail), straight bonus, per-enemy visited penalties, forward-unvisited bonus,
- *   and a small curiosity-driven rand override.
+ * - corridor continuation (prev + degree + downhill)
+ * - forward-vision gating + topology-change trigger
+ * - softmax over candidates using downhill (toward exit), herding (trail),
+ *   straight bonus, per-enemy memory penalty, forward-unvisited bonus,
+ *   small curiosity override, with room-edge bias when entering rooms.
  */
 export function chooseNextDirectionToExit(gs, e) {
   const D = gs.distToExit;
@@ -491,11 +497,9 @@ export function chooseNextDirectionToExit(gs, e) {
     if (other) {
       const hereD = D?.[cy]?.[cx];
       const otherD = D?.[other.y]?.[other.x];
-      // If other is strictly closer to EXIT than current, continue to it.
       if (isFinite(hereD) && isFinite(otherD) && otherD < hereD) {
         return directionFromTo(cx, cy, other.x, other.y) || e.dir || 'E';
       }
-      // Otherwise DON'T auto-continue; fall through to decision logic so they can turn.
     }
   }
 
@@ -506,32 +510,21 @@ export function chooseNextDirectionToExit(gs, e) {
     forwardOK = state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.dir);
   }
 
-  // cell type
   const ttype = gs.cellType?.[cy]?.[cx] || 'corridor';
 
-  // helper: detect blocked within vision (if there's a wall in the current heading within VISION_TILES)
-  function blockedWithinVision(gs, cx, cy, dir, vision) {
-    if (!dir) return false;
-    let tx = cx, ty = cy;
-    for (let i = 0; i < vision; i++) {
-      const s = stepFrom(tx, ty, dir);
-      if (!state.inBounds(s.nx, s.ny)) return true;
-      if (!state.isOpen(gs, tx, ty, dir)) return true;
-      tx = s.nx; ty = s.ny;
-    }
-    return false;
+  // Anticipatory trigger: decide early if we "see" a topology change ahead
+  const topoSoon =
+    topologyChangeWithinVision(gs, cx, cy, e.dir, VISION_TILES);
+
+  // Gate: if forward is OK, not blocked, and no topology change ahead, keep going straight (fast path)
+  const blockedSoon =
+    !forwardOK ||
+    blockedWithinVision(gs, cx, cy, e.dir, VISION_TILES) ||
+    topoSoon; // topology triggers a re-eval
+
+  if (!blockedSoon && forwardOK && prev) {
+    return e.dir;
   }
-
-  // Decide early if we "see" a topology change ahead (your idea)
-const blockedSoon =
-  !forwardOK ||
-  blockedWithinVision(gs, cx, cy, e.dir, VISION_TILES) ||
-  topologyChangeWithinVision(gs, cx, cy, e.dir, VISION_TILES);
-
-if (!blockedSoon && forwardOK && prev) {
-  return e.dir;
-}
-
 
   // Build candidates excluding prev (avoid immediate backtrack at junctions) and also
   // avoid stepping *into* dragon hitbox tiles (we want enemies to stop adjacent instead).
@@ -562,16 +555,17 @@ if (!blockedSoon && forwardOK && prev) {
     }
   }
 
-    // NEW: respect roar buffs and a sticky boost once a unit touched the dragon
-const touched = !!e.hasTouchedDragon;
-const SENSE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1);
-const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1);
-  
-  // Decision point: apply behavior
+  // Decision point: apply behavior (define b first)
   const b = e.behavior || {};
-  const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12)) * (touched ? 0.01 : 1);
-  const randOverrideProb = Math.min(0.35, 0.08 + curiosityBase * 0.45);
 
+  // Respect roar buffs and get "sticky" once a unit touched the dragon
+  const touched = !!e.hasTouchedDragon;
+  const SENSE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1);
+  const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1);
+
+  const STRAIGHT_BONUS = 0.40;
+  const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12)) * (touched ? 0.1 : 1);
+  const randOverrideProb = Math.min(0.35, 0.08 + curiosityBase * 0.45);
 
   // small guaranteed exploratory override (curiosity)
   if (Math.random() < randOverrideProb) {
@@ -584,12 +578,10 @@ const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1)
     return directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
   }
 
-  // Score candidates using downhill (sense), trail (herding), straight bias, small jitter,
-  // and add per-enemy memory penalty + forward-unvisited bonus.
+  // Score candidates using downhill (sense), trail (herding), straight bias,
+  // per-enemy memory penalty, forward-unvisited bonus, and room-edge bias.
   const here = D?.[cy]?.[cx] ?? Infinity;
   const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
-
-  const STRAIGHT_BONUS = 0.40;
 
   const info = [];
   for (const c of candidates) {
@@ -599,6 +591,7 @@ const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1)
     const downhill = (isFinite(here) && isFinite(d)) ? (here - d) : 0;
     const trail = T?.[ny]?.[nx] || 0;
     const jitter = (Math.random() - 0.5) * 0.02;
+
     let straightBonus = 0;
     if (e.dir && directionFromTo(cx, cy, nx, ny) === e.dir) straightBonus = STRAIGHT_BONUS;
 
@@ -611,7 +604,6 @@ const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1)
     const candidateDir = directionFromTo(cx, cy, nx, ny);
     let scanX = nx, scanY = ny;
     for (let L = 0; L < VISION_TILES; L++) {
-      // if out-of-bounds or blocked from this scan cell in candidateDir, stop scanning further
       if (!state.inBounds(scanX, scanY)) break;
       if (!isVisitedByEnemy(e, scanX, scanY)) forwardUnvisited++;
       const st = stepFrom(scanX, scanY, candidateDir);
@@ -620,9 +612,19 @@ const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1)
       scanX = st.nx; scanY = st.ny;
     }
 
+    // ROOM EDGE BIAS: prefer near-wall cells when stepping into a room
+    const cType = gs.cellType?.[ny]?.[nx];
+    let edgeBias = 0;
+    if (isRoomType(cType)) {
+      const degAtCand = state.neighborsByEdges(gs, nx, ny).length;
+      const wallCount = 4 - degAtCand; // more adjacent walls => closer to edge
+      edgeBias = ROOM_EDGE_BIAS * wallCount;
+    }
+
     const score = SENSE * downhill + HERDING * trail + straightBonus + jitter
                 - visitedPenalty
-                + (FORWARD_UNVISITED_BONUS * forwardUnvisited);
+                + (FORWARD_UNVISITED_BONUS * forwardUnvisited)
+                + edgeBias;
 
     info.push({ nx, ny, d, score });
   }
@@ -636,7 +638,17 @@ const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1)
   const temperature = 0.35 + curiosityBase * 1.5;
   const chosen = softmaxSample(reachable, 'score', temperature);
 
-  // commit length mapping by tile type
+  // Hysteresis on approach: if we saw a topology change ahead,
+  // pre-commit a couple of grid steps even in corridors.
+  if (topoSoon) {
+    e.commitDir = directionFromTo(cx, cy, chosen.nx, chosen.ny) || e.dir || 'E';
+    e.commitSteps = Math.max(
+      e.commitSteps || 0,
+      Math.min(VISION_TILES, PRECOMMIT_STEPS_ON_TOPO)
+    );
+  }
+
+  // Commit length mapping by tile type at real junctions/rooms
   if (neigh.length >= 3) {
     const commitByType = { corridor: 0, junction: 3, room_multi: 4, room_deadend: 3, room_enclosed: 3, deadend: 0 };
     e.commitDir = directionFromTo(cx, cy, chosen.nx, chosen.ny) || e.dir || 'E';
@@ -693,7 +705,7 @@ export function advanceEnemyOneCell(gs, e) {
   const { nx, ny } = stepFrom(e.cx, e.cy, dir);
   if (!state.inBounds(nx, ny)) return;
   e.cx = nx; e.cy = ny; e.dir = dir;
-    bumpSuccess(gs, e.cx, e.cy, (typeof e.trailStrength === 'number') ? e.trailStrength : 0.5);
+  bumpSuccess(gs, e.cx, e.cy, (typeof e.trailStrength === 'number') ? e.trailStrength : 0.5);
   // record visit for memory (so teleport-style moves also record)
   recordVisitForEnemy(e, e.cx, e.cy);
   updateEnemyDistance(gs, e);
@@ -742,7 +754,7 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
       e.dirLockT = Math.max(e.dirLockT || 0, 0.12);
     }
 
-        // Trail bump scaled by unit trailStrength; keep small for continuous interpolation
+    // Trail bump scaled by unit trailStrength; keep small for continuous interpolation
     const smallBump = ((typeof e.trailStrength === 'number') ? e.trailStrength : 0.5) * 0.12;
     bumpSuccess(gs, e.cx, e.cy, smallBump);
     updateEnemyDistance(gs, e);
