@@ -413,6 +413,34 @@ function isVisitedByEnemy(e, x, y) {
  * Steering helpers
  * ========================= */
 
+function degreeAt(gs, x, y) {
+  return state.neighborsByEdges(gs, x, y).length;
+}
+
+// Returns true if, within VISION_TILES ahead, degree or cellType changes
+function topologyChangeWithinVision(gs, cx, cy, dir, vision) {
+  if (!dir) return false;
+  const baseDeg  = degreeAt(gs, cx, cy);
+  const baseType = gs.cellType?.[cy]?.[cx];
+
+  let tx = cx, ty = cy;
+  for (let i = 0; i < vision; i++) {
+    const s = stepFrom(tx, ty, dir);
+    if (!state.inBounds(s.nx, s.ny)) return true;           // treat OOB as change
+    if (!state.isOpen(gs, tx, ty, dir)) return true;        // wall ahead → change
+    tx = s.nx; ty = s.ny;
+
+    const deg  = degreeAt(gs, tx, ty);
+    const type = gs.cellType?.[ty]?.[tx];
+
+    // Ignore tiny wiggles: only react when the path "opens" or "branches"
+    const degOpens = (baseDeg <= 2 && deg >= 3);
+    const typeOpens = (baseType === 'corridor' && (type === 'junction' || type?.startsWith('room_')));
+    if (degOpens || typeOpens) return true;
+  }
+  return false;
+}
+
 function softmaxSample(items, scoreKey, temperature = 1) {
   const eps = 1e-9;
   const exps = items.map(it => Math.exp((it[scoreKey] || 0) / Math.max(eps, temperature)));
@@ -494,11 +522,16 @@ export function chooseNextDirectionToExit(gs, e) {
     return false;
   }
 
-  // If forward is OK and not blocked soon, keep going straight (fast-path).
-  const blockedSoon = !forwardOK || blockedWithinVision(gs, cx, cy, e.dir, VISION_TILES);
-  if (!blockedSoon && forwardOK && prev) {
-    return e.dir;
-  }
+  // Decide early if we "see" a topology change ahead (your idea)
+const blockedSoon =
+  !forwardOK ||
+  blockedWithinVision(gs, cx, cy, e.dir, VISION_TILES) ||
+  topologyChangeWithinVision(gs, cx, cy, e.dir, VISION_TILES);
+
+if (!blockedSoon && forwardOK && prev) {
+  return e.dir;
+}
+
 
   // Build candidates excluding prev (avoid immediate backtrack at junctions) and also
   // avoid stepping *into* dragon hitbox tiles (we want enemies to stop adjacent instead).
@@ -529,9 +562,14 @@ export function chooseNextDirectionToExit(gs, e) {
     }
   }
 
+    // NEW: respect roar buffs and a sticky boost once a unit touched the dragon
+const touched = !!e.hasTouchedDragon;
+const SENSE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1);
+const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1);
+  
   // Decision point: apply behavior
   const b = e.behavior || {};
-  const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12)) * (touched ? 0.1 : 1);
+  const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12)) * (touched ? 0.01 : 1);
   const randOverrideProb = Math.min(0.35, 0.08 + curiosityBase * 0.45);
 
 
@@ -550,10 +588,6 @@ export function chooseNextDirectionToExit(gs, e) {
   // and add per-enemy memory penalty + forward-unvisited bonus.
   const here = D?.[cy]?.[cx] ?? Infinity;
   const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
-  // NEW: respect roar buffs and a sticky boost once a unit touched the dragon
-const touched = !!e.hasTouchedDragon;
-const SENSE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1);
-const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1);
 
   const STRAIGHT_BONUS = 0.40;
 
