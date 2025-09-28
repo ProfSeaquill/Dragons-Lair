@@ -24,6 +24,26 @@ const MEMORY_DECAY_MS = 60_000;     // optional: expire visited marks older than
 const ROOM_EDGE_BIAS = 0.08;        // gentle bias toward hugging walls in rooms (0.05–0.12 works well)
 const PRECOMMIT_STEPS_ON_TOPO = 2;  // how many grid steps to commit when a topology change is spotted ahead
 
+// Central source of steering weights for junction decisions.
+// Pulls base behavior from e.behavior and applies temporary buffs (e.g., Roar).
+function steeringWeights(e) {
+  const b = e?.behavior || {};
+  const baseSense     = (typeof b.sense === 'number')     ? b.sense     : 0.5;
+  const baseHerding   = (typeof b.herding === 'number')   ? b.herding   : 1.0;
+  const baseCuriosity = (typeof b.curiosity === 'number') ? b.curiosity : 0.1;
+
+  // Only apply multipliers while roar buff is active
+  const hasRoar    = (e?.roarBuffLeft > 0);
+  const senseMul   = hasRoar && typeof e?.senseBuff   === 'number' ? e.senseBuff   : 1;
+  const herdingMul = hasRoar && typeof e?.herdingBuff === 'number' ? e.herdingBuff : 1;
+
+  return {
+    SENSE:     baseSense     * senseMul,
+    HERDING:   baseHerding   * herdingMul,
+    CURIOSITY: baseCuriosity, // no temp buff for curiosity (yet)
+  };
+}
+
 /* =========================
  * Edge toggling (UI hook)
  * ========================= */
