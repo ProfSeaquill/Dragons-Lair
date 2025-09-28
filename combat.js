@@ -386,34 +386,22 @@ function dragonBreathTick(gs, dt, ds) {
     return;
   }
 
-  // fast key helper & index
+  // helpers for tile indexing
   const key = (x, y) => state.tileKey(x, y);
   const indexByKey = new Map();
   for (let i = 0; i < path.length; i++) indexByKey.set(key(path[i].x, path[i].y), i);
+  const pathKeys = new Set(indexByKey.keys());
 
   // 2) Find the NEAREST *reachable* enemy on that path (ignore tunneling)
-const pathKeys = new Set(path.map(s => key(s.x, s.y)));
-
-let nearestIdx = Infinity;
-for (const e of gs.enemies) {
-  if (e.type === 'engineer' && e.tunneling) continue; // ignore underground
-  if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-
-  const k = key(e.cx, e.cy);
-  if (!pathKeys.has(k)) continue;
-
-  const idx = indexByKey.get(k);
-  if (idx !== undefined && idx < nearestIdx) nearestIdx = idx;
-}
-
-  // Burn DoT
-  if (canTakeBurn && ds.burnDPS > 0 && ds.burnDuration > 0) {
-    e.burnDps = ds.burnDPS;
-    e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
-    // ensure HP bar shows even if this tick was burn-only
-    if (!canTakeDirect) markHit(e, 0.0001);
+  let nearestIdx = Infinity;
+  for (const e of gs.enemies) {
+    if (e.type === 'engineer' && e.tunneling) continue; // ignore underground
+    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
+    const k = key(e.cx, e.cy);
+    if (!pathKeys.has(k)) continue;
+    const idx = indexByKey.get(k);
+    if (idx !== undefined && idx < nearestIdx) nearestIdx = idx;
   }
-}
 
   // No reachable enemy -> stop anim, no damage.
   if (!isFinite(nearestIdx)) {
@@ -446,11 +434,12 @@ for (const e of gs.enemies) {
   // 5) Only DEAL DAMAGE on fire-rate ticks; still target only tiles up to nearest enemy
   if (fireCooldown > 0) return;
 
-  // Shield line: heroes closer to ENTRY than other enemies shield them (existing logic)
+  // Shield line: heroes closer to ENTRY than other enemies shield them
   let maxHeroDist = -1;
   for (const h of gs.enemies) {
-    if (h.type === 'hero' && isFinite(h.distFromEntry))
+    if (h.type === 'hero' && isFinite(h.distFromEntry)) {
       if (h.distFromEntry > maxHeroDist) maxHeroDist = h.distFromEntry;
+    }
   }
   const shieldedByHero = (e) =>
     (maxHeroDist >= 0) &&
@@ -463,22 +452,32 @@ for (const e of gs.enemies) {
     if (!e || (e.type === 'engineer' && e.tunneling)) continue;
     if (!hitUpToNearest.has(key(e.cx, e.cy))) continue;
 
+    const isHero   = (e.type === 'hero');
     const shielded = shieldedByHero(e);
 
-    if (!shielded) {
+    // Your requested rules:
+    // - Hero never takes direct fire but DOES take burn
+    // - Followers shielded by a hero take no direct, no burn
+    // - Followers not shielded take both direct and burn
+    const canTakeDirect = !isHero && !shielded;
+    const canTakeBurn   =  isHero || !shielded;
+
+    if (canTakeDirect) {
       e.hp -= ds.breathPower;
       markHit(e, ds.breathPower);
     }
-    if (ds.burnDPS > 0 && ds.burnDuration > 0) {
-      e.burnDps = ds.burnDPS;
+    if (canTakeBurn && ds.burnDPS > 0 && ds.burnDuration > 0) {
+      e.burnDps  = ds.burnDPS;
       e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
-      markHit(e, 0.0001);
+      // ensure HP bar shows even if this tick was burn-only
+      if (!canTakeDirect) markHit(e, 0.0001);
     }
   }
 
   // Reset fire cooldown to cadence
   fireCooldown = firePeriod;
 }
+
 
 /* small helpers used elsewhere in this module */
 
