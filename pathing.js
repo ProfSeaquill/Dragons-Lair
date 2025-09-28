@@ -24,6 +24,9 @@ const MEMORY_DECAY_MS = 60_000;     // optional: expire visited marks older than
 const ROOM_EDGE_BIAS = 0.08;        // gentle bias toward hugging walls in rooms (0.05–0.12 works well)
 const PRECOMMIT_STEPS_ON_TOPO = 2;  // how many grid steps to commit when a topology change is spotted ahead
 
+const STRAIGHT_BONUS = 0.20; // preference to keep going straight in corridors
+
+
 // Central source of steering weights for junction decisions.
 // Pulls base behavior from e.behavior and applies temporary buffs (e.g., Roar).
 function steeringWeights(e) {
@@ -36,9 +39,6 @@ function steeringWeights(e) {
   const hasRoar    = (e?.roarBuffLeft > 0);
   const senseMul   = hasRoar && typeof e?.senseBuff   === 'number' ? e.senseBuff   : 1;
   const herdingMul = hasRoar && typeof e?.herdingBuff === 'number' ? e.herdingBuff : 1;
-
-  // Steering bonuses
-const STRAIGHT_BONUS = 0.20; // preference to keep going straight in corridors
 
   return {
     SENSE:     baseSense     * senseMul,
