@@ -605,8 +605,6 @@ if (forwardOK && changeSoon && neigh.length === 2 && e.dir) {
       const SENSE_NODE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1) * 0.35;
       const HERDING_NODE = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1) * 0.60;
 
-      const STRAIGHT_BONUS = 0.40; // always available; gate prevents abuse in rooms
-
       const infoNext = [];
 for (const n of fNeigh) {
   const d = D?.[n.y]?.[n.x];
