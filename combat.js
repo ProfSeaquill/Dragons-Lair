@@ -393,7 +393,7 @@ function dragonBreathTick(gs, dt, ds) {
 
   // 2) Find the NEAREST *reachable* enemy on that path (ignore tunneling)
   let nearestIdx = Infinity;
-  for (const e of gs.enemies) {
+ for (const e of gs.enemies) {
   if (e.type === 'engineer' && e.tunneling) continue; // ignore underground
   if (!hit.has(state.tileKey(e.cx, e.cy))) continue;  // not in corridor this tick
 
@@ -418,6 +418,7 @@ function dragonBreathTick(gs, dt, ds) {
     if (!canTakeDirect) markHit(e, 0.0001);
   }
 }
+
   // No reachable enemy -> stop anim, no damage.
   if (!isFinite(nearestIdx)) {
     gs.dragonFX = gs.dragonFX || { attacking: false, t: 0, dur: 0.25 };
