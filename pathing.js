@@ -37,6 +37,9 @@ function steeringWeights(e) {
   const senseMul   = hasRoar && typeof e?.senseBuff   === 'number' ? e.senseBuff   : 1;
   const herdingMul = hasRoar && typeof e?.herdingBuff === 'number' ? e.herdingBuff : 1;
 
+  // Steering bonuses
+const STRAIGHT_BONUS = 0.40; // mild preference to keep going straight in corridors
+
   return {
     SENSE:     baseSense     * senseMul,
     HERDING:   baseHerding   * herdingMul,
@@ -578,9 +581,6 @@ const atNode =
   ttype === 'junction' ||
   (typeof ttype === 'string' && ttype.startsWith('room_'));
 
- // Gate: only keep straight in true corridors (not at nodes)
-const topoSoon =
-  topologyChangeWithinVision(gs, cx, cy, e.dir, VISION_TILES);
 
 if (!blockedSoon && forwardOK && prev && !atNode && neigh.length === 2 && ttype === 'corridor') {
   return e.dir;
@@ -608,45 +608,47 @@ if (forwardOK && changeSoon && neigh.length === 2 && e.dir) {
       const STRAIGHT_BONUS = 0.40; // always available; gate prevents abuse in rooms
 
       const infoNext = [];
-      for (const n of fNeigh) {
-        const d = D?.[n.y]?.[n.x];
-        if (!isFinite(d)) { infoNext.push({ n, score: -Infinity }); continue; }
-        const downhill = (isFinite(hereNext) && isFinite(d)) ? (hereNext - d) : 0;
-        const trail = T?.[n.y]?.[n.x] || 0;
+for (const n of fNeigh) {
+  const d = D?.[n.y]?.[n.x];
+  if (!isFinite(d)) { infoNext.push({ n, score: -Infinity }); continue; }
 
-        const visitedPenalty = isVisitedByEnemy(e, n.x, n.y) ? MEMORY_PENALTY : 0;
+  const downhill = (isFinite(hereNext) && isFinite(d)) ? (hereNext - d) : 0;
+  const trail    = T?.[n.y]?.[n.x] || 0;
 
-        // Forward-unvisited from the node toward that neighbor
-        const dir2 = directionFromTo(f.nx, f.ny, n.x, n.y);
-        let forwardUnvisited = 0, sx = n.x, sy = n.y;
-        for (let L = 0; L < VISION_TILES; L++) {
-          if (!state.inBounds(sx, sy)) break;
-          if (!isVisitedByEnemy(e, sx, sy)) forwardUnvisited++;
-          const st = stepFrom(sx, sy, dir2);
-          if (!state.inBounds(st.nx, st.ny)) break;
-          if (!state.isOpen(gs, sx, sy, dir2)) break;
-          sx = st.nx; sy = st.ny;
-        }
+  const visitedPenalty = isVisitedByEnemy(e, n.x, n.y) ? MEMORY_PENALTY : 0;
 
-        // Room-edge bias
-        const cType = gs.cellType?.[n.y]?.[n.x];
-        let edgeBias = 0;
-        if (cType === 'room_multi' || cType === 'room_deadend' || cType === 'room_enclosed') {
-          const degAtCand = state.neighborsByEdges(gs, n.x, n.y).length;
-          edgeBias = ROOM_EDGE_BIAS * (4 - degAtCand);
-        }
+  // Forward-unvisited from the node toward that neighbor
+  const dir2 = directionFromTo(f.nx, f.ny, n.x, n.y);
+  let forwardUnvisited = 0, sx = n.x, sy = n.y;
+  for (let L = 0; L < VISION_TILES; L++) {
+    if (!state.inBounds(sx, sy)) break;
+    if (!isVisitedByEnemy(e, sx, sy)) forwardUnvisited++;
+    const st = stepFrom(sx, sy, dir2);
+    if (!state.inBounds(st.nx, st.ny)) break;
+    if (!state.isOpen(gs, sx, sy, dir2)) break;
+    sx = st.nx; sy = st.ny;
+  }
 
-        // No straight bonus inside node planning
-       const score =
-  (SENSE * downhill) +
-  (HERDING * trail) +
-  straightBonus +
-  jitterBase -
-  visitedPenalty +
-  (FORWARD_UNVISITED_BONUS * forwardUnvisited) +
-  edgeBias;
-        infoNext.push({ n, score });
-      }
+  // Room-edge bias
+  const cType = gs.cellType?.[n.y]?.[n.x];
+  let edgeBias = 0;
+  if (isRoomType(cType)) {
+    const degAtCand = state.neighborsByEdges(gs, n.x, n.y).length;
+    edgeBias = ROOM_EDGE_BIAS * (4 - degAtCand);
+  }
+
+  // Use NODE weights; no straight bonus inside node planning.
+  const score =
+    (SENSE_NODE * downhill) +
+    (HERDING_NODE * trail) +
+    jitterBase -
+    visitedPenalty +
+    (FORWARD_UNVISITED_BONUS * forwardUnvisited) +
+    edgeBias;
+
+  infoNext.push({ n, score });
+}
+
 
       const curiosityBase = Math.min(1, Math.max(0, (e.behavior?.curiosity ?? 0.12))) * (touched ? 0.1 : 1);
       const temperatureNode = 0.7 + curiosityBase * 2.0;
