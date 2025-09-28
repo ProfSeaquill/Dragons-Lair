@@ -479,7 +479,16 @@ export function chooseNextDirectionToExit(gs, e) {
     if (state.inBounds(f.nx, f.ny) && state.isOpen(gs, cx, cy, e.commitDir)) return e.commitDir;
     e.commitDir = null; e.commitSteps = 0;
   }
-
+  
+// NEW: if we planned a node turn for THIS tile, do it now
+if (Number.isInteger(e.planTurnAtX) && Number.isInteger(e.planTurnAtY)
+    && e.planTurnAtX === cx && e.planTurnAtY === cy) {
+  const pd = e.plannedTurnDir;
+  e.planTurnAtX = e.planTurnAtY = undefined;
+  e.plannedTurnDir = undefined;
+  if (pd && state.isOpen(gs, cx, cy, pd)) return pd;
+}
+  
   // previous cell (if any)
   let prev = null;
   if (Number.isInteger(e.prevCX) && Number.isInteger(e.prevCY)) {
@@ -508,19 +517,97 @@ export function chooseNextDirectionToExit(gs, e) {
 
   const ttype = gs.cellType?.[cy]?.[cx] || 'corridor';
 
-  // Anticipatory trigger: decide early if we "see" a topology change ahead
-  const topoSoon =
-    topologyChangeWithinVision(gs, cx, cy, e.dir, VISION_TILES);
+  // NEW: are we standing on a node (junction or room mouth)?
+const atNode =
+  (neigh.length >= 3) ||
+  ttype === 'junction' ||
+  (typeof ttype === 'string' && ttype.startsWith('room_'));
 
-  // Gate: if forward is OK, not blocked, and no topology change ahead, keep going straight (fast path)
-  const blockedSoon =
-    !forwardOK ||
-    blockedWithinVision(gs, cx, cy, e.dir, VISION_TILES) ||
-    topoSoon; // topology triggers a re-eval
+ // Gate: only keep straight in true corridors (not at nodes)
+const topoSoon =
+  topologyChangeWithinVision(gs, cx, cy, e.dir, VISION_TILES);
 
-  if (!blockedSoon && forwardOK && prev && neigh.length === 2 && ttype === 'corridor') {
-    return e.dir;
+const blockedSoon =
+  !forwardOK ||
+  blockedWithinVision(gs, cx, cy, e.dir, VISION_TILES) ||
+  topoSoon;
+
+if (!blockedSoon && forwardOK && prev && !atNode && neigh.length === 2 && ttype === 'corridor') {
+  return e.dir;
+}
+
+  // NEW: pre-node planning — if a node is visible ahead while in a corridor,
+// decide the turn AT the node now, then step into the node (keep e.dir today).
+if (!atNode && forwardOK && topoSoon && neigh.length === 2 && e.dir) {
+  const f = stepFrom(cx, cy, e.dir);  // the node tile we will enter next
+  if (state.inBounds(f.nx, f.ny)) {
+    let fNeigh = state.neighborsByEdges(gs, f.nx, f.ny)
+      .filter(n => !(n.x === cx && n.y === cy) && !state.isDragonCell(n.x, n.y, gs));
+    if (fNeigh.length >= 2) {
+      const D = gs.distToExit;
+      const hereNext = D?.[f.ny]?.[f.nx] ?? Infinity;
+      const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
+      const b = e.behavior || {};
+      const touched = !!e.hasTouchedDragon;
+
+      // Softer weights at nodes so side branches compete
+      const nodeSenseScale = 0.35;
+      const nodeHerdScale  = 0.60;
+      const SENSE_NODE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1) * nodeSenseScale;
+      const HERDING_NODE = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1) * nodeHerdScale;
+
+      const infoNext = [];
+      for (const n of fNeigh) {
+        const d = D?.[n.y]?.[n.x];
+        if (!isFinite(d)) { infoNext.push({ n, score: -Infinity }); continue; }
+        const downhill = (isFinite(hereNext) && isFinite(d)) ? (hereNext - d) : 0;
+        const trail    = T?.[n.y]?.[n.x] || 0;
+
+        const visitedPenalty = isVisitedByEnemy(e, n.x, n.y) ? MEMORY_PENALTY : 0;
+
+        // Forward-unvisited bonus from the node toward that neighbor
+        const dir2 = directionFromTo(f.nx, f.ny, n.x, n.y);
+        let forwardUnvisited = 0, sx = n.x, sy = n.y;
+        for (let L = 0; L < VISION_TILES; L++) {
+          if (!state.inBounds(sx, sy)) break;
+          if (!isVisitedByEnemy(e, sx, sy)) forwardUnvisited++;
+          const st = stepFrom(sx, sy, dir2);
+          if (!state.inBounds(st.nx, st.ny)) break;
+          if (!state.isOpen(gs, sx, sy, dir2)) break;
+          sx = st.nx; sy = st.ny;
+        }
+
+        // Room-edge bias unchanged
+        const cType = gs.cellType?.[n.y]?.[n.x];
+        let edgeBias = 0;
+        if (isRoomType(cType)) {
+          const degAtCand = state.neighborsByEdges(gs, n.x, n.y).length;
+          const wallCount = 4 - degAtCand;
+          edgeBias = ROOM_EDGE_BIAS * wallCount;
+        }
+
+        // No straight bonus at nodes
+        const score = SENSE_NODE * downhill + HERDING_NODE * trail
+                    - visitedPenalty + (FORWARD_UNVISITED_BONUS * forwardUnvisited)
+                    + edgeBias;
+        infoNext.push({ n, score });
+      }
+
+      const curiosityBase = Math.min(1, Math.max(0, (e.behavior?.curiosity ?? 0.12))) * (touched ? 0.1 : 1);
+      const temperatureNode = 0.7 + curiosityBase * 2.0;
+      const chosenNext = softmaxSample(infoNext, 'score', temperatureNode);
+
+      if (chosenNext && chosenNext.n) {
+        e.planTurnAtX = f.nx;
+        e.planTurnAtY = f.ny;
+        e.plannedTurnDir = directionFromTo(f.nx, f.ny, chosenNext.n.x, chosenNext.n.y);
+        // Execute: step into the node this tick, turn next tick.
+        return e.dir;
+      }
+    }
   }
+}
+
 
   // Build candidates excluding prev (avoid immediate backtrack at junctions) and also
   // avoid stepping *into* dragon hitbox tiles (we want enemies to stop adjacent instead).
@@ -551,28 +638,32 @@ export function chooseNextDirectionToExit(gs, e) {
     }
   }
 
-  // Decision point: apply behavior (define b first)
-  const b = e.behavior || {};
+  // Decision point: apply behavior (node-aware weights)
+const b = e.behavior || {};
+const touched = !!e.hasTouchedDragon;
 
-  // Respect roar buffs and get "sticky" once a unit touched the dragon
-  const touched = !!e.hasTouchedDragon;
-  const SENSE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1);
-  const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1);
+const nodeSenseScale = atNode ? 0.35 : 1.0;
+const nodeHerdScale  = atNode ? 0.60 : 1.0;
 
-  const STRAIGHT_BONUS = 0.40;
-  const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12)) * (touched ? 0.1 : 1);
-  const randOverrideProb = Math.min(0.35, 0.08 + curiosityBase * 0.45);
+const SENSE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1) * nodeSenseScale;
+const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1) * nodeHerdScale;
 
-  // small guaranteed exploratory override (curiosity)
-  if (Math.random() < randOverrideProb) {
-    const r = candidates[(Math.random() * candidates.length) | 0];
-    if (neigh.length >= 3) {
-      const commitByType = { corridor: 0, junction: 3, room_multi: 4, room_deadend: 3, room_enclosed: 3, deadend: 0 };
-      e.commitDir = directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
-      e.commitSteps = Math.max(e.commitSteps || 0, commitByType[ttype] || 3);
-    }
-    return directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
+const STRAIGHT_BONUS = atNode ? 0.0 : 0.40;
+
+const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12)) * (touched ? 0.1 : 1);
+const randOverrideProb = Math.min(0.35, 0.08 + curiosityBase * 0.45);
+
+// small exploratory override
+if (Math.random() < randOverrideProb) {
+  const r = candidates[(Math.random() * candidates.length) | 0];
+  if (neigh.length >= 3) {
+    const commitByType = { corridor: 0, junction: 3, room_multi: 4, room_deadend: 3, room_enclosed: 3, deadend: 0 };
+    e.commitDir = directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
+    e.commitSteps = Math.max(e.commitSteps || 0, commitByType[ttype] || 3);
   }
+  return directionFromTo(cx, cy, r.x, r.y) || e.dir || 'E';
+}
+
 
   // Score candidates using downhill (sense), trail (herding), straight bias,
   // per-enemy memory penalty, forward-unvisited bonus, and room-edge bias.
@@ -589,7 +680,10 @@ export function chooseNextDirectionToExit(gs, e) {
     const jitter = (Math.random() - 0.5) * 0.02;
 
     let straightBonus = 0;
-    if (e.dir && directionFromTo(cx, cy, nx, ny) === e.dir) straightBonus = STRAIGHT_BONUS;
+    if (!atNode && e.dir && directionFromTo(cx, cy, nx, ny) === e.dir) {
+  straightBonus = STRAIGHT_BONUS;
+}
+
 
     // Per-enemy memory penalty for the immediate candidate tile
     const immediateVisited = isVisitedByEnemy(e, nx, ny) ? 1 : 0;
@@ -631,7 +725,7 @@ export function chooseNextDirectionToExit(gs, e) {
     return directionFromTo(cx, cy, f.x, f.y) || e.dir || 'E';
   }
 
-  const temperature = 0.35 + curiosityBase * 1.5;
+  const temperature = (atNode ? 0.7 : 0.35) + curiosityBase * (atNode ? 2.0 : 1.5);
   const chosen = softmaxSample(reachable, 'score', temperature);
 
   // Commit length mapping by tile type at real junctions/rooms
