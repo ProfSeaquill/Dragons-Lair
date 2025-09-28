@@ -556,11 +556,6 @@ const atNode =
 const topoSoon =
   topologyChangeWithinVision(gs, cx, cy, e.dir, VISION_TILES);
 
-const blockedSoon =
-  !forwardOK ||
-  blockedWithinVision(gs, cx, cy, e.dir, VISION_TILES) ||
-  topoSoon;
-
 if (!blockedSoon && forwardOK && prev && !atNode && neigh.length === 2 && ttype === 'corridor') {
   return e.dir;
 }
