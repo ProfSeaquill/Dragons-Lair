@@ -531,8 +531,9 @@ export function chooseNextDirectionToExit(gs, e) {
 
   // Decision point: apply behavior
   const b = e.behavior || {};
-  const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12));
+  const curiosityBase = Math.min(1, Math.max(0, b.curiosity ?? 0.12)) * (touched ? 0.1 : 1);
   const randOverrideProb = Math.min(0.35, 0.08 + curiosityBase * 0.45);
+
 
   // small guaranteed exploratory override (curiosity)
   if (Math.random() < randOverrideProb) {
