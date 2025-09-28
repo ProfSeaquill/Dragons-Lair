@@ -392,23 +392,19 @@ function dragonBreathTick(gs, dt, ds) {
   for (let i = 0; i < path.length; i++) indexByKey.set(key(path[i].x, path[i].y), i);
 
   // 2) Find the NEAREST *reachable* enemy on that path (ignore tunneling)
-  let nearestIdx = Infinity;
- for (const e of gs.enemies) {
+const pathKeys = new Set(path.map(s => key(s.x, s.y)));
+
+let nearestIdx = Infinity;
+for (const e of gs.enemies) {
   if (e.type === 'engineer' && e.tunneling) continue; // ignore underground
-  if (!hit.has(state.tileKey(e.cx, e.cy))) continue;  // not in corridor this tick
+  if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
 
-  const isHero = (e.type === 'hero');
-  const shielded = shieldedByHero(e);
+  const k = key(e.cx, e.cy);
+  if (!pathKeys.has(k)) continue;
 
-  // Decide what kinds of fire affect this unit
-  const canTakeDirect = !isHero && !shielded;   // hero never takes direct; shielded never take direct
-  const canTakeBurn   =  isHero || !shielded;   // hero always burns; followers burn only if not shielded
-
-  // Direct hit
-  if (canTakeDirect) {
-    e.hp -= ds.breathPower;
-    markHit(e, ds.breathPower);
-  }
+  const idx = indexByKey.get(k);
+  if (idx !== undefined && idx < nearestIdx) nearestIdx = idx;
+}
 
   // Burn DoT
   if (canTakeBurn && ds.burnDPS > 0 && ds.burnDuration > 0) {
