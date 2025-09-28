@@ -512,6 +512,12 @@ export function chooseNextDirectionToExit(gs, e) {
   const neigh = state.neighborsByEdges(gs, cx, cy);
   if (!neigh || neigh.length === 0) return e.dir || 'E';
 
+  const { SENSE, HERDING, CURIOSITY } = steeringWeights(e);
+
+// One random jitter for this decision (keeps comparisons fair).
+// If you want PER-CANDIDATE noise, move this into the loop and recompute.
+const jitterBase = (Math.random() - 0.5) * (CURIOSITY || 0);
+
   // honor short commitment
   if (e.commitDir && (e.commitSteps || 0) > 0) {
     const f = stepFrom(cx, cy, e.commitDir);
@@ -631,9 +637,14 @@ if (forwardOK && changeSoon && neigh.length === 2 && e.dir) {
         }
 
         // No straight bonus inside node planning
-        const score = SENSE_NODE * downhill + HERDING_NODE * trail
-                    - visitedPenalty + (FORWARD_UNVISITED_BONUS * forwardUnvisited)
-                    + edgeBias;
+       const score =
+  (SENSE * downhill) +
+  (HERDING * trail) +
+  straightBonus +
+  jitterBase -
+  visitedPenalty +
+  (FORWARD_UNVISITED_BONUS * forwardUnvisited) +
+  edgeBias;
         infoNext.push({ n, score });
       }
 
@@ -864,6 +875,7 @@ export function stepEnemyInterpolated(gs, e, dtSec) {
 }
 
 function chooseNextTargetGreedy(gs, e) {
+  const { SENSE, HERDING, CURIOSITY } = steeringWeights(e);
   const dir = chooseNextDirectionToExit(gs, e);
   const { nx, ny } = stepFrom(e.cx, e.cy, dir);
   const c = tileCenter(nx, ny);
