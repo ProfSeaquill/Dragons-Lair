@@ -10,13 +10,13 @@ import * as state from './state.js';
 
 // Room detection
 const ROOM_FLOOD_RADIUS = 3;
-const ROOM_SIZE_THRESHOLD = 10;
+const ROOM_SIZE_THRESHOLD = 6;
 
 // Per-enemy memory / vision
 const VISION_TILES = 3;            // how many tiles to look ahead when evaluating a candidate
-const MEMORY_PENALTY = 0.6;        // subtract this from score if immediate target tile was visited
-const FORWARD_UNVISITED_BONUS = 0.25; // add this per unvisited tile in look-ahead
-const VISITED_CAP = 200;           // max tiles remembered per enemy
+const MEMORY_PENALTY = 10;        // subtract this from score if immediate target tile was visited
+const FORWARD_UNVISITED_BONUS = 2; // add this per unvisited tile in look-ahead
+const VISITED_CAP = 150;           // max tiles remembered per enemy
 const MEMORY_DECAY_MS = 60_000;    // optional: expire visited marks older than this (ms)
 
 /* =========================
@@ -549,8 +549,11 @@ export function chooseNextDirectionToExit(gs, e) {
   // and add per-enemy memory penalty + forward-unvisited bonus.
   const here = D?.[cy]?.[cx] ?? Infinity;
   const T = gs.successTrail || (gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0));
-  const SENSE = (b.sense ?? 0.5);
-  const HERDING = (b.herding ?? 1.0);
+  // NEW: respect roar buffs and a sticky boost once a unit touched the dragon
+const touched = !!e.hasTouchedDragon;
+const SENSE   = (b.sense ?? 0.5) * (e.senseBuff || 1) * (touched ? 6 : 1);
+const HERDING = (b.herding ?? 1.0) * (e.herdingBuff || 1) * (touched ? 0.25 : 1);
+
   const STRAIGHT_BONUS = 0.40;
 
   const info = [];
