@@ -71,10 +71,6 @@ export function bumpSuccess(gs, cx, cy, amt = 1) {
   if (state.inBounds(cx, cy)) T[cy][cx] = (T[cy][cx] || 0) + amt;
 }
 
-export function clearSuccessTrail(gs = state.GameState) {
-  gs.successTrail = state.makeScalarField(state.GRID.cols, state.GRID.rows, 0);
-  return gs.successTrail;
-}
 
 /* =========================
  * Distance fields (BFS)
@@ -663,19 +659,6 @@ export function chooseNextDirectionToExit(gs, e) {
  * Fallback heuristics & small utilities
  * ========================= */
 
-function heuristicFallback(gs, e) {
-  const ns = state.neighborsByEdges(gs, e.cx, e.cy);
-  if (ns.length) {
-    let best = ns[0], bestHeu = Infinity;
-    for (const n of ns) {
-      const h = manhattan(n.x, n.y, state.EXIT.x, state.EXIT.y);
-      if (h < bestHeu) { bestHeu = h; best = n; }
-    }
-    return directionFromTo(e.cx, e.cy, best.x, best.y) || (e.dir || 'E');
-  }
-  return e.dir || 'E';
-}
-
 function manhattan(x0, y0, x1, y1) { return Math.abs(x1 - x0) + Math.abs(y1 - y0); }
 
 function directionFromTo(x0, y0, x1, y1) {
@@ -699,17 +682,6 @@ function stepFrom(x, y, dir) {
 /* =========================
  * Movement API
  * ========================= */
-
-export function advanceEnemyOneCell(gs, e) {
-  const dir = chooseNextDirectionToExit(gs, e);
-  const { nx, ny } = stepFrom(e.cx, e.cy, dir);
-  if (!state.inBounds(nx, ny)) return;
-  e.cx = nx; e.cy = ny; e.dir = dir;
-  bumpSuccess(gs, e.cx, e.cy, (typeof e.trailStrength === 'number') ? e.trailStrength : 0.5);
-  // record visit for memory (so teleport-style moves also record)
-  recordVisitForEnemy(e, e.cx, e.cy);
-  updateEnemyDistance(gs, e);
-}
 
 export function stepEnemyInterpolated(gs, e, dtSec) {
   if (typeof e.dirLockT !== 'number') e.dirLockT = 0;
@@ -793,10 +765,6 @@ function directionFromDelta(dx, dy) {
 /* =========================
  * Public convenience
  * ========================= */
-
-export function openNeighbors(gs, x, y) {
-  return state.neighborsByEdges(gs, x, y);
-}
 
 export function raycastOpenCellsFromExit(gs, maxSteps) {
   const dist = gs?.distFromEntry;
