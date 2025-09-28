@@ -264,7 +264,7 @@ function makeEnemy(type, wave) {
     attackRate: prof.rate,
     attackRange: prof.range,
     attackTimer: Math.random() * (1 / Math.max(0.0001, prof.rate)), // jitter so not every attacker hits same frame
-    pausedForAttack: false,
+    pausedForAttack: true,
     shield: false,
     miniboss: false,
     burnLeft: 0,
@@ -612,6 +612,7 @@ function markHit(e, amount = 0) {
         const distMan = Math.abs(nearest.x - e.cx) + Math.abs(nearest.y - e.cy);
         const range = (typeof e.attackRange === 'number') ? e.attackRange : 1;
         if (distMan <= range) {
+          
           // Pause movement and attack over time
           e.pausedForAttack = true;
           e.isAttacking = true;
