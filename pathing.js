@@ -38,7 +38,7 @@ function steeringWeights(e) {
   const herdingMul = hasRoar && typeof e?.herdingBuff === 'number' ? e.herdingBuff : 1;
 
   // Steering bonuses
-const STRAIGHT_BONUS = 0.40; // mild preference to keep going straight in corridors
+const STRAIGHT_BONUS = 0.20; // preference to keep going straight in corridors
 
   return {
     SENSE:     baseSense     * senseMul,
