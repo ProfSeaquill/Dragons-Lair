@@ -59,10 +59,10 @@ function buildFireDesc(gs) {
 
 export const ABILITY_UPGRADES = [
   // Costs are base “unlock” costs; cost scales per level using the same geometric model
-  { key: 'claw',  title: 'Claw',      base: 100, mult: 1.30, type: 'ability' },
+  { key: 'claw',  title: 'Claw',      base: 50, mult: 1.30, type: 'ability' },
   { key: 'gust',  title: 'Wing Gust', base: 150, mult: 1.30, type: 'ability' },
-  { key: 'roar',  title: 'Roar',      base: 200, mult: 1.30, type: 'ability' },
-  { key: 'stomp', title: 'Stomp',     base: 175, mult: 1.30, type: 'ability' },
+  { key: 'roar',  title: 'Roar',      base: 300, mult: 1.30, type: 'ability' },
+  { key: 'stomp', title: 'Stomp',     base: 500, mult: 1.30, type: 'ability' },
 ];
 
 /** Live descriptions for abilities (matches combat/state scaling we discussed) */
@@ -75,27 +75,27 @@ function buildAbilityDesc(gs) {
   const roarLv  = lv('roar');
   const stompLv = lv('stomp');
 
-  // Claw: dmg 40 + 8/level; cooldown step ↓15% every 3 levels, min 2.5s from base 6.0
-  const clawDmg = 40 + 8 * clawLv;
+  // Claw: dmg 100 + 50/level; cooldown step ↓15% every 3 levels, min 1s from base 6.0
+  const clawDmg = 100 + 50 * clawLv;
   const clawSteps = Math.floor(clawLv / 3);
-  const clawCD = Math.max(2.5, 6.0 * Math.pow(0.85, clawSteps));
+  const clawCD = Math.max(1, 6.0 * Math.pow(0.85, clawSteps));
 
-  // Gust: push tiles = min(6, 2 + 1/level); cooldown step ↓15% every 2 levels, min 6.0 from base 14.0
+  // Gust: push tiles = min(6, 2 + 1/level); cooldown step ↓15% every 2 levels, min 5.0 from base 14.0
   const gustPush = Math.min(6, 2 + gustLv);
   const gustSteps = Math.floor(gustLv / 2);
-  const gustCD = Math.max(6.0, 14.0 * Math.pow(0.85, gustSteps));
+  const gustCD = Math.max(5.0, 14.0 * Math.pow(0.85, gustSteps));
 
-  // Roar: stun 1.5 + 0.25/level; cooldown step ↓15% every 2 levels, min 20.0 from base 40.0
+  // Roar: stun 1.5 + 0.25/level; cooldown step ↓15% every 2 levels, min 15.0 from base 40.0
   const roarStun = (1.5 + 0.25 * roarLv);
   const roarSteps = Math.floor(roarLv / 2);
-  const roarCD = Math.max(20.0, 40.0 * Math.pow(0.85, roarSteps));
+  const roarCD = Math.max(15.0, 40.0 * Math.pow(0.85, roarSteps));
   // (sense/herding multipliers are fixed, applied in combat)
 
-  // Stomp: slow = 20% + 3%/level (cap to 90% slow); dmg 6 + 3/level; cooldown step ↓15% every 2 levels, min 8.0 from base 18.0
-  const stompSlow = Math.min(0.90, 0.20 + 0.03 * stompLv); // fraction slowed (e.g., 0.35 = 35% slow)
-  const stompDmg = 6 + 3 * stompLv;
+  // Stomp: slow = 20% + 3%/level (cap to 70% slow); dmg 20 + 10/level; cooldown step ↓15% every 2 levels, min 10.0 from base 20.0
+  const stompSlow = Math.min(0.70, 0.20 + 0.03 * stompLv); // fraction slowed (e.g., 0.35 = 35% slow)
+  const stompDmg = 20 + 10 * stompLv;
   const stompSteps = Math.floor(stompLv / 2);
-  const stompCD = Math.max(8.0, 18.0 * Math.pow(0.85, stompSteps));
+  const stompCD = Math.max(10.0, 20.0 * Math.pow(0.85, stompSteps));
 
   return {
     claw:  `DMG: ${Math.round(clawDmg)}  •  CD: ${clawCD.toFixed(1)}s`,
