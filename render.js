@@ -177,7 +177,8 @@ drawVignette(ctx);
   // -------- Enemies / Dragon / Mouth fire / Heat shimmer
   drawEnemies(ctx, gs);
   drawDragonAndMouthFire(ctx, gs);
-  drawHeatShimmer(ctx, gs); // subtle, after dragon + fire for overlay look
+  drawHeatShimmer(ctx, gs); // subtle, after dragon + fire for overlay then
+drawFireSplash(ctx, gs);
 
   // -------- Corridor fire (traveling flame)
   drawFlameWaves(ctx, gs);
@@ -407,6 +408,42 @@ function drawDragonAndMouthFire(ctx, gs) {
       frame * fw, 0, fw, fh,             // source
       mouthX, mouthY - fh / 2, fw, fh    // dest near mouth
     );
+  }
+}
+
+
+function drawFireSplash(ctx, gs) {
+  const tsize = state.GRID.tile;
+  for (const fx of (gs.effects || [])) {
+    if (fx.type !== 'fireSplash') continue;
+    const p = { x: fx.x, y: fx.y };
+    const progress = Math.min(1, (fx.t || 0) / Math.max(0.001, fx.dur || 0.35));
+
+    // Expanding ring + short forward cone
+    const r = tsize * (0.40 + 0.55 * progress);
+    ctx.save();
+    ctx.globalAlpha = 0.85 * (1 - progress);
+
+    // inner burst
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+    g.addColorStop(0.00, 'rgba(255,255,255,0.80)');
+    g.addColorStop(0.35, 'rgba(255,200,120,0.60)');
+    g.addColorStop(1.00, 'rgba(255,120,40,0.00)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // faint spark arcs
+    ctx.strokeStyle = 'rgba(255,180,90,0.7)';
+    ctx.lineWidth = Math.max(1, tsize * 0.06 * (1 - progress));
+    ctx.beginPath();
+    const a0 = -0.25 * Math.PI, a1 = 0.25 * Math.PI;
+    ctx.arc(p.x, p.y, r * 0.65, a0, a1);
+    ctx.arc(p.x, p.y, r * 0.80, -a1, -a0);
+    ctx.stroke();
+
+    ctx.restore();
   }
 }
 
