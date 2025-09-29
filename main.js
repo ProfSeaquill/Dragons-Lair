@@ -200,10 +200,10 @@ function frame(now) {
   render.draw(sceneCtx, state.GameState);
 
   // 3) build lights & present via WebGL
-  const lights = computeTorchLights(state.GameState).slice(0, 16);
-  lighting.render(sceneCanvas, lights, 0.65);
-  const ambient = 0.65;
-  lighting.render(sceneCanvas, lights, ambient);
+ // computeTorchLights already slices to 16; no need to slice again
+const lights = computeTorchLights(state.GameState);
+const ambient = 0.65;
+lighting.render(sceneCanvas, lights, ambient);
 
   requestAnimationFrame(frame);
 }
