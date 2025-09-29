@@ -375,113 +375,132 @@ let trailDecayAccum = 0;
  *
  * ds should be getDragonStats(gs) (precomputed caller-side is fine).
  */
+// module-scope breath cooldown (already declared above): let fireCooldown = 0;
 function dragonBreathTick(gs, dt, ds) {
-  // manage the visual/attack cadence
+  // cooldown ticks down
   fireCooldown = Math.max(0, fireCooldown - dt);
   const firePeriod = 1 / Math.max(0.0001, ds.fireRate);
 
-  // 1) Build path out to breath range, along open cells from EXIT (no walls).
+  // We only start a new BREATH when cooldown hits 0.
+  if (fireCooldown > 0) return;
+
+  // --- Build path from EXIT up to range (no walls) ---
   const maxTiles = Math.max(1, Math.round(ds.breathRange / state.GRID.tile));
   const path = raycastOpenCellsFromExit(gs, maxTiles);
   if (!path || path.length === 0) {
-    if (gs.dragonFX) { gs.dragonFX.attacking = false; gs.dragonFX.t = 0; }
+    // nothing to do, reset cooldown so we won't retry every frame
+    fireCooldown = firePeriod * 0.25;
     return;
   }
 
-  // helpers for tile indexing
+  // Fast index for tiles in path
   const key = (x, y) => state.tileKey(x, y);
   const indexByKey = new Map();
-for (let i = 0; i < path.length; i++) indexByKey.set(key(path[i].x, path[i].y), i);
+  for (let i = 0; i < path.length; i++) indexByKey.set(key(path[i].x, path[i].y), i);
 
-
-  // 2) Find the NEAREST *reachable* enemy on that path (ignore tunneling)
+  // Find nearest *reachable* enemy on the path
   let nearestIdx = Infinity;
   for (const e of gs.enemies) {
-    if (e.type === 'engineer' && e.tunneling) continue; // ignore underground
+    if (e.type === 'engineer' && e.tunneling) continue;
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
     const k = key(e.cx, e.cy);
     if (!indexByKey.has(k)) continue;
     const idx = indexByKey.get(k);
-    if (idx !== undefined && idx < nearestIdx) nearestIdx = idx;
+    if (idx < nearestIdx) nearestIdx = idx;
   }
 
-  // No reachable enemy -> stop anim, no damage.
+  // If no target in range, we still put the breath on cooldown (small penalty)
   if (!isFinite(nearestIdx)) {
-    gs.dragonFX = gs.dragonFX || { attacking: false, t: 0, dur: 0.25 };
-    gs.dragonFX.attacking = false;
-    gs.dragonFX.t = 0;
+    fireCooldown = firePeriod * 0.5;
     return;
   }
 
-  // 3) Sustain mouth animation while someone reachable is in range
-  gs.dragonFX = gs.dragonFX || { attacking: false, t: 0, dur: 0.25 };
-  if (!gs.dragonFX.attacking) {
-    gs.dragonFX.attacking = true;
-    gs.dragonFX.t = 0;
-    gs.dragonFX.dur = 0.25;
+  // ---- Shield block: if a Hero sits on the path, stop visuals (and direct dmg) there
+  // Find the FIRST hero index along the path (closest to dragon)
+  let heroBlockIdx = Infinity;
+  for (const e of gs.enemies) {
+    if (e.type !== 'hero') continue;
+    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
+    const idx = indexByKey.get(key(e.cx, e.cy));
+    if (idx !== undefined && idx < heroBlockIdx) heroBlockIdx = idx;
   }
 
-  // 4) Visual: spawn a traveling flame wave limited to the nearest enemy
-  const truncatedPath = path.slice(0, Math.min(path.length, nearestIdx + 1));
+  // The visual wave should end at:
+  // - the nearest target, unless a hero is even closer; then end at the hero.
+  const visualEndIdx = Math.min(nearestIdx, heroBlockIdx);
+  const truncatedPath = path.slice(0, Math.min(path.length, visualEndIdx + 1));
+
+  // --- Spawn the one-shot mouth animation (short)
+  gs.dragonFX = { attacking: true, t: 0, dur: 0.25 };
+
+  // --- Spawn a flame wave that continues traveling even after mouth stops
+  // Make duration long enough to traverse its truncated path (plus fade tail)
+  const tilesPerSec = 14; // travel speed of flame head
+  const travelSec = truncatedPath.length / Math.max(1, tilesPerSec);
   (gs.effects || (gs.effects = [])).push({
     type: 'flameWave',
-    path: truncatedPath,
+    path: truncatedPath,     // array of {x,y,dir?} from your pathing
     headIdx: 0,
     t: 0,
-    dur: 0.7,
-    tilesPerSec: 16,
+    tilesPerSec,
     widthPx: state.GRID.tile * 0.85,
+    dur: travelSec + 0.6,    // +fade tail time
   });
 
-  // 5) Only DEAL DAMAGE on fire-rate ticks; still target only tiles up to nearest enemy
-  if (fireCooldown > 0) return;
-
-  // Shield line: heroes closer to ENTRY than other enemies shield them
-  let maxHeroDist = -1;
-  for (const h of gs.enemies) {
-    if (h.type === 'hero' && isFinite(h.distFromEntry)) {
-      if (h.distFromEntry > maxHeroDist) maxHeroDist = h.distFromEntry;
-    }
+  // --- If hero blocked, add a short "splash" effect at that tile
+  const blockedByHero = (heroBlockIdx <= nearestIdx);
+  if (blockedByHero && isFinite(heroBlockIdx)) {
+    const hit = path[heroBlockIdx];
+    (gs.effects || (gs.effects = [])).push({
+      type: 'fireSplash',
+      x: (hit.x + 0.5) * state.GRID.tile,
+      y: (hit.y + 0.5) * state.GRID.tile,
+      t: 0,
+      dur: 0.35,
+    });
   }
-  const shieldedByHero = (e) =>
-    (maxHeroDist >= 0) &&
-    isFinite(e.distFromEntry) &&
-    (e.distFromEntry < maxHeroDist);
 
-  // Apply damage to enemies on truncated path (reachable up to nearest)
-  const hitUpToNearest = new Set(truncatedPath.map(s => key(s.x, s.y)));
+  // --- Apply damage ONCE per breath:
+  //   - Direct+burn to enemies on tiles up to nearestIdx
+  //   - But if heroBlockIdx < nearestIdx, direct is stopped at hero (no direct past it),
+  //     and hero takes ONLY burn (your rule).
+  const hitSet = new Set(path.slice(0, Math.min(path.length, nearestIdx + 1)).map(s => key(s.x, s.y)));
+
   for (const e of gs.enemies) {
     if (!e || (e.type === 'engineer' && e.tunneling)) continue;
-    if (!hitUpToNearest.has(key(e.cx, e.cy))) continue;
+    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
 
-    const isHero   = (e.type === 'hero');
-    const shielded = shieldedByHero(e);
+    const k = key(e.cx, e.cy);
+    if (!hitSet.has(k)) continue; // not in the breath corridor up to nearest
 
-    // Your requested rules:
-    // - Hero never takes direct fire but DOES take burn
-    // - Followers shielded by a hero take no direct, no burn
-    // - Followers not shielded take both direct and burn
-    const canTakeDirect = !isHero && !shielded;
-    const canTakeBurn   =  isHero || !shielded;
+    const idx = indexByKey.get(k);
+    const isHero = (e.type === 'hero');
 
-    if (canTakeDirect) {
+    // if a hero is closer than this enemy, the hero blocks direct damage past itself
+    const behindHero = isFinite(heroBlockIdx) && idx > heroBlockIdx;
+
+    // Direct damage rules:
+    // - Heroes never take direct (but can take burn).
+    // - Units behind the hero (idx>heroBlockIdx) take no direct (blocked).
+    const canDirect = !isHero && !behindHero;
+
+    if (canDirect) {
       e.hp -= ds.breathPower;
       markHit(e, ds.breathPower);
     }
-    if (canTakeBurn && ds.burnDPS > 0 && ds.burnDuration > 0) {
-      e.burnDps  = ds.burnDPS;
+    // Burn applies to heroes AND non-behind units (optional: keep burn even if behind hero? we won’t)
+    const canBurn = isHero || !behindHero;
+    if (canBurn && ds.burnDPS > 0 && ds.burnDuration > 0) {
+      e.burnDps = ds.burnDPS;
       e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
-      // ensure HP bar shows even if this tick was burn-only
-      if (!canTakeDirect) markHit(e, 0.0001);
+      if (!canDirect) markHit(e, 0.0001);
     }
   }
 
-  // Reset fire cooldown to cadence
+  // Put breath on cooldown now (one-shot)
   fireCooldown = firePeriod;
 }
 
-
-/* small helpers used elsewhere in this module */
 
 // simple in-place Fisher–Yates shuffle (used by engineer spawn spots)
 function shuffle(a) {
