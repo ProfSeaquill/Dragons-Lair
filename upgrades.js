@@ -44,7 +44,7 @@ function buildFireDesc(gs) {
   return {
     power: `Damage: ${power}`,
     rate:  `Rate: ${rate} /s`,
-    range: `Reach: ${pxRange}px (${tiles} tiles)`,
+    range: `Reach: ${tiles} tiles)`,
     burn:  `Burn: ${burnDps} DPS for ${burnDur}s`,
   };
 }
@@ -98,10 +98,10 @@ function buildAbilityDesc(gs) {
   const stompCD = Math.max(10.0, 30.0 * Math.pow(0.85, stompSteps));
 
   return {
-    claw:  `DMG: ${Math.round(clawDmg)}  •  CD: ${clawCD.toFixed(1)}s`,
-    gust:  `Push: ${gustPush} tiles  •  CD: ${gustCD.toFixed(1)}s`,
-    roar:  `Stun: ${roarStun.toFixed(2)}s  •  CD: ${roarCD.toFixed(1)}s`,
-    stomp: `Slow: ${(stompSlow*100)|0}%  •  Burst: ${stompDmg}  •  CD: ${stompCD.toFixed(1)}s`,
+    claw:  `DMG: ${Math.round(clawDmg)}`,
+    gust:  `Push: ${gustPush} tiles`,
+    roar:  `Stun: ${roarStun.toFixed(2)}s`,
+    stomp: `Slow: ${(stompSlow*100)|0}%  •  Damage: ${stompDmg}`,
   };
 }
 
