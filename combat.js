@@ -497,6 +497,62 @@ function markHit(e, amount = 0) {
   e.showHpUntil = now + 1000; // visible for 1s since last damage tick
 }
 
+// ---------------- Wave composition + start ----------------
+
+function buildWaveQueue(gs = state.GameState) {
+  const wave = (gs.wave | 0) || 1;
+  const n = Math.max(1, waveCountFor(wave));
+  const q = [];
+
+  // Specials first (optional cadence)
+  if (wave % FLAGS.bossEvery === 0)       q.push('boss');
+  if (wave % FLAGS.kingsguardEvery === 0) q.push('kingsguard');
+  if (wave >= 4 && wave % 4 === 0)        q.push('hero');       // a hero every 4 waves (tune)
+
+  // Light engineers occasionally (bomb planters)
+  if (wave >= 5 && wave % 3 === 0) q.push('engineer');
+
+  // Fill the rest with core troops (simple progression)
+  const remaining = Math.max(0, n - q.length);
+  for (let i = 0; i < remaining; i++) {
+    if (wave < 4) {
+      q.push('villager');
+    } else if (wave < 8) {
+      q.push((i % 3 === 0) ? 'squire' : 'villager');
+    } else {
+      // knights come in more often later
+      q.push((i % 2 === 0) ? 'knight' : 'squire');
+    }
+  }
+
+  // Small shuffle so batches aren't too uniform (keeps first element stable)
+  for (let i = 1; i < q.length; i++) {
+    const j = 1 + ((Math.random() * (q.length - 1)) | 0);
+    [q[i], q[j]] = [q[j], q[i]];
+  }
+  return q;
+}
+
+export function startWave(gs = state.GameState) {
+  // prevent re-entrancy while a wave is active or still spawning
+  if (R.waveActive || R.spawning || (R.queue && R.queue.length > 0)) return false;
+
+  // ensure containers
+  gs.enemies = gs.enemies || [];
+  gs.effects = gs.effects || [];
+
+  // build queue and flip flags
+  R.queue = buildWaveQueue(gs);
+  R.spawning = true;
+  R.waveActive = true;
+  R.spawnTimer = 0; // spawn immediately on next update tick
+
+  return true;
+}
+
+// Back-compat export if main.js ever uses spawnWave
+export const spawnWave = startWave;
+
 /* =========================
  * Update loop
  * ========================= */
