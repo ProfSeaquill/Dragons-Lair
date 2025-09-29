@@ -364,6 +364,8 @@ const R = {
 // module-scope breath cooldown (must be top-level)
 let fireCooldown = 0;
 
+// module-scope accumulator for throttled trail decay (top-level)
+let trailDecayAccum = 0;
 /**
  * Dragon breath tick:
  * - builds a reachable path of tiles from the EXIT (via raycastOpenCellsFromExit)
@@ -389,8 +391,8 @@ function dragonBreathTick(gs, dt, ds) {
   // helpers for tile indexing
   const key = (x, y) => state.tileKey(x, y);
   const indexByKey = new Map();
-  for (let i = 0; i < path.length; i++) indexByKey.set(key(path[i].x, path[i].y), i);
-  const pathKeys = new Set(indexByKey.keys());
+for (let i = 0; i < path.length; i++) indexByKey.set(key(path[i].x, path[i].y), i);
+
 
   // 2) Find the NEAREST *reachable* enemy on that path (ignore tunneling)
   let nearestIdx = Infinity;
@@ -398,7 +400,7 @@ function dragonBreathTick(gs, dt, ds) {
     if (e.type === 'engineer' && e.tunneling) continue; // ignore underground
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
     const k = key(e.cx, e.cy);
-    if (!pathKeys.has(k)) continue;
+    if (!indexByKey.has(k)) continue;
     const idx = indexByKey.get(k);
     if (idx !== undefined && idx < nearestIdx) nearestIdx = idx;
   }
@@ -561,19 +563,28 @@ export const spawnWave = startWave;
   const enemies = gs.enemies || (gs.enemies = []);
   gs.effects = gs.effects || []; // bombs
 
-  // ---- Success-trail global decay (fade the herd trail each frame) ----
-  const T = gs.successTrail;
-  if (T) {
-    const decayPerSec = 0.6;    // <--- tweak this number to taste
-    const mul = Math.max(0, 1 - decayPerSec * dt);
+  // ---- Success-trail global decay (apply at 5 Hz to reduce work) ----
+const T = gs.successTrail;
+if (T) {
+  trailDecayAccum += dt;
+  const step = 0.2; // seconds
+  if (trailDecayAccum >= step) {
+    const steps = Math.floor(trailDecayAccum / step);
+    trailDecayAccum -= steps * step;
+
+    const decayPerSec = 0.6;
+    const mul = Math.pow(Math.max(0, 1 - decayPerSec * step), steps);
+
     for (let y = 0; y < T.length; y++) {
       const row = T[y];
       for (let x = 0; x < row.length; x++) {
-        row[x] = row[x] * mul;
-        if (row[x] < 1e-4) row[x] = 0;
+        const v = row[x] * mul;
+        row[x] = (v < 1e-4) ? 0 : v;
       }
     }
   }
+}
+
 
   // 1) Spawning
   if (R.spawning && R.queue.length > 0) {
