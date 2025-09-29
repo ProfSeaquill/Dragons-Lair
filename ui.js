@@ -176,29 +176,35 @@ function wireButtons() {
 function renderUpgradesPanel() {
   const root = hud.upgrades;
   if (!root) return;
+
   const infos = getUpgradeInfo(state.GameState);
   root.innerHTML = '';
+
+  // Track any "Use" buttons so we can live-update text/disabled based on cooldowns
+  const useBtns = []; // { key: 'gust'|'roar'|'stomp', btn: HTMLButtonElement }
+
   infos.forEach(info => {
     const row = document.createElement('div');
     row.className = 'uRow';
+
     const name = document.createElement('div');
-    const btn = document.createElement('button');
+    const btn  = document.createElement('button');
     const small = document.createElement('small');
 
     name.textContent = `${info.title} (Lv ${info.level})`;
     small.textContent = info.desc || '';
     btn.className = 'btn';
     btn.textContent = `Buy ${info.cost}g`;
-    btn.disabled = state.GameState.gold < info.cost;
+    btn.disabled = (state.GameState.gold | 0) < (info.cost | 0);
 
     btn.addEventListener('click', () => {
       const ok = buyUpgrade(state.GameState, info.key);
       if (ok) {
-        renderUpgradesPanel();
+        renderUpgradesPanel();  // rebuild so levels/costs/Use buttons refresh
         refreshHUD();
-        tell(`Upgraded ${info.title}`);
+        UI.tell?.(`Upgraded ${info.title}`);
       } else {
-        tell('Not enough gold');
+        UI.tell?.('Not enough gold');
       }
     });
 
@@ -210,9 +216,58 @@ function renderUpgradesPanel() {
 
     row.appendChild(left);
     row.appendChild(btn);
+
+    // ---- NEW: Ability "Use" buttons (for unlocked abilities) ----
+    // Only add for abilities, and only once they’re unlocked (level > 0)
+    if (info.type === 'ability' && (info.level | 0) > 0) {
+      const use = document.createElement('button');
+      use.className = 'btn';
+
+      // Only add "Use" controls for the ones you asked (Gust & Roar).
+      // (You can include 'stomp' later by adding it here and mapping below.)
+      if (info.key === 'gust' || info.key === 'roar') {
+        use.textContent = 'Use';
+        use.addEventListener('click', () => {
+          if (info.key === 'gust') state.GameState.reqWingGust = true;
+          if (info.key === 'roar') state.GameState.reqRoar     = true;
+        });
+        row.appendChild(use);
+        useBtns.push({ key: info.key, btn: use });
+      }
+    }
+
     root.appendChild(row);
   });
+
+  // ---- Live cooldown updater (replaces the removed abilityHudLoop) ----
+  (async function abilityUseUpdater() {
+    const combat = await getCombat();
+    // If combat exposes getCooldowns(), poll and reflect in buttons
+    if (typeof combat.getCooldowns !== 'function') return;
+
+    const label = (name, s) => (s > 0.05 ? `${name} (${s.toFixed(1)}s)` : name);
+
+    function tick() {
+      const cds = combat.getCooldowns();
+
+      for (const { key, btn } of useBtns) {
+        // Map upgrade key -> label in UI
+        if (key === 'gust') {
+          const cd = cds.gust || 0;
+          btn.disabled = cd > 0.05;
+          btn.textContent = label('Use', cd);
+        } else if (key === 'roar') {
+          const cd = cds.roar || 0;
+          btn.disabled = cd > 0.05;
+          btn.textContent = label('Use', cd);
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  })();
 }
+
 
 // ---------- Canvas Edge Build Mode ----------
 function wireCanvasEdgeBuild() {
