@@ -3,10 +3,10 @@ import * as state from './state.js';
 import { updateEnemyDistance, raycastOpenCellsFromExit } from './pathing.js';
 
 // === Ability cooldown timers (module-local) ===
-let clawCooldown  = 0;
-let gustCooldown  = 0;
-let roarCooldown  = 0;
-let stompCooldown = 0;
+let clawCooldown  = 10.00;
+let gustCooldown  = 30.00;
+let roarCooldown  = 60.00;
+let stompCooldown = 30.00;
 
 // expose cooldowns for UI
 export function getCooldowns() {
