@@ -180,31 +180,31 @@ function renderUpgradesPanel() {
   const infos = getUpgradeInfo(state.GameState);
   root.innerHTML = '';
 
-  // Track any "Use" buttons so we can live-update text/disabled based on cooldowns
-  const useBtns = []; // { key: 'gust'|'roar'|'stomp', btn: HTMLButtonElement }
+  // Track “Use” buttons so we can update label/disabled by cooldowns
+  const useBtns = []; // items: { key: 'gust'|'roar', btn, unlocked }
 
   infos.forEach(info => {
     const row = document.createElement('div');
     row.className = 'uRow';
 
     const name = document.createElement('div');
-    const btn  = document.createElement('button');
+    const buy  = document.createElement('button');
     const small = document.createElement('small');
 
     name.textContent = `${info.title} (Lv ${info.level})`;
     small.textContent = info.desc || '';
-    btn.className = 'btn';
-    btn.textContent = `Buy ${info.cost}g`;
-    btn.disabled = (state.GameState.gold | 0) < (info.cost | 0);
+    buy.className = 'btn';
+    buy.textContent = `Buy ${info.cost}g`;
+    buy.disabled = (state.GameState.gold | 0) < (info.cost | 0);
 
-    btn.addEventListener('click', () => {
+    buy.addEventListener('click', () => {
       const ok = buyUpgrade(state.GameState, info.key);
       if (ok) {
-        renderUpgradesPanel();  // rebuild so levels/costs/Use buttons refresh
+        renderUpgradesPanel();
         refreshHUD();
-        UI.tell?.(`Upgraded ${info.title}`);
+        tell(`Upgraded ${info.title}`);
       } else {
-        UI.tell?.('Not enough gold');
+        tell('Not enough gold');
       }
     });
 
@@ -215,43 +215,45 @@ function renderUpgradesPanel() {
     if (info.desc) left.appendChild(small);
 
     row.appendChild(left);
-    row.appendChild(btn);
+    row.appendChild(buy);
 
-    // ---- NEW: Ability "Use" buttons (for unlocked abilities) ----
-    // Only add for abilities, and only once they’re unlocked (level > 0)
-    if (info.type === 'ability' && (info.level | 0) > 0) {
+    // ---- Ability "Use" buttons for Gust/Roar ----
+    if (info.type === 'ability' && (info.key === 'gust' || info.key === 'roar')) {
       const use = document.createElement('button');
       use.className = 'btn';
 
-      // Only add "Use" controls for the ones you asked (Gust & Roar).
-      // (You can include 'stomp' later by adding it here and mapping below.)
-      if (info.key === 'gust' || info.key === 'roar') {
-        use.textContent = 'Use';
-        use.addEventListener('click', () => {
-          if (info.key === 'gust') state.GameState.reqWingGust = true;
-          if (info.key === 'roar') state.GameState.reqRoar     = true;
-        });
-        row.appendChild(use);
-        useBtns.push({ key: info.key, btn: use });
-      }
+      const unlocked = (info.level | 0) > 0;
+      use.disabled = !unlocked;               // locked until at least level 1
+      use.textContent = unlocked ? 'Use' : 'Locked';
+
+      use.title = unlocked
+        ? `Activate ${info.title}`
+        : `Buy at least 1 level to unlock`;
+
+      use.addEventListener('click', () => {
+        if (!unlocked) return;
+        if (info.key === 'gust') state.GameState.reqWingGust = true;
+        if (info.key === 'roar') state.GameState.reqRoar     = true;
+      });
+
+      row.appendChild(use);
+      useBtns.push({ key: info.key, btn: use, unlocked });
     }
 
     root.appendChild(row);
   });
 
-  // ---- Live cooldown updater (replaces the removed abilityHudLoop) ----
+  // ---- Live cooldown updater ----
   (async function abilityUseUpdater() {
     const combat = await getCombat();
-    // If combat exposes getCooldowns(), poll and reflect in buttons
     if (typeof combat.getCooldowns !== 'function') return;
 
-    const label = (name, s) => (s > 0.05 ? `${name} (${s.toFixed(1)}s)` : name);
+    const label = (base, s) => (s > 0.05 ? `${base} (${s.toFixed(1)}s)` : base);
 
     function tick() {
       const cds = combat.getCooldowns();
-
-      for (const { key, btn } of useBtns) {
-        // Map upgrade key -> label in UI
+      for (const { key, btn, unlocked } of useBtns) {
+        if (!unlocked) continue; // still locked; no cooldown to show
         if (key === 'gust') {
           const cd = cds.gust || 0;
           btn.disabled = cd > 0.05;
@@ -267,6 +269,7 @@ function renderUpgradesPanel() {
     requestAnimationFrame(tick);
   })();
 }
+
 
 
 // ---------- Canvas Edge Build Mode ----------
