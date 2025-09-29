@@ -176,7 +176,7 @@ function nearestDragonCell(gs, ox, oy) {
 const CURVES = {
   // Bases per type
   hpBase:       { villager: 12,  squire: 16,  knight: 45,  hero: 65, engineer: 40, kingsguard: 90, boss: 300 },
-  spdBase:      { villager: 1.6, squire: 1.7, knight: 2.5, hero: 1.8, engineer: 2.0, kingsguard: 2.2, boss: 2.0 },
+  spdBase:      { villager: 1, squire: 1.1, knight: 2, hero: 1.2, engineer: 1.15, kingsguard: 1.8, boss: 1.6 },
   dmgBase:      { villager: 8,   squire: 10,  knight: 14,  hero: 16, engineer: 20, kingsguard: 28, boss: 40 },
 
   // Caps relative to base (your request):
