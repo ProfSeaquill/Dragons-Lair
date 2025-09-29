@@ -17,7 +17,7 @@ function statLvl(gs, key) {
   return Math.max(0, (gs.upgrades?.[key] | 0));
 }
 function abilityLvl(gs, key) {
-  return Math.max(0, (gs.Upgrades?.[key] | 0));
+  return Math.max(0, (gs.upgrades?.[key] | 0));
 }
 
 /* ============================================================
@@ -112,7 +112,7 @@ function buildAbilityDesc(gs) {
 /**
  * Returns array of { key, title, level, cost, desc, type }
  * - Stat upgrades read/write gs.upgrades[key]
- * - Ability upgrades read/write gs.Upgrades[key]
+ * - Ability upgrades read/write gs.upgrades[key]
  * - Abilities are appended AFTER stat upgrades so they appear last
  */
 export function getUpgradeInfo(gs = GameState) {
@@ -157,7 +157,7 @@ export function getUpgradeInfo(gs = GameState) {
  * - Deducts gold if affordable.
  * - Increments the correct store:
  *     • stats -> gs.upgrades[key]
- *     • abilities -> gs.Upgrades[key]
+ *     • abilities -> gs.upgrades[key]
  * - Returns true/false.
  */
 export function buyUpgrade(gs = GameState, key) {
