@@ -55,6 +55,22 @@ const DRAGON_BASE = {
   burnDuration: 1,
   fireRate: 0.5, // shots/sec
 };
+
+// ===== Dragon Healing =====
+export function healDragon(gs) {
+  const ds = getDragonStats(gs);
+  const maxHP = ds.maxHP | 0;
+  const hp    = gs.dragonHP | 0;
+  if (hp >= maxHP) return { healed: 0, reason: 'full' };
+  const deficit = maxHP - hp;
+  const bones   = gs.bones | 0;
+  if (bones <= 0) return { healed: 0, reason: 'no_bones' };
+  const healed = Math.min(bones, deficit);
+  gs.bones    = bones - healed;
+  gs.dragonHP = hp + healed;
+  return { healed, reason: 'ok' };
+}
+
 // ===== Ability Upgrade Levels =====
 // (0 = base; you can unlock/level these however you like)
 export const upgrades = {
