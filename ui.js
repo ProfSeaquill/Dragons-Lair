@@ -1,8 +1,13 @@
 // ui.js — edge-wall build mode + HUD + Next Wave preview
+import { emit } from './eventBus.js';
 
-import * as state from './state.js';
-import { toggleEdge, recomputePath } from './pathing.js';
-import { getUpgradeInfo, buyUpgrade } from './upgrades.js';
+export function wireUI(doc = document) {
+  doc.getElementById('startBtn')?.addEventListener('click', () => emit('wave:start'));
+  doc.getElementById('healBtn')?.addEventListener('click', () => emit('dragon:heal', { amount: 1 }));
+  doc.getElementById('autoStart')?.addEventListener('change', e => emit('settings:autoStart', !!e.target.checked));
+  doc.getElementById('saveBtn')?.addEventListener('click', () => emit('save:now'));
+  doc.getElementById('loadBtn')?.addEventListener('click', () => emit('save:load'));
+}
 
 // ---------- DOM helpers ----------
 const $ = (id) => document.getElementById(id);
