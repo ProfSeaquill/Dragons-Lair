@@ -234,6 +234,7 @@ function renderUpgradesPanel() {
         if (!unlocked) return;
         if (info.key === 'gust') state.GameState.reqWingGust = true;
         if (info.key === 'roar') state.GameState.reqRoar     = true;
+        if (info.key === 'stomp') state.GameState.reqStomp    = true;
       });
 
       row.appendChild(use);
@@ -251,23 +252,27 @@ function renderUpgradesPanel() {
     const label = (base, s) => (s > 0.05 ? `${base} (${s.toFixed(1)}s)` : base);
 
     function tick() {
-      const cds = combat.getCooldowns();
-      for (const { key, btn, unlocked } of useBtns) {
-        if (!unlocked) continue; // still locked; no cooldown to show
-        if (key === 'gust') {
-          const cd = cds.gust || 0;
-          btn.disabled = cd > 0.05;
-          btn.textContent = label('Use', cd);
-        } else if (key === 'roar') {
-          const cd = cds.roar || 0;
-          btn.disabled = cd > 0.05;
-          btn.textContent = label('Use', cd);
-        }
-      }
-      requestAnimationFrame(tick);
+  const cds = combat.getCooldowns();
+  for (const { key, btn /*, unlocked*/ } of useBtns) {
+    const U = state.GameState.Upgrades || {};
+    const level = (U[key] | 0);
+    const locked = level <= 0;
+
+    if (locked) {
+      btn.disabled = true;
+      btn.textContent = 'Locked';
+      btn.title = `Buy at least 1 level to unlock`;
+    } else {
+      const cd =
+        key === 'gust' ? (cds.gust || 0) :
+        key === 'roar' ? (cds.roar || 0) : 0;
+        key === 'stomp' ? (cds.stomp || 0) : 0;
+      btn.disabled = cd > 0.05;
+      btn.textContent = cd > 0.05 ? `Use (${cd.toFixed(1)}s)` : 'Use';
+      btn.title = cd > 0.05 ? `${key} on cooldown` : `Activate ${key}`;
     }
-    requestAnimationFrame(tick);
-  })();
+  }
+  requestAnimationFrame(tick);
 }
 
 
