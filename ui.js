@@ -590,4 +590,3 @@ async function ensureDevPanel() {
   panel.appendChild(utilRow);
 
   rightCol.appendChild(panel);
-}
