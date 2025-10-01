@@ -9,6 +9,7 @@ import {
   updateEnemyDistance,
 } from './pathing.js';
 import { initLighting } from './lighting-webgl.js';
+import { buyUpgrade } from './upgrades.js';
 
 // ----- Combat (robust namespace import; tolerant of export name variants) -----
 import * as combat from './combat.js';
@@ -211,10 +212,10 @@ lighting.render(sceneCanvas, lights, ambient);
 // ---------- Boot ----------
 function boot() {
   recomputePath(state.GameState);
-  bindUI();
 
+  // Bind all CustomEvent listeners before UI wiring
   window.addEventListener('dl-start-wave', () => { startWave(); });
-
+    
   lastT = performance.now();
   requestAnimationFrame(frame);     // <- use frame, not tick
 
@@ -263,6 +264,9 @@ window.addEventListener('dl-upgrade-buy', (e) => {
     UI.tell?.('Not enough gold');
   }
 });
+
+// Wire UI after listeners are set
+bindUI();
 }
 
 function startWave() {
@@ -311,10 +315,9 @@ function update(dt) {
 
   // 1) Let Combat drive game logic if available
   if (typeof combatUpdate === 'function') {
-    combatUpdate(gs, dt);
-  } else if (typeof combatTick === 'function') {
-    combatTick(gs, dt);
-  }
+   combatUpdate(gs, dt);
+}
+
 
 // 2) Fallback enemy movement using interpolated center-to-center steps
 for (const enemy of gs.enemies) {
