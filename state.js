@@ -93,7 +93,7 @@ export function getGustStats(gs) {
 
 export function getRoarStats(gs) {
   const lv = (gs.upgrades?.roar | 0);
-  const rangeTiles = GRID.w + GRID.h; // covers entire map
+  const rangeTiles = GRID.cols + GRID.rows; // covers entire map
   return {
     stunSec:     lin(1.5, 0.25, lv),                     // longer stun per level
     cd:          stepDownCooldown(40.0, 20.0, lv, 2, 0.85),
@@ -107,7 +107,7 @@ export function getRoarStats(gs) {
 
 export function getStompStats(gs) {
   const lv = (gs.upgrades?.stomp | 0);
-  const rangeTiles = GRID.w + GRID.h; // covers entire map
+  const rangeTiles = GRID.cols + GRID.rows; // covers entire map
   return {
     dmg:        Math.round(lin(6, 3, lv)),               // chip damage
     slowMult:   clamp01(1.0 - (0.20 + 0.05 * lv)),       // base 20% slow +3%/lvl
