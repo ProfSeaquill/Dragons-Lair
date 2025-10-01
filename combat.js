@@ -581,21 +581,19 @@ function markHit(e, amount = 0) {
 }
 
 // ---------------- Wave composition + start ----------------
-
-function buildWaveQueue(gs = state.GameState) {
-  const wave = (gs.wave | 0) || 1;
+// === Pure queue builder (shared by live waves & preview) ===
+function buildWaveQueueFromWave(waveNum, { preview = false } = {}) {
+  const wave = Math.max(1, waveNum | 0);
   const n = Math.max(1, waveCountFor(wave));
   const q = [];
 
-  // Specials first (optional cadence)
+  // Specials cadence (match your current rules)
   if (wave % FLAGS.bossEvery === 0)       q.push('boss');
   if (wave % FLAGS.kingsguardEvery === 0) q.push('kingsguard');
-  if (wave >= 4 && wave % 4 === 0)        q.push('hero');       // a hero every 4 waves (tune)
+  if (wave >= 10 && wave % 4 === 0)        q.push('hero');
+  if (wave >= 20 && wave % 3 === 0)        q.push('engineer');
 
-  // Light engineers occasionally (bomb planters)
-  if (wave >= 5 && wave % 3 === 0) q.push('engineer');
-
-  // Fill the rest with core troops (simple progression)
+  // Core troops fill
   const remaining = Math.max(0, n - q.length);
   for (let i = 0; i < remaining; i++) {
     if (wave < 4) {
@@ -603,17 +601,23 @@ function buildWaveQueue(gs = state.GameState) {
     } else if (wave < 8) {
       q.push((i % 3 === 0) ? 'squire' : 'villager');
     } else {
-      // knights come in more often later
       q.push((i % 2 === 0) ? 'knight' : 'squire');
     }
   }
 
-  // Small shuffle so batches aren't too uniform (keeps first element stable)
-  for (let i = 1; i < q.length; i++) {
-    const j = 1 + ((Math.random() * (q.length - 1)) | 0);
-    [q[i], q[j]] = [q[j], q[i]];
+  // Keep preview deterministic; live gets a small shuffle
+  if (!preview && q.length > 1) {
+    for (let i = 1; i < q.length; i++) {
+      const j = 1 + ((Math.random() * (q.length - 1)) | 0);
+      [q[i], q[j]] = [q[j], q[i]];
+    }
   }
   return q;
+}
+
+function buildWaveQueue(gs = state.GameState) {
+  const wave = (gs.wave | 0) || 1;
+  return buildWaveQueueFromWave(wave, { preview: false });
 }
 
 export function startWave(gs = state.GameState) {
@@ -635,6 +639,25 @@ export function startWave(gs = state.GameState) {
 
   return true;
 }
+
+export function previewWaveList(arg) {
+  const wave =
+    (typeof arg === 'number') ? (arg | 0) :
+    (arg && typeof arg.wave === 'number') ? (arg.wave | 0) :
+    ((state.GameState.wave | 0) || 1);
+  return buildWaveQueueFromWave(wave, { preview: true }).slice();
+}
+
+export function previewWaveCounts(arg) {
+  const list = previewWaveList(arg);
+  const counts = Object.create(null);
+  for (const t of list) counts[t] = (counts[t] | 0) + 1;
+  return counts;
+}
+
+// Optional aliases if you ever referenced other names
+export const getWavePreview = previewWaveList;
+export const nextWavePlan   = previewWaveList;
 
 // Back-compat export if main.js ever uses spawnWave
 export const spawnWave = startWave;
