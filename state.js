@@ -48,7 +48,7 @@ export function isDragonCell(x, y, gs) {
 // ===== Base Dragon Stats =====
 const DRAGON_BASE = {
   maxHP: 100,
-  breathPower: 50,
+  breathPower: 10,
   breathRange: 8 * GRID.tile,
   breathWidth: GRID.tile * 0.9,
   burnDPS: 1,
