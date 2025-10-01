@@ -233,8 +233,8 @@ const FLAGS = {
   engineerTravelTime: 4.0,   // seconds "digging" underground before popping up
   engineerBombDmg: 35,       // damage to the dragon on bomb detonation
   spawnGap: 0.45,          // time between members in a group
-  groupGap: 1.2,           // extra pause between groups
-  groupMin: 4,
+  groupGap: 2.0,           // extra pause between groups
+  groupMin: 6,
   groupMax: 10,
 };
 
