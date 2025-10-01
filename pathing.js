@@ -819,6 +819,17 @@ function stepFrom(x, y, dir) {
  * ========================= */
 
 export function stepEnemyInterpolated(gs, e, dtSec) {
+  if (e.pausedForAttack || e.isAttacking) {
+    // lock the unit in place at the center of its current tile
+    const c = {
+      x: e.cx * state.GRID.tile + state.GRID.tile / 2,
+      y: e.cy * state.GRID.tile + state.GRID.tile / 2,
+    };
+    e.x = c.x; e.y = c.y;
+    e.tx = c.x; e.ty = c.y;
+    return; // don’t move this frame
+  }
+  
   if (typeof e.dirLockT !== 'number') e.dirLockT = 0;
   e.dirLockT = Math.max(0, e.dirLockT - dtSec);
 
