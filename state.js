@@ -109,9 +109,9 @@ export function getStompStats(gs) {
   return {
     dmg:        Math.round(lin(6, 3, lv)),               // chip damage
     slowMult:   clamp01(1.0 - (0.20 + 0.03 * lv)),       // base 20% slow +3%/lvl
-    slowSec:    4.0,
+    slowSec:    3.0,
     cd:         stepDownCooldown(18.0, 8.0, lv, 2, 0.85),
-    rangeTiles: 6,
+    rangeTiles: 100,
   };
 }
 
