@@ -8,6 +8,9 @@ let gustCooldown  = 30.00;
 let roarCooldown  = 60.00;
 let stompCooldown = 30.00;
 
+// Unique enemy IDs (module-local counter)
+let __ENEMY_ID = 0;
+
 // expose cooldowns for UI
 export function getCooldowns() {
   return {
