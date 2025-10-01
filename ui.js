@@ -184,15 +184,15 @@ function renderUpgradesPanel() {
   const infos = getUpgradeInfo(state.GameState);
   root.innerHTML = '';
 
-  // Track “Use” buttons so we can update label/disabled by cooldowns
-  const useBtns = []; // items: { key: 'gust'|'roar', btn, unlocked }
+  // Keep references to "Use" buttons so we can live-update them
+  const useBtns = []; // { key: 'gust'|'roar'|'stomp', btn }
 
   infos.forEach(info => {
     const row = document.createElement('div');
     row.className = 'uRow';
 
-    const name = document.createElement('div');
-    const buy  = document.createElement('button');
+    const name  = document.createElement('div');
+    const buy   = document.createElement('button');
     const small = document.createElement('small');
 
     name.textContent = `${info.title} (Lv ${info.level})`;
@@ -221,66 +221,65 @@ function renderUpgradesPanel() {
     row.appendChild(left);
     row.appendChild(buy);
 
-    // ---- Ability "Use" buttons for Gust/Roar/Stomp ----
-if (info.type === 'ability' && (info.key === 'gust' || info.key === 'roar' || info.key === 'stomp')) {
-  const use = document.createElement('button');
-  use.className = 'btn';
+    // Ability "Use" buttons (Gust/Roar/Stomp)
+    if (info.type === 'ability' && (info.key === 'gust' || info.key === 'roar' || info.key === 'stomp')) {
+      const use = document.createElement('button');
+      use.className = 'btn';
 
-  const unlocked = (info.level | 0) > 0;
-  use.disabled = !unlocked;
-  use.textContent = unlocked ? 'Use' : 'Locked';
-  use.title = unlocked ? `Activate ${info.title}` : `Buy at least 1 level to unlock`;
+      use.textContent = 'Locked'; // live-updated below
+      use.disabled = true;
 
-  use.addEventListener('click', () => {
-    // recheck live level so it can flip from Locked → Use without stale closure
-    const U = state.GameState.Upgrades || {};
-    const lvlNow = (U[info.key] | 0);
-    if (lvlNow <= 0) return;
+      use.addEventListener('click', () => {
+        const U = state.GameState.Upgrades || {};
+        const lvlNow = (U[info.key] | 0);
+        if (lvlNow <= 0) return; // still locked
+        if (info.key === 'gust')  state.GameState.reqWingGust = true;
+        if (info.key === 'roar')  state.GameState.reqRoar     = true;
+        if (info.key === 'stomp') state.GameState.reqStomp    = true;
+      });
 
-    if (info.key === 'gust')  state.GameState.reqWingGust = true;
-    if (info.key === 'roar')  state.GameState.reqRoar     = true;
-    if (info.key === 'stomp') state.GameState.reqStomp    = true;
+      row.appendChild(use);
+      useBtns.push({ key: info.key, btn: use });
+    }
+
+    root.appendChild(row);
   });
 
-  row.appendChild(use);
-  useBtns.push({ key: info.key, btn: use });
-}
+  // ---- Live cooldown / lock updater ----
+  (async function abilityUseUpdater() {
+    const combat = await getCombat();
+    if (typeof combat.getCooldowns !== 'function') return;
 
-// ---- Live cooldown updater ----
-(async function abilityUseUpdater() {
-  const combat = await getCombat();
-  if (typeof combat.getCooldowns !== 'function') return;
+    const label = (base, s) => (s > 0.05 ? `${base} (${s.toFixed(1)}s)` : base);
 
-  const label = (base, s) => (s > 0.05 ? `${base} (${s.toFixed(1)}s)` : base);
+    function tick() {
+      const cds = combat.getCooldowns();
+      for (const { key, btn } of useBtns) {
+        const U = state.GameState.Upgrades || {};
+        const level = (U[key] | 0);
+        const locked = level <= 0;
 
-  function tick() {
-    const cds = combat.getCooldowns();
-    for (const { key, btn } of useBtns) {
-      const U = state.GameState.Upgrades || {};
-      const level = (U[key] | 0);
-      const locked = level <= 0;
+        if (locked) {
+          btn.disabled = true;
+          btn.textContent = 'Locked';
+          btn.title = 'Buy at least 1 level to unlock';
+        } else {
+          const cd =
+            key === 'gust'  ? (cds.gust  || 0) :
+            key === 'roar'  ? (cds.roar  || 0) :
+            key === 'stomp' ? (cds.stomp || 0) : 0;
 
-      if (locked) {
-        btn.disabled = true;
-        btn.textContent = 'Locked';
-        btn.title = 'Buy at least 1 level to unlock';
-      } else {
-        const cd =
-          key === 'gust'  ? (cds.gust  || 0) :
-          key === 'roar'  ? (cds.roar  || 0) :
-          key === 'stomp' ? (cds.stomp || 0) : 0;   // ← fixed ternary
-
-        btn.disabled = cd > 0.05;
-        btn.textContent = label('Use', cd);
-        btn.title = cd > 0.05 ? `${key} on cooldown` : `Activate ${key}`;
+          btn.disabled = cd > 0.05;
+          btn.textContent = label('Use', cd);
+          btn.title = cd > 0.05 ? `${key} on cooldown` : `Activate ${key}`;
+        }
       }
+      requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-})();  // ← closes the IIFE
+  })();
+} // <-- closes renderUpgradesPanel()
 
-} // ← closes renderUpgradesPanel()
 
 
 // ---------- Canvas Edge Build Mode ----------
