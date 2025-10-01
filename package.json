@@ -1,0 +1,12 @@
+{
+  "name": "dragons-lair",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0"
+  }
+}
