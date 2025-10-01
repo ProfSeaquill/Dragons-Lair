@@ -840,36 +840,38 @@ if (R.spawning && R.queue.length > 0) {
 
     // --- NEW: attack-over-time logic (pause movement + tick attacks) ---
     // If enemy is within attackRange (manhattan) of nearest dragon cell, attack.
-    if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
-      const nearest = nearestDragonCell(gs, e.cx, e.cy);
-      if (nearest) {
-        const distMan = Math.abs(nearest.x - e.cx) + Math.abs(nearest.y - e.cy);
-        const range = (typeof e.attackRange === 'number') ? e.attackRange : 1;
-        if (distMan <= range) {
-          
-          // Pause movement and attack over time
-          e.pausedForAttack = true;
-          e.isAttacking = true;
-          e.attackTimer = e.attackTimer ?? (Math.random() * (1 / Math.max(1e-6, e.attackRate || 1)));
-          e.attackTimer -= dt;
+   // --- attack-over-time logic (no per-attack round timer; pure DPS) ---
+if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
+  const nearest = nearestDragonCell(gs, e.cx, e.cy);
+  if (nearest) {
+    const distMan = Math.abs(nearest.x - e.cx) + Math.abs(nearest.y - e.cy);
+    const range = (typeof e.attackRange === 'number') ? e.attackRange : 1;
 
-          const rate = Math.max(1e-6, e.attackRate || 1);
-          if (e.attackTimer <= 0) {
-            const dmg = (typeof e.attackDamage === 'number') ? e.attackDamage : (e.contactDamage | 0);
-            gs.dragonHP = Math.max(0, gs.dragonHP - (dmg | 0));
-            markHit(e, dmg);
-            // reset to next attack interval
-            e.attackTimer += 1 / rate;
-          }
+    if (distMan <= range) {
+      // In range: pause movement and apply continuous DPS
+      e.pausedForAttack = true;
+      e.isAttacking = true;
 
-          // do NOT auto-despawn here — death happens naturally below if hp <= 0
-        } else {
-          // Not in range -> resume movement
-          e.pausedForAttack = false;
-          e.isAttacking = false;
-        }
+      const rate = Math.max(0, e.attackRate || 0);             // attacks/sec
+      const perHit = (typeof e.attackDamage === 'number')
+        ? e.attackDamage
+        : (e.contactDamage | 0);                                // fallback
+      const dps = rate * perHit;
+
+      // deal damage continuously (no ticking/round timer)
+      if (dps > 0 && gs.dragonHP > 0) {
+        gs.dragonHP = Math.max(0, gs.dragonHP - dps * dt);
+        // touch the healthbar visibility briefly
+        markHit(e, 0.0001);
       }
+
+    } else {
+      // Out of range: resume movement
+      e.pausedForAttack = false;
+      e.isAttacking = false;
     }
+  }
+}
 
     // Death -> rewards (DoT, projectiles, or other effects may have killed them)
     if (e.hp <= 0) {
