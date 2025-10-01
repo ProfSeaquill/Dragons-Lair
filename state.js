@@ -101,6 +101,7 @@ export function getRoarStats(gs) {
     senseMult:   1.4,
     herdingMult: 1.5,
     buffDur:     5.0,
+    rangeTiles,
   };
 }
 
@@ -112,6 +113,7 @@ export function getStompStats(gs) {
     slowMult:   clamp01(1.0 - (0.20 + 0.05 * lv)),       // base 20% slow +3%/lvl
     slowSec:    3.0,
     cd:         stepDownCooldown(18.0, 8.0, lv, 2, 0.85),
+    rangeTiles,
   };
 }
 
