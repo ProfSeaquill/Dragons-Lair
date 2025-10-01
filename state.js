@@ -57,7 +57,7 @@ const DRAGON_BASE = {
 };
 // ===== Ability Upgrade Levels =====
 // (0 = base; you can unlock/level these however you like)
-export const Upgrades = {
+export const upgrades = {
   claw:  0,
   gust:  0,
   roar:  0,
@@ -150,12 +150,12 @@ export const GameState = {
   effects: [],
 
     // Ability upgrades + UI requests (set by HUD buttons)
-  Upgrades: { ...Upgrades },   // levels
+  upgrades: { ...upgrades },   // levels
   reqWingGust: false,
   reqRoar:     false,
   reqStomp:    false,
 
-  // Upgrades
+  // upgrades
   upgrades: {},
 
   // Per-cell edge walls: Map<"x,y", {N,E,S,W:boolean}>

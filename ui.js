@@ -59,7 +59,7 @@ async function getCombat() {
 export function bindUI() {
   wireButtons();
   wireCanvasEdgeBuild();
-  renderUpgradesPanel();
+  renderupgradesPanel();
   refreshHUD();          // also triggers first preview render
   recomputePath(state.GameState);
 
@@ -92,7 +92,7 @@ export function refreshHUD() {
   // Rebuild upgrade buttons when gold changes so disabled/enabled updates live
   if ((gs.gold | 0) !== _lastGold) {
     _lastGold = gs.gold | 0;
-    renderUpgradesPanel();
+    renderupgradesPanel();
   }
 
   // Only rebuild the Next Wave preview when the wave number changes
@@ -176,8 +176,8 @@ function wireButtons() {
   }
 }
 
-// ---------- Upgrades panel ----------
-function renderUpgradesPanel() {
+// ---------- upgrades panel ----------
+function renderupgradesPanel() {
   const root = hud.upgrades;
   if (!root) return;
 
@@ -204,7 +204,7 @@ function renderUpgradesPanel() {
     buy.addEventListener('click', () => {
       const ok = buyUpgrade(state.GameState, info.key);
       if (ok) {
-        renderUpgradesPanel();
+        renderupgradesPanel();
         refreshHUD();
         tell(`Upgraded ${info.title}`);
       } else {
@@ -230,7 +230,7 @@ function renderUpgradesPanel() {
       use.disabled = true;
 
       use.addEventListener('click', () => {
-        const U = state.GameState.Upgrades || {};
+        const U = state.GameState.upgrades || {};
         const lvlNow = (U[info.key] | 0);
         if (lvlNow <= 0) return; // still locked
         if (info.key === 'gust')  state.GameState.reqWingGust = true;
@@ -255,7 +255,7 @@ function renderUpgradesPanel() {
     function tick() {
       const cds = combat.getCooldowns();
       for (const { key, btn } of useBtns) {
-        const U = state.GameState.Upgrades || {};
+        const U = state.GameState.upgrades || {};
         const level = (U[key] | 0);
         const locked = level <= 0;
 
@@ -278,7 +278,7 @@ function renderUpgradesPanel() {
     }
     requestAnimationFrame(tick);
   })();
-} // <-- closes renderUpgradesPanel()
+} // <-- closes renderupgradesPanel()
 
 
 

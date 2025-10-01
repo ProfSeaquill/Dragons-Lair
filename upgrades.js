@@ -166,7 +166,7 @@ export function buyUpgrade(gs = GameState, key) {
   let store = 'upgrades';
   if (!def) {
     def = ABILITY_UPGRADES.find(d => d.key === key);
-    store = def ? 'Upgrades' : store;
+    store = def ? 'upgrades' : store;
   }
   if (!def) return false;
 
