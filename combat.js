@@ -43,33 +43,59 @@ function stepIfOpen(gs, x, y, dir) {
   return { x, y };
 }
 
-// Wing Gust: push enemies and bombs away from EXIT by N tiles, respecting walls
+// Wing Gust: push ONLY adjacent enemies away from EXIT by N tiles, respecting walls,
+// then have them resume moving back toward the EXIT (dragon).
 function wingGustPush(gs, tiles) {
   const ex = state.EXIT.x, ey = state.EXIT.y;
 
-  // Enemies
+  // ----- Enemies -----
   for (const e of gs.enemies) {
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
 
-    // Choose axis away from EXIT (stronger axis first)
-    const dx = e.cx - ex, dy = e.cy - ey;
+    // 1) Limit effect to enemies adjacent to the dragon footprint
+    if (!isAdjacentToDragon(gs, e.cx, e.cy)) continue;
+
+    // 2) Choose primary axis away from EXIT and push 'tiles' steps if open
+    const dx0 = e.cx - ex, dy0 = e.cy - ey;
     let dir;
-    if (Math.abs(dx) >= Math.abs(dy)) dir = (dx >= 0) ? 'E' : 'W';
-    else                              dir = (dy >= 0) ? 'S' : 'N';
+    if (Math.abs(dx0) >= Math.abs(dy0)) dir = (dx0 >= 0) ? 'E' : 'W';
+    else                                dir = (dy0 >= 0) ? 'S' : 'N';
 
     let nx = e.cx, ny = e.cy;
     for (let k = 0; k < tiles; k++) {
       const step = stepIfOpen(gs, nx, ny, dir);
-      if (step.x === nx && step.y === ny) break; // blocked
+      if (step.x === nx && step.y === ny) break; // blocked by wall/out of bounds
       nx = step.x; ny = step.y;
     }
-    e.cx = nx; e.cy = ny;
+
+    // 3) Update position and reset movement history so AI heads back toward EXIT
+    if (nx !== e.cx || ny !== e.cy) {
+      e.cx = nx;
+      e.cy = ny;
+
+      // Compute a one-step direction FROM current tile TOWARD EXIT
+      // (this biases their next move to head back to the dragon)
+      const dx = ex - nx, dy = ey - ny;
+      let toExit;
+      if (Math.abs(dx) >= Math.abs(dy)) toExit = (dx >= 0) ? 'E' : 'W';
+      else                              toExit = (dy >= 0) ? 'S' : 'N';
+      const stepToward = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] }[toExit];
+
+      // Set prev cell one step BEHIND current, relative to the *to-exit* heading.
+      // Many movement routines infer heading from (prev -> current).
+      e.prevCX = nx - stepToward[0];
+      e.prevCY = ny - stepToward[1];
+
+      // Small “commit back to exit” so they don’t instantly re-evaluate into weird turns
+      e.commitDir = toExit;
+      e.commitSteps = Math.max(e.commitSteps || 0, 2);
+    }
   }
 
-  // Bombs (effects.type === 'bomb'): approximate as tile-steps with wall checks
+  // ----- Bombs (optional): keep your existing bomb push logic, or restrict to adjacency similarly -----
   for (const fx of (gs.effects || [])) {
     if (fx.type !== 'bomb') continue;
-    // convert to tile coords
+    // (your existing bomb tile-step code is fine; you can also gate it by adjacency if you want)
     let cx = Math.floor(fx.x / state.GRID.tile);
     let cy = Math.floor(fx.y / state.GRID.tile);
 
@@ -80,17 +106,16 @@ function wingGustPush(gs, tiles) {
 
     for (let k = 0; k < tiles; k++) {
       const step = stepIfOpen(gs, cx, cy, dir);
-      if (step.x === cx && step.y === cy) break; // blocked
+      if (step.x === cx && step.y === cy) break;
       cx = step.x; cy = step.y;
     }
 
-    // back to pixels (center of the tile)
-    fx.x = (cx + 0.5) * state.GRID.tile;
-    fx.y = (cy + 0.5) * state.GRID.tile;
+    const t = state.GRID.tile;
+    fx.x = (cx + 0.5) * t;
+    fx.y = (cy + 0.5) * t;
   }
-
-  // TODO (nice-to-have FX): add wind streak effect here
 }
+
 
 function dragonAnchor(gs) {
   const cells = state.dragonCells(gs);
