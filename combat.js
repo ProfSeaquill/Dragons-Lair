@@ -46,7 +46,7 @@ function stepIfOpen(gs, x, y, dir) {
 // Wing Gust: push ONLY adjacent enemies away from EXIT by N tiles, respecting walls,
 // then have them resume moving back toward the EXIT (dragon).
 function wingGustPush(gs, tiles) {
-  // --- choose a single anchor for this cast (center of dragon footprint) ---
+  // compute a stable dragon anchor once
   const cells = state.dragonCells(gs);
   let sx = 0, sy = 0;
   for (const c of cells) { sx += c.x; sy += c.y; }
@@ -57,41 +57,39 @@ function wingGustPush(gs, tiles) {
   for (const e of gs.enemies) {
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
 
-    // 1) Only affect units adjacent to the dragon
+    // Only push units adjacent to the dragon
     if (!isAdjacentToDragon(gs, e.cx, e.cy)) continue;
 
-    // 2) Push direction = away from dragon anchor (cardinal on strongest axis)
+    // Pick push direction away from dragon anchor on the dominant axis
     const dx0 = e.cx - ax, dy0 = e.cy - ay;
     let dir;
     if (Math.abs(dx0) >= Math.abs(dy0)) dir = (dx0 >= 0) ? 'E' : 'W';
     else                                dir = (dy0 >= 0) ? 'S' : 'N';
 
-    // 3) Step out up to N tiles, respecting walls; never land inside dragon
+    // Step out up to N tiles, respecting walls; do not land inside dragon
     let nx = e.cx, ny = e.cy;
     for (let k = 0; k < tiles; k++) {
       const step = stepIfOpen(gs, nx, ny, dir);
-      if (step.x === nx && step.y === ny) break; // blocked
-      // tentative new tile
-      const tx = step.x, ty = step.y;
-      if (state.isDragonCell(tx, ty, gs)) break; // don't shove into the dragon
-      nx = tx; ny = ty;
+      if (step.x === nx && step.y === ny) break;    // blocked
+      if (state.isDragonCell(step.x, step.y, gs)) break; // don't shove into dragon
+      nx = step.x; ny = step.y;
     }
 
-    // 4) Apply displacement and gently bias next move back toward EXIT
     if (nx !== e.cx || ny !== e.cy) {
       e.cx = nx; e.cy = ny;
 
-      // light nudge back toward EXIT (one-step heading), no long commit
+      // Lightly bias next movement back toward EXIT/dragon
       const dx = state.EXIT.x - nx, dy = state.EXIT.y - ny;
       const toExit = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'E' : 'W') : (dy >= 0 ? 'S' : 'N');
       const v = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] }[toExit];
 
-      // Set prev so inference says "I'm facing EXIT", but keep commit short
+      // Set heading history so AI infers facing → toward EXIT
       e.prevCX = nx - v[0];
       e.prevCY = ny - v[1];
-      e.commitDir = null;           // let normal pathing resume
+      e.dir = toExit;            // keep dir consistent with that heading
+      e.commitDir = null;        // let normal pathing resume immediately
       e.commitSteps = 0;
-      e.isAttacking = false;        // clear attack state if they were biting
+      e.isAttacking = false;
       e.pausedForAttack = false;
     }
   }
