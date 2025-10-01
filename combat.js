@@ -131,6 +131,13 @@ function spawnMouthFire(gs, dur = 0.6) {
   });
 }
 
+function nextGroupSize() {
+  const a = FLAGS.groupMin | 0, b = FLAGS.groupMax | 0;
+  if (b <= a) return Math.max(1, a);
+  const r = a + ((Math.random() * (b - a + 1)) | 0);
+  return Math.min(Math.max(1, r), b);
+}
+
 // --- Spawn helper: give freshly-spawned enemies a "previous cell" (if available)
 // and a short forward commit so they don't immediately reconsider direction.
 //
@@ -210,7 +217,10 @@ const FLAGS = {
   engineerBombTimer: 5,     // seconds until detonation
   engineerTravelTime: 4.0,   // seconds "digging" underground before popping up
   engineerBombDmg: 35,       // damage to the dragon on bomb detonation
-  spawnGap: 0.45,            // seconds between spawns
+  spawnGap: 0.45,          // time between members in a group
+  groupGap: 1.2,           // extra pause between groups
+  groupMin: 4,
+  groupMax: 10,
 };
 
 function waveCountFor(wave) {
@@ -316,6 +326,38 @@ function spawnOne(gs, type) {
   }
 }
 
+function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
+  const e = makeEnemy(type, gs.wave | 0);
+  e.id = (++__ENEMY_ID);
+  e.groupId = groupId | 0;
+  e.routeSeed = e.routeSeed ?? ((Math.random() * 1e9) | 0);
+  e.cx = state.ENTRY.x;
+  e.cy = state.ENTRY.y;
+  e.dir = 'E';
+
+  // force torch for special roles; they can overwrite leader visually, but we keep the first as leader
+  if (e.type === 'hero' || e.type === 'kingsguard' || e.type === 'boss') {
+    e.torchBearer = true;
+    e.behavior.sense = (e.behavior.sense || 0.5) * 1.15;
+    e.trailStrength = Math.max(e.trailStrength || 0.5, 1.5);
+  }
+
+  // Each member follows the current group leader (set after the first spawn)
+  e.followLeaderId = currentLeaderId ?? null;
+
+  initializeSpawnPrevAndCommit(e);
+  (gs.enemies || (gs.enemies = [])).push(e);
+
+  // seed trail: helps bunching
+  if (typeof e.trailStrength === 'number') {
+    import('./pathing.js').then(m => {
+      if (typeof m.bumpSuccess === 'function') m.bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
+    }).catch(() => {});
+  }
+  return e;
+}
+
+
 /* --- Dev / Playtest helpers --- */
 export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
   n = Math.max(1, n | 0);
@@ -360,6 +402,11 @@ const R = {
   queue: [],
   spawnTimer: 0,
   waveActive: false,
+  
+  // new
+  groupId: 0,
+  groupRemaining: 0,
+  groupLeaderId: null,
 };
 // module-scope breath cooldown (must be top-level)
 let fireCooldown = 0;
@@ -567,6 +614,9 @@ export function startWave(gs = state.GameState) {
   R.spawning = true;
   R.waveActive = true;
   R.spawnTimer = 0; // spawn immediately on next update tick
+  R.groupId = 0;
+  R.groupRemaining = 0;
+  R.groupLeaderId = null;
 
   return true;
 }
@@ -605,14 +655,51 @@ if (T) {
 }
 
 
-  // 1) Spawning
-  if (R.spawning && R.queue.length > 0) {
-    R.spawnTimer -= dt;
+  // 1) Spawning (group-based)
+if (R.spawning && R.queue.length > 0) {
+  R.spawnTimer -= dt;
+
+  if (R.groupRemaining <= 0) {
+    // Start a new group when timer expires
     if (R.spawnTimer <= 0) {
-      spawnOne(gs, R.queue.shift());
-      R.spawnTimer = FLAGS.spawnGap;
+      R.groupId++;
+      R.groupRemaining = Math.min(nextGroupSize(), R.queue.length);
+      R.groupLeaderId = null;                 // will be set by first member
+      R.spawnTimer = 0;                       // spawn leader immediately
+    } else {
+      // waiting for groupGap; do nothing
+      return;
     }
   }
+
+  if (R.spawnTimer <= 0 && R.groupRemaining > 0) {
+    // Pop the next type for this group
+    const type = R.queue.shift();
+    const e = spawnOneIntoGroup(state.GameState, type, R.groupId, R.groupLeaderId);
+
+    // First member becomes leader if none yet. Also force torch for hero/kingsguard/boss.
+    if (R.groupLeaderId == null) {
+      R.groupLeaderId = e.id;
+      e.leader = true;
+      e.torchBearer = true;
+      e.behavior.sense = (e.behavior.sense || 0.5) * 1.15;
+      e.trailStrength = Math.max(e.trailStrength || 0.5, 1.5);
+    }
+
+    // Followers bias toward this group’s leader
+    e.followLeaderId = R.groupLeaderId;
+
+    R.groupRemaining--;
+
+    // Schedule next member or next group
+    if (R.groupRemaining > 0) {
+      R.spawnTimer = FLAGS.spawnGap;       // within-group spacing
+    } else {
+      R.spawnTimer = FLAGS.groupGap;       // between-group spacing
+    }
+  }
+}
+
 
   // 2) Enemy status (engineer tunneling, burn DoT, deaths, contact/attack)
   const exitCx = state.EXIT.x, exitCy = state.EXIT.y;
