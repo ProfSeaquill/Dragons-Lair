@@ -107,6 +107,10 @@ export function refreshHUD() {
 }
 }
 
+
+// ---------- Optional small API for main/render ----------
+export const UI = { refreshHUD, tell };
+
 // Lightweight message banner
 function tell(s, color = '') {
   if (!hud.msg) return;
@@ -454,9 +458,6 @@ async function renderNextWavePreview() {
     root.appendChild(p);
   }
 }
-
-// ---------- Optional small API for main/render ----------
-export const UI = { refreshHUD, tell };
 
 
 // ---------- Dev / Playtest Panel ----------
