@@ -268,7 +268,7 @@ if (info.type === 'ability' && (info.key === 'gust' || info.key === 'roar' || in
         const cd =
           key === 'gust'  ? (cds.gust  || 0) :
           key === 'roar'  ? (cds.roar  || 0) :
-          key === 'stomp' ? (cds.stomp || 0) : 0;
+          key === 'stomp' ? (cds.stomp || 0) : 0;   // ← fixed ternary
 
         btn.disabled = cd > 0.05;
         btn.textContent = label('Use', cd);
@@ -278,7 +278,9 @@ if (info.type === 'ability' && (info.key === 'gust' || info.key === 'roar' || in
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
-})(); // <-- close the IIFE
+})();  // ← closes the IIFE
+
+} // ← closes renderUpgradesPanel()
 
 
 // ---------- Canvas Edge Build Mode ----------
