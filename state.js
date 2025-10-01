@@ -93,25 +93,25 @@ export function getGustStats(gs) {
 
 export function getRoarStats(gs) {
   const lv = (gs.upgrades?.roar | 0);
+  const rangeTiles = state.GRID.w + state.GRID.h; // covers entire map
   return {
     stunSec:     lin(1.5, 0.25, lv),                     // longer stun per level
     cd:          stepDownCooldown(40.0, 20.0, lv, 2, 0.85),
-    rangeTiles:  10,                                     // “long range”
     // fear behavior buffs (no penalty increase over time—per your request)
     senseMult:   1.4,
     herdingMult: 1.5,
-    buffDur:     8.0,
+    buffDur:     5.0,
   };
 }
 
 export function getStompStats(gs) {
   const lv = (gs.upgrades?.stomp | 0);
+  const rangeTiles = state.GRID.w + state.GRID.h; // covers entire map
   return {
     dmg:        Math.round(lin(6, 3, lv)),               // chip damage
-    slowMult:   clamp01(1.0 - (0.20 + 0.03 * lv)),       // base 20% slow +3%/lvl
+    slowMult:   clamp01(1.0 - (0.20 + 0.05 * lv)),       // base 20% slow +3%/lvl
     slowSec:    3.0,
     cd:         stepDownCooldown(18.0, 8.0, lv, 2, 0.85),
-    rangeTiles: 100,
   };
 }
 
