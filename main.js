@@ -219,6 +219,50 @@ function boot() {
   requestAnimationFrame(frame);     // <- use frame, not tick
 
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
+
+  window.addEventListener('dl-heal', () => {
+  const { healed, reason } = state.healDragon(state.GameState);
+  if (healed > 0) {
+    UI.refreshHUD?.();
+    UI.tell?.(`Healed ${healed} HP`);
+  } else {
+    UI.tell?.(reason === 'full' ? 'HP already full' : 'Not enough bones');
+  }
+});
+
+window.addEventListener('dl-auto-start', (e) => {
+  state.GameState.autoStart = !!e.detail;
+  UI.refreshHUD?.();
+  UI.tell?.(state.GameState.autoStart ? 'Auto-start ON' : 'Auto-start OFF');
+});
+
+window.addEventListener('dl-save', () => {
+  const ok = state.saveState(state.GameState);
+  UI.tell?.(ok ? 'Saved' : 'Save failed', ok ? '#8f8' : '#f88');
+});
+
+window.addEventListener('dl-load', () => {
+  if (state.loadState()) {
+    recomputePath(state.GameState);
+    UI.refreshHUD?.();
+    UI.tell?.('Loaded', '#8f8');
+  } else {
+    UI.tell?.('No save found', '#f88');
+  }
+});
+
+window.addEventListener('dl-upgrade-buy', (e) => {
+  const id = e.detail?.id;
+  if (!id) return;
+  const ok = buyUpgrade(state.GameState, id);
+  if (ok) {
+    // HUD refresh also triggers upgrade button re-eval when gold changes
+    UI.refreshHUD?.();
+    UI.tell?.(`Upgraded ${id}`);
+  } else {
+    UI.tell?.('Not enough gold');
+  }
+});
 }
 
 function startWave() {
