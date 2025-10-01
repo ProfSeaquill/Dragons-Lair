@@ -92,11 +92,22 @@ function wingGustPush(gs, tiles) {
   // TODO (nice-to-have FX): add wind streak effect here
 }
 
+function dragonAnchor(gs) {
+  const cells = state.dragonCells(gs);
+  // simple centroid of dragon tiles
+  let sx = 0, sy = 0;
+  for (const c of cells) { sx += c.x; sy += c.y; }
+  const cx = Math.round(sx / Math.max(1, cells.length));
+  const cy = Math.round(sy / Math.max(1, cells.length));
+  return { cx, cy };
+}
+
 // Roar: stun + temporary behavior buff within range
 function roarAffect(gs, rs) {
+  const a = dragonAnchor(gs);
   for (const e of gs.enemies) {
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    const distMan = Math.abs(e.cx - state.EXIT.x) + Math.abs(e.cy - state.EXIT.y);
+    const distMan = Math.abs(e.cx - a.cx) + Math.abs(e.cy - a.cy);
     if (distMan <= rs.rangeTiles) {
       e.stunLeft     = Math.max(e.stunLeft || 0, rs.stunSec);
       e.roarBuffLeft = Math.max(e.roarBuffLeft || 0, rs.buffDur);
@@ -110,9 +121,10 @@ function roarAffect(gs, rs) {
 
 // Stomp: low dmg + slow in a big radius
 function stompAffect(gs, ss) {
+  const a = dragonAnchor(gs);
   for (const e of gs.enemies) {
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    const distMan = Math.abs(e.cx - state.EXIT.x) + Math.abs(e.cy - state.EXIT.y);
+    const distMan = Math.abs(e.cx - a.cx) + Math.abs(e.cy - a.cy);
     if (distMan <= ss.rangeTiles) {
       e.hp -= ss.dmg;
       markHit(e, ss.dmg);
