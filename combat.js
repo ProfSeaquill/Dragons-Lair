@@ -1,6 +1,7 @@
 // combat.js (top)
 import * as state from './state.js';
 import { updateEnemyDistance, raycastOpenCellsFromExit } from './pathing.js';
+import { emit } from './eventBus.js';
 
 // === Ability cooldown timers (module-local) ===
 let clawCooldown  = 10.00;
@@ -10,6 +11,14 @@ let stompCooldown = 30.00;
 
 // Unique enemy IDs (module-local counter)
 let __ENEMY_ID = 0;
+
+export function wireUI(doc = document) {
+  doc.getElementById('startBtn')?.addEventListener('click', () => emit('wave:start'));
+  doc.getElementById('healBtn')?.addEventListener('click', () => emit('dragon:heal', { amount: 1 }));
+  doc.getElementById('autoStart')?.addEventListener('change', e => emit('settings:autoStart', !!e.target.checked));
+  doc.getElementById('saveBtn')?.addEventListener('click', () => emit('save:now'));
+  doc.getElementById('loadBtn')?.addEventListener('click', () => emit('save:load'));
+}
 
 // expose cooldowns for UI
 export function getCooldowns() {
