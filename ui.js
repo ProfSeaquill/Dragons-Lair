@@ -1,7 +1,7 @@
 // ui.js — edge-wall build mode + HUD + Next Wave preview
 import * as state from './state.js';
 import { toggleEdge, recomputePath } from './pathing.js';
-import { getUpgradeInfo, buyUpgrade } from './upgrades.js';
+import { getUpgradeInfo } from './upgrades.js';
 
 // ---------- DOM helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -127,17 +127,8 @@ function wireButtons() {
 
   if (hud.healBtn) {
     hud.healBtn.addEventListener('click', () => {
-      const ds = state.getDragonStats(gs);
-      if (gs.dragonHP >= ds.maxHP) { tell('HP already full'); return; }
-      if (gs.bones <= 0) { tell('Not enough bones'); return; }
-      // Heal: 1 HP per 1 bone
-      const deficit = ds.maxHP - gs.dragonHP;
-      const bonesToSpend = Math.min(gs.bones, deficit);
-      gs.bones -= bonesToSpend;
-      gs.dragonHP += bonesToSpend;
-      refreshHUD();
-      tell(`Healed ${bonesToSpend} HP`);
-    });
+  window.dispatchEvent(new CustomEvent('dl-heal'));
+});
   }
 
   if (hud.start) {
@@ -149,29 +140,21 @@ function wireButtons() {
 
   if (hud.auto) {
     hud.auto.addEventListener('change', (e) => {
-      gs.autoStart = !!e.target.checked;
-      refreshHUD();
-      tell(gs.autoStart ? 'Auto-start ON' : 'Auto-start OFF');
-    });
+  window.dispatchEvent(new CustomEvent('dl-auto-start', { detail: !!e.target.checked }));
+});
+
   }
 
   if (hud.save) {
     hud.save.addEventListener('click', () => {
-      if (state.saveState(gs)) tell('Saved', '#8f8');
-      else tell('Save failed', '#f88');
-    });
+  window.dispatchEvent(new CustomEvent('dl-save'));
+});
   }
 
   if (hud.load) {
-    hud.load.addEventListener('click', () => {
-      if (state.loadState()) {
-        recomputePath(gs);
-        refreshHUD();
-        tell('Loaded', '#8f8');
-      } else {
-        tell('No save found', '#f88');
-      }
-    });
+   hud.load.addEventListener('click', () => {
+  window.dispatchEvent(new CustomEvent('dl-load'));
+});
   }
 }
 
@@ -201,15 +184,10 @@ function renderupgradesPanel() {
     buy.disabled = (state.GameState.gold | 0) < (info.cost | 0);
 
     buy.addEventListener('click', () => {
-      const ok = buyUpgrade(state.GameState, info.key);
-      if (ok) {
-        renderupgradesPanel();
-        refreshHUD();
-        tell(`Upgraded ${info.title}`);
-      } else {
-        tell('Not enough gold');
-      }
-    });
+  window.dispatchEvent(new CustomEvent('dl-upgrade-buy', {
+    detail: { id: info.key, title: info.title, cost: info.cost }
+  }));
+});
 
     const left = document.createElement('div');
     left.style.display = 'flex';
