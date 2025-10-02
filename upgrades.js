@@ -27,9 +27,20 @@ function abilityLvl(gs, key) {
 export function listUpgrades(gs) {
   const cfg = getCfg(gs);
   const fromCfg = cfg.upgrades;
-  const hasCfg  = fromCfg && Object.keys(fromCfg).length > 0;
-  return hasCfg ? fromCfg : STATIC_UPGRADES;
+
+  // If cfg.upgrades is present and non-empty, prefer it.
+  const hasCfg = fromCfg && (
+    (Array.isArray(fromCfg) && fromCfg.length > 0) ||
+    (!Array.isArray(fromCfg) && Object.keys(fromCfg).length > 0)
+  );
+
+  // Optional: shallow-clone to avoid accidental UI mutation
+  if (hasCfg) {
+    return Array.isArray(fromCfg) ? fromCfg.slice() : { ...fromCfg };
+  }
+  return Array.isArray(STATIC_UPGRADES) ? STATIC_UPGRADES.slice() : { ...STATIC_UPGRADES };
 }
+
 
 /* ============================================================
  * Part A: FIRE STAT UPGRADES (your original ones)
