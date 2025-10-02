@@ -1,6 +1,6 @@
 // ui.js — edge-wall build mode + HUD + Next Wave preview
 import * as state from './state.js';
-import { toggleEdge, recomputePath } from './pathing.js';
+import { toggleEdge, edgeHasWall, recomputePath } from './pathing.js';
 import { getUpgradeInfo } from './upgrades.js';
 import { getCfg } from './state.js';
 
@@ -21,15 +21,6 @@ const hud = {
   upgrades: $('upgrades'),
   preview:  $('preview'),
   timer: $('timer'),
-
-
-  function renderGridHelp(gs) {
-  const el = document.querySelector('.gridHelp');
-  if (!el) return;
-  const cost = (getCfg(gs).tuning.economy.wallCostBones | 0) || 1;
-  el.textContent =
-    `Build Mode: Click a TILE EDGE to add a wall (${cost} bone). ` +
-    `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
 }
 };
 
@@ -104,6 +95,8 @@ export function refreshHUD() {
     renderNextWavePreview().catch(err => console.warn('preview failed:', err));
   }
 
+  renderHealButtonLabel(gs);
+  
   // keep this LAST so it always reflects current config
   renderGridHelp(gs);
 }
@@ -119,7 +112,7 @@ function tell(s, color = '') {
     tell._t = setTimeout(() => { if (hud.msg.textContent === s) hud.msg.textContent = ''; }, 2500);
   }
 }
-
+  
 // ---------- Buttons / HUD wiring ----------
 function wireButtons() {
   const gs = state.GameState;
@@ -155,6 +148,14 @@ function wireButtons() {
   window.dispatchEvent(new CustomEvent('dl-load'));
 });
   }
+}
+
+function renderHealButtonLabel(gs) {
+  const btn = document.getElementById('healBtn');
+  if (!btn) return;
+  const costPerHP = (state.getCfg(gs).tuning.dragon.healCostBone | 0) || 1;
+  const unit = costPerHP === 1 ? 'bone' : 'bones';
+  btn.textContent = `Heal (1 HP / ${costPerHP} ${unit})`;
 }
 
 // ---------- upgrades panel ----------
@@ -256,7 +257,15 @@ function renderUpgradesPanel() {
   })();
 } // <-- closes renderUpgradesPanel()
 
-
+// Wall instructional text
+function renderGridHelp(gs) {
+  const el = document.querySelector('.gridHelp');
+  if (!el) return;
+  const cost = (getCfg(gs).tuning.economy.wallCostBones | 0) || 1;
+  el.textContent =
+    `Build Mode: Click a TILE EDGE to add a wall (${cost} bone). ` +
+    `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
+  
 
 // ---------- Canvas Edge Build Mode ----------
 function wireCanvasEdgeBuild() {
@@ -281,36 +290,54 @@ function wireCanvasEdgeBuild() {
     state.GameState.uiHoverEdge = null;
   });
 
+  // (optional) disable right-click context menu on the canvas
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  
   cv.addEventListener('mousedown', (e) => {
-    const hover = edgeHitTest(cv, e);
-    if (!hover) return;
+  const hover = edgeHitTest(cv, e);
+  if (!hover) return;
 
-    const place = (e.button === 0);
-    const remove = (e.button === 2);
-    if (!place && !remove) return;
+  const place  = (e.button === 0);
+  const remove = (e.button === 2);
+  if (!place && !remove) return;
 
-    const hasWall = edgeHasWall(state.GameState, hover.x, hover.y, hover.side);
-    if (place && hasWall) return;
-    if (remove && !hasWall) return;
+  const gs = state.GameState;
+  const hasWall = edgeHasWall(gs, hover.x, hover.y, hover.side);
+  if (place && hasWall) return;
+  if (remove && !hasWall) return;
 
-// Prevent building on/around the dragon
-if (edgeTouchesDragon(state.GameState, hover.x, hover.y, hover.side)) {
-  tell('Cannot build on or next to the dragon', '#f88');
-  return;
-}
-
-    const res = toggleEdge(state.GameState, hover.x, hover.y, hover.side, place);
-    if (!res.ok) {
-      tell(`Blocked: ${res.reason || 'Action not allowed'}`, '#f88');
+  if (place) {
+    const cost = (state.getCfg(gs).tuning.economy.wallCostBones | 0) || 1;
+    if ((gs.bones | 0) < cost) {
+      UI.tell?.('Not enough bones');
       return;
     }
 
-    refreshHUD();
-    const verb = place ? 'Placed' : 'Removed';
-    const delta = place ? `(-${state.COSTS.edgeWall})` : `(+${state.COSTS.edgeRefund})`;
-    tell(`${verb} wall ${delta}`, '#8f8');
-  });
-}
+    // Attempt to place
+    toggleEdge(gs, hover.x, hover.y, hover.side);
+
+    // If placement was rejected (e.g., would fully block entry↔exit), don't charge
+    const placed = edgeHasWall(gs, hover.x, hover.y, hover.side);
+    if (!placed) {
+      UI.tell?.("Can't block entry ↔ exit");
+      return;
+    }
+
+    // Charge after successful placement
+    gs.bones -= cost;
+
+  } else if (remove) {
+    // Remove (no refund; add one if you want)
+    toggleEdge(gs, hover.x, hover.y, hover.side);
+
+    // Example refund logic if you decide to support it later:
+    // const refund = (state.getCfg(gs).tuning.economy.wallRefundBones | 0) || 0;
+    // if (refund) gs.bones += refund;
+  }
+
+  recomputePath(gs);
+  UI.refreshHUD?.();
+});
 
 function edgeHitTest(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
