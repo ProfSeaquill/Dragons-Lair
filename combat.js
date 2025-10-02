@@ -18,6 +18,7 @@ export function getCooldowns() {
     gust:  Math.max(0, gustCooldown  || 0),
     roar:  Math.max(0, roarCooldown  || 0),
     stomp: Math.max(0, stompCooldown || 0),
+    claw: Math.max(0, stompCooldown || 0),
   };
 }
 
