@@ -2,6 +2,7 @@
 import * as state from './state.js';
 import { toggleEdge, recomputePath } from './pathing.js';
 import { getUpgradeInfo } from './upgrades.js';
+import { getCfg } from './state.js';
 
 // ---------- DOM helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -22,14 +23,14 @@ const hud = {
   timer: $('timer'),
 
 
-  buildHelp: (function(){
-    const n = document.querySelector('.gridHelp');
-    if (n) {
-      n.textContent =
-        'Build Mode: Click a TILE EDGE to add a wall (1 bone). Right-click an edge wall to remove. Walls cannot fully block entry <-> exit.';
-    }
-    return n;
-  })(),
+  function renderGridHelp(gs) {
+  const el = document.querySelector('.gridHelp');
+  if (!el) return;
+  const cost = (getCfg(gs).tuning.economy.wallCostBones | 0) || 1;
+  el.textContent =
+    `Build Mode: Click a TILE EDGE to add a wall (${cost} bones). ` +
+    `Walls cannot fully block entry ↔ exit.`;
+}
 };
 
 // For render.js hover highlight
