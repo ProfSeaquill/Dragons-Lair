@@ -1,5 +1,54 @@
 // state.js — per-edge wall model + core game state + helpers
 
+// ---- Config defaults (safe, minimal, matches your current game) ----
+export const DEFAULT_CFG = {
+  tuning: {
+    abilities: { gust: 30, roar: 60, stomp: 30 },   // keep your current timers
+    dragon:   { maxHP: 100, healCostBone: 1 },      // 1 bone per HP
+    boss:     { hpMultiplier: 10, armor: 2 },       // as-used in your scaling
+    economy:  { wallCostBones: 1, goldBase: 5 }     // WALLS: 1 bone by default
+  },
+  enemies: {},     // no assumptions; fill via enemies.json
+  waves: [],       // fill via waves.json
+  upgrades: {}     // fill via upgrades.json
+};
+
+export function getCfg(gs) {
+  return (gs && gs.cfg) ? gs.cfg : DEFAULT_CFG;
+}
+
+// Merge configuration safely (shallow top-level merge is sufficient here)
+export function applyConfig(gs, cfg) {
+  gs.cfg = {
+    tuning:  { ...DEFAULT_CFG.tuning,  ...(cfg?.tuning  || {}) },
+    enemies: { ...DEFAULT_CFG.enemies, ...(cfg?.enemies || {}) },
+    waves:   Array.isArray(cfg?.waves) ? cfg.waves : DEFAULT_CFG.waves,
+    upgrades:{ ...DEFAULT_CFG.upgrades, ...(cfg?.upgrades || {}) },
+  };
+  // Keep an explicit max for dragon HP in state for easy reads
+  gs.dragonHPMax = (gs.cfg.tuning.dragon.maxHP | 0) || 100;
+}
+
+// If you added healDragon earlier, keep it but read from cfg:
+export function healDragon(gs) {
+  const cfg = getCfg(gs);
+  const maxHP     = (gs.dragonHPMax ?? cfg.tuning.dragon.maxHP) | 0;
+  const costPerHP = (cfg.tuning.dragon.healCostBone | 0) || 1;
+  const hp        = gs.dragonHP | 0;
+  const bones     = gs.bones | 0;
+
+  if (hp >= maxHP) return { healed: 0, reason: 'full' };
+  if (bones < costPerHP) return { healed: 0, reason: 'no_bones' };
+
+  const deficitHP   = maxHP - hp;
+  const maxHealable = Math.floor(bones / Math.max(1, costPerHP));
+  const healed      = Math.min(deficitHP, maxHealable);
+
+  gs.bones    = bones - healed * costPerHP;
+  gs.dragonHP = hp + healed;
+  return { healed, reason: 'ok' };
+}
+
 // ===== Grid & Entry/Exit =====
 export const GRID = { cols: 24, rows: 16, tile: 32 };
 
