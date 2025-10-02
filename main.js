@@ -275,6 +275,9 @@ window.addEventListener('dl-upgrade-buy', (e) => {
   }
 });
 
+// Wire UI after listeners are set
+bindUI();
+  
   loadConfigFiles()
   .then(cfg => {
     state.applyConfig(state.GameState, cfg);
@@ -284,9 +287,6 @@ window.addEventListener('dl-upgrade-buy', (e) => {
     UI.tell?.('Config loaded');
   })
   .catch(err => console.warn('Config load failed, using defaults', err));
-
-// Wire UI after listeners are set
-bindUI();
 }
 
 function startWave() {
