@@ -1,12 +1,13 @@
 // combat.js (top)
 import * as state from './state.js';
 import { updateEnemyDistance, raycastOpenCellsFromExit } from './pathing.js';
+import { getCfg } from './state.js';
 
 // === Ability cooldown timers (module-local) ===
-let clawCooldown  = 10.00;
-let gustCooldown  = 30.00;
-let roarCooldown  = 60.00;
-let stompCooldown = 30.00;
+gustCooldown  = getCfg(gs).tuning.abilities.gust;
+roarCooldown  = getCfg(gs).tuning.abilities.roar;
+stompCooldown = getCfg(gs).tuning.abilities.stomp;
+clawCooldown = getCfg(gs).tuning.abilities.claw;
 
 // Unique enemy IDs (module-local counter)
 let __ENEMY_ID = 0;
