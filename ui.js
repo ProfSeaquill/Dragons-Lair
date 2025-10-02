@@ -28,8 +28,8 @@ const hud = {
   if (!el) return;
   const cost = (getCfg(gs).tuning.economy.wallCostBones | 0) || 1;
   el.textContent =
-    `Build Mode: Click a TILE EDGE to add a wall (${cost} bones). ` +
-    `Walls cannot fully block entry ↔ exit.`;
+    `Build Mode: Click a TILE EDGE to add a wall (${cost} bone). ` +
+    `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
 }
 };
 
@@ -59,7 +59,7 @@ async function getCombat() {
 export function bindUI() {
   wireButtons();
   wireCanvasEdgeBuild();
-  renderupgradesPanel();
+  renderUpgradesPanel();
   refreshHUD();          // also triggers first preview render
   recomputePath(state.GameState);
 
@@ -72,6 +72,9 @@ export function bindUI() {
 // Track last values so we only rebuild when needed
 let _lastPreviewWave = -1;
 let _lastGold = -1;
+
+// ---------- Optional small API for main/render ----------
+export const UI = { refreshHUD, tell };
 
 export function refreshHUD() {
   const gs = state.GameState;
@@ -92,7 +95,7 @@ export function refreshHUD() {
   // Rebuild upgrade buttons when gold changes so disabled/enabled updates live
   if ((gs.gold | 0) !== _lastGold) {
     _lastGold = gs.gold | 0;
-    renderupgradesPanel();
+    renderUpgradesPanel(); // <-- ensure correct casing
   }
 
   // Only rebuild the Next Wave preview when the wave number changes
@@ -101,15 +104,10 @@ export function refreshHUD() {
     renderNextWavePreview().catch(err => console.warn('preview failed:', err));
   }
 
-  if (hud.timer) {
-  const t = Math.max(0, (state.GameState.waveTimeLeft || 0));
-  hud.timer.textContent = t.toFixed(1);
-}
+  // keep this LAST so it always reflects current config
+  renderGridHelp(gs);
 }
 
-
-// ---------- Optional small API for main/render ----------
-export const UI = { refreshHUD, tell };
 
 // Lightweight message banner
 function tell(s, color = '') {
@@ -160,7 +158,7 @@ function wireButtons() {
 }
 
 // ---------- upgrades panel ----------
-function renderupgradesPanel() {
+function renderUpgradesPanel() {
   const root = hud.upgrades;
   if (!root) return;
 
@@ -256,7 +254,7 @@ function renderupgradesPanel() {
     }
     requestAnimationFrame(tick);
   })();
-} // <-- closes renderupgradesPanel()
+} // <-- closes renderUpgradesPanel()
 
 
 
