@@ -279,6 +279,7 @@ window.addEventListener('dl-upgrade-buy', (e) => {
   .then(cfg => {
     state.applyConfig(state.GameState, cfg);
     recomputePath(state.GameState);   // safe: if waves/enemies affect path calc later
+    UI.renderUpgradesPanel?.();
     UI.refreshHUD?.();
     UI.tell?.('Config loaded');
   })
