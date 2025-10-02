@@ -14,6 +14,16 @@ import { buyUpgrade } from './upgrades.js';
 // ----- Combat (robust namespace import; tolerant of export name variants) -----
 import * as combat from './combat.js';
 
+async function loadConfigFiles() {
+  const [tuning, enemies, waves, upgrades] = await Promise.all([
+    fetch('./tuning.json').then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch('./enemies.json').then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch('./waves.json').then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch('./upgrades.json').then(r => r.ok ? r.json() : null).catch(() => null),
+  ]);
+  return { tuning, enemies, waves, upgrades };
+}
+
 // pick the per-frame update function (support update | tick | step)
 const combatUpdate = (typeof combat.update === 'function')
   ? combat.update
@@ -264,6 +274,15 @@ window.addEventListener('dl-upgrade-buy', (e) => {
     UI.tell?.('Not enough gold');
   }
 });
+
+  loadConfigFiles()
+  .then(cfg => {
+    state.applyConfig(state.GameState, cfg);
+    recomputePath(state.GameState);   // safe: if waves/enemies affect path calc later
+    UI.refreshHUD?.();
+    UI.tell?.('Config loaded');
+  })
+  .catch(err => console.warn('Config load failed, using defaults', err));
 
 // Wire UI after listeners are set
 bindUI();
