@@ -1,6 +1,7 @@
 // upgrades.js — fire stat upgrades + ability upgrades (Claw/Gust/Roar/Stomp)
 
 import { GameState, getDragonStats, GRID } from './state.js';
+import { getCfg } from './state.js';
 
 /* ============================================================
  * Cost model (unchanged for stats; also used for abilities)
@@ -18,6 +19,16 @@ function statLvl(gs, key) {
 }
 function abilityLvl(gs, key) {
   return Math.max(0, (gs.upgrades?.[key] | 0));
+}
+
+
+// If you already have a STATIC_UPGRADES constant, keep it.
+// Prefer config when provided; fall back to static.
+export function listUpgrades(gs) {
+  const cfg = getCfg(gs);
+  const fromCfg = cfg.upgrades;
+  const hasCfg  = fromCfg && Object.keys(fromCfg).length > 0;
+  return hasCfg ? fromCfg : STATIC_UPGRADES;
 }
 
 /* ============================================================
