@@ -1,7 +1,7 @@
 // ui.js — edge-wall build mode + HUD + Next Wave preview
 import * as state from './state.js';
 import { toggleEdge, edgeHasWall, recomputePath } from './pathing.js';
-import { getUpgradeInfo } from './upgrades.js';
+import { getUpgradeInfo, listUpgrades } from './upgrades.js';
 import { getCfg } from './state.js';
 
 // ---------- DOM helpers ----------
@@ -163,13 +163,14 @@ function renderUpgradesPanel() {
   const root = hud.upgrades;
   if (!root) return;
 
-  const infos = getUpgradeInfo(state.GameState);
+  const data = listUpgrades(gs);
+  const list = Array.isArray(data) ? data : Object.values(data);
   root.innerHTML = '';
 
   // Keep references to "Use" buttons so we can live-update them
   const useBtns = []; // { key: 'gust'|'roar'|'stomp', btn }
 
-  infos.forEach(info => {
+  list.forEach(info => {
     const row = document.createElement('div');
     row.className = 'uRow';
 
