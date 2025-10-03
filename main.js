@@ -1,4 +1,6 @@
 // main.js — boot, game loop, UI wiring, and combat integration (named imports)
+import * as Debug from './debugOverlay.js';
+import { getCooldowns } from './combat.js';
 
 import * as state from './state.js';
 import { bindUI, UI } from './ui.js';
