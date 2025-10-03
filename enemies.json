@@ -1,21 +1,9 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "additionalProperties": {
-    "type": "object",
-    "required": ["hp", "speed"],
-    "properties": {
-      "hp":        { "type": "number", "minimum": 10 },
-      "speed":     { "type": "number", "minimum": 0 },
-      "gold":      { "type": "number", "minimum": 0, "default": 1 },
-      "bones":     { "type": "number", "minimum": 0, "default": 1 },
-      "shielded":  { "type": "boolean", "default": false },
-      "armor":     { "type": "number", "minimum": 0, "default": 0 },
-      "tags":      { "type": "array", "items": { "type": "string" } },
-      "sprite":    { "type": "string" },
-      "size":      { "type": "number", "minimum": 0.5, "default": 1.0 }
-    },
-    "additionalProperties": false
-  }
+  "villager": { "hp": 12, "speed": 1.0, "gold": 1, "bones": 1, "tags": ["trash"] },
+  "squire":   { "hp": 20, "speed": 1.1, "gold": 2, "bones": 1 },
+  "knight":   { "hp": 60, "speed": 1.8, "gold": 4, "bones": 3, "armor": 2, "shielded": false },
+  "hero":     { "hp": 120, "speed": 1.2, "gold": 6, "bones": 2, "shielded": true, "tags": ["shield"] },
+  "engineer": { "hp": 40, "speed": 1.15, "gold": 3, "bones": 1, "tags": ["utility"] },
+  "kingsguard": { "hp": 180, "speed": 1.6, "gold": 10, "bones": 4, "armor": 3, "tags": ["miniboss"] },
+  "boss":     { "hp": 900, "speed": 1.4, "gold": 30, "bones": 6, "armor": 5, "tags": ["boss"] }
 }
-
