@@ -1024,7 +1024,7 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
 
   // --- Claw: high dmg melee, auto when any adjacent enemy exists (gated by CD)
   {
-    const cs = state.getClawStats(gs);
+    const cs = state.getClawStatsTuned(gs);
     if (clawCooldown <= 0) {
       let hitAny = false;
       // strike any enemy in a tile adjacent to the dragon footprint
@@ -1050,7 +1050,7 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
   // --- Wing Gust (button request → push away, respect walls)
   if (gs.reqWingGust && gustCooldown <= 0) {
     gs.reqWingGust = false;
-    const ps = state.getGustStats(gs);
+    const ps = state.getGustStatsTuned(gs);
     wingGustPush(gs, ps.pushTiles);
     gustCooldown = ps.cd;
   }
@@ -1058,7 +1058,7 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
   // --- Roar (button request → stun + fear buffs)
   if (gs.reqRoar && roarCooldown <= 0) {
     gs.reqRoar = false;
-    const rs = state.getRoarStats(gs);
+    const rs = state.getRoarStatsTuned(gs);
     roarAffect(gs, rs);
     roarCooldown = rs.cd;
   }
@@ -1066,15 +1066,16 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
   // --- Stomp (button request → AoE slow + chip dmg)
   if (gs.reqStomp && stompCooldown <= 0) {
     gs.reqStomp = false;
-    const ss = state.getStompStats(gs);
+    const ss = state.getStompStatsTuned(gs);
     stompAffect(gs, ss);
     stompCooldown = ss.cd;
   }
 
-  // 4) Dragon breath (with shield rule)
-  if (enemies.length > 0) {
-    dragonBreathTick(gs, dt, state.getDragonStats(gs));
-  }
+// 4) Dragon breath (with shield rule)
+if (enemies.length > 0) {
+  dragonBreathTick(gs, dt, state.getDragonStatsTuned(gs));
+}
+
 
   // 5) Wave completion
   if (R.waveActive && R.queue.length === 0 && enemies.length === 0) {
