@@ -65,7 +65,7 @@ let _lastPreviewWave = -1;
 let _lastGold = -1;
 
 // ---------- Optional small API for main/render ----------
-export const UI = { refreshHUD, tell };
+export const UI = { refreshHUD, tell, renderUpgradesPanel };
 
 export function refreshHUD() {
   const gs = state.GameState;
