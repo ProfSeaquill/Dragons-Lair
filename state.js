@@ -167,6 +167,90 @@ export function getStompStats(gs) {
   };
 }
 
+// ===== Phase 6: tuned wrappers (non-breaking) =====
+
+function _cfg(gs) { return (getCfg?.(gs) ?? {}).tuning ?? {}; }
+function _lvl(gs, keyPrefix) {
+  // Count how many upgrades matching a prefix were bought (e.g., "claw_dmg_", "claw_speed_")
+  const U = (gs && gs.upgrades) || {};
+  let n = 0;
+  for (const k in U) if (U[k] && k.startsWith(keyPrefix)) n += (U[k] | 0);
+  return n | 0;
+}
+
+export function getDragonStatsTuned(gs) {
+  const base = (typeof getDragonStats === 'function') ? getDragonStats(gs) : {};
+  const t = _cfg(gs).flame || {};
+
+  // Range in tiles: base + per-level bonus from the 'flame_range' upgrade level
+  const flameLvl = ((gs?.upgrades?.flame_range) | 0) || 0;
+  const baseTiles  = (typeof t.baseRangeTiles === 'number') ? t.baseRangeTiles : (base.breathRange ? (base.breathRange / (GRID?.tile || 1)) : undefined);
+  const bonusTiles = (typeof t.rangePerLevelTiles === 'number') ? (t.rangePerLevelTiles * flameLvl) : 0;
+
+  // Compute breathRange in pixels if cfg provided; otherwise keep base
+  const breathRange =
+    (typeof baseTiles === 'number')
+      ? (baseTiles + bonusTiles) * (GRID?.tile || 1)
+      : base.breathRange;
+
+  return {
+    ...base,
+    fireRate:   (typeof t.fireRate  === 'number') ? t.fireRate  : base.fireRate,
+    breathPower:(typeof t.dmgPerHit === 'number') ? t.dmgPerHit : base.breathPower,
+    burnDPS:    (typeof t.burnDps   === 'number') ? t.burnDps   : base.burnDPS,
+    // keep whatever burnDuration your game already had (tuning didn’t specify change)
+    breathRange
+  };
+}
+
+export function getClawStatsTuned(gs) {
+  const base = (typeof getClawStats === 'function') ? getClawStats(gs) : {};
+  const t = _cfg(gs).claw || {};
+
+  // Levels: sum any "claw_dmg_*" & "claw_speed_*" upgrades (prefix counting)
+  const dmgLvl   = _lvl(gs, 'claw_dmg_');   // additive damage tiers
+  const speedLvl = _lvl(gs, 'claw_speed_'); // multiplicative cooldown tiers
+
+  const baseDmg = (typeof t.baseDamage === 'number') ? t.baseDamage : base.dmg;
+  const perLvl  = (typeof t.damagePerLevel === 'number') ? t.damagePerLevel : 0;
+  const cdBase  = (typeof t.baseCooldownSec === 'number') ? t.baseCooldownSec : base.cd;
+  const cdMult  = (typeof t.cooldownMultPerLevel === 'number') ? t.cooldownMultPerLevel : 1.0;
+
+  const tunedDmg = (typeof baseDmg === 'number') ? (baseDmg + perLvl * dmgLvl) : base.dmg;
+  const tunedCd  = (typeof cdBase === 'number') ? (cdBase * Math.pow(cdMult, speedLvl)) : base.cd;
+
+  return { ...base, dmg: tunedDmg, cd: tunedCd };
+}
+
+export function getGustStatsTuned(gs) {
+  const base = (typeof getGustStats === 'function') ? getGustStats(gs) : {};
+  const t = (_cfg(gs).crowd || {}).gust || {};
+  // pushTiles only; cooldown still comes from your existing ability tuning
+  return {
+    ...base,
+    pushTiles: (typeof t.pushTiles === 'number') ? t.pushTiles : base.pushTiles
+  };
+}
+
+export function getRoarStatsTuned(gs) {
+  const base = (typeof getRoarStats === 'function') ? getRoarStats(gs) : {};
+  const t = (_cfg(gs).crowd || {}).roar || {};
+  return {
+    ...base,
+    stunSec: (typeof t.stunSec === 'number') ? t.stunSec : base.stunSec
+  };
+}
+
+export function getStompStatsTuned(gs) {
+  const base = (typeof getStompStats === 'function') ? getStompStats(gs) : {};
+  const t = (_cfg(gs).crowd || {}).stomp || {};
+  return {
+    ...base,
+    slowMult: (typeof t.slowMult === 'number') ? t.slowMult : base.slowMult,
+    slowSec:  (typeof t.slowSec  === 'number') ? t.slowSec  : base.slowSec
+  };
+}
+
 // ===== Utility: Field allocation =====
 export function makeScalarField(w, h, fill = 0) {
   const a = new Array(h);
