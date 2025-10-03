@@ -212,6 +212,11 @@ function frame(now) {
   if ('filter' in sceneCtx) sceneCtx.filter = 'none';
   render.draw(sceneCtx, state.GameState);
 
+  Debug.markFrame();
+  Debug.tick({
+  
+});
+
   // 3) build lights & present via WebGL
  // computeTorchLights already slices to 16; no need to slice again
 const lights = computeTorchLights(state.GameState);
@@ -232,6 +237,8 @@ function boot() {
   requestAnimationFrame(frame);     // <- use frame, not tick
 
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
+
+  Debug.init();
 
   window.addEventListener('dl-heal', () => {
   const { healed, reason } = state.healDragon(state.GameState);
