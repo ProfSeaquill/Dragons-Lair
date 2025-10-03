@@ -353,6 +353,12 @@ function makeEnemy(type, wave) {
   if (ov && typeof ov === 'object') {
     if (typeof ov.hp === 'number')      { out.hp = Math.max(1, ov.hp|0); out.maxHp = out.hp; }
     if (typeof ov.speed === 'number')   { out.speed = ov.speed; }
+    if (typeof ov.damage === 'number') {
+  out.damage = ov.attackDamage;
+}
+    if (typeof ov.rnge === 'number') {
+  out.range = ov.range;
+}
     if (typeof ov.rate === 'number') { out.rate = ov.rate;
   out.attackTimer = Math.random() * (1 / Math.max(0.0001, out.rate));
 }
