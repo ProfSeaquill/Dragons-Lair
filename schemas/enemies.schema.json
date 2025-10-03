@@ -1,0 +1,22 @@
+
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "required": ["hp", "speed"],
+    "properties": {
+      "hp":        { "type": "number", "minimum": 10 },
+      "speed":     { "type": "number", "minimum": 0 },
+      "gold":      { "type": "number", "minimum": 0, "default": 1 },
+      "bones":     { "type": "number", "minimum": 0, "default": 1 },
+      "shielded":  { "type": "boolean", "default": false },
+      "armor":     { "type": "number", "minimum": 0, "default": 0 },
+      "tags":      { "type": "array", "items": { "type": "string" } },
+      "sprite":    { "type": "string" },
+      "size":      { "type": "number", "minimum": 0.5, "default": 1.0 }
+    },
+    "additionalProperties": false
+  }
+}
+
