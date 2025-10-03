@@ -8,7 +8,9 @@
     "properties": {
       "hp":        { "type": "number", "minimum": 10 },
       "speed":     { "type": "number", "minimum": 0 },
-      "attackRate": { "type": "number", "minimum": 0 }
+      "damage": { "type": "number", "minimum": 0 },
+      "range":  { "type": "number", "minimum": 1 }
+      "rate": { "type": "number", "minimum": 0 },
       "gold":      { "type": "number", "minimum": 0, "default": 1 },
       "bones":     { "type": "number", "minimum": 0, "default": 1 },
       "shielded":  { "type": "boolean", "default": false },
