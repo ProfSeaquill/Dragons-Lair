@@ -317,10 +317,9 @@ function makeEnemy(type, wave) {
     hp,
     maxHp: hp,
     speed: spd,             // tiles/sec
-    contactDamage: tDmg,    // legacy
-    attackDamage: prof.dmg,
-    attackRate: prof.rate,
-    attackRange: prof.range,
+    damage: prof.dmg,
+    range: prof.range,
+    rate: prof.rate,
     attackTimer: Math.random() * (1 / Math.max(0.0001, prof.rate)), // jitter so not every attacker hits same frame
     pausedForAttack: false,
     shield: false,
@@ -354,8 +353,8 @@ function makeEnemy(type, wave) {
   if (ov && typeof ov === 'object') {
     if (typeof ov.hp === 'number')      { out.hp = Math.max(1, ov.hp|0); out.maxHp = out.hp; }
     if (typeof ov.speed === 'number')   { out.speed = ov.speed; }
-    if (typeof ov.attackRate === 'number') { out.attackRate = ov.attackRate;
-  out.attackTimer = Math.random() * (1 / Math.max(0.0001, out.attackRate));
+    if (typeof ov.rate === 'number') { out.rate = ov.rate;
+  out.attackTimer = Math.random() * (1 / Math.max(0.0001, out.rate));
 }
     if (typeof ov.armor === 'number')   { out.armor = ov.armor|0; }
     if (typeof ov.gold === 'number')    { out.gold  = ov.gold|0; }
@@ -929,23 +928,23 @@ if (R.spawning && R.queue.length > 0) {
     if (e.roarBuffLeft > 0) e.roarBuffLeft -= dt;
 
     // --- NEW: attack-over-time logic (pause movement + tick attacks) ---
-    // If enemy is within attackRange (manhattan) of nearest dragon cell, attack.
+    // If enemy is within range (manhattan) of nearest dragon cell, attack.
    // --- attack-over-time logic (no per-attack round timer; pure DPS) ---
 if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
   const nearest = nearestDragonCell(gs, e.cx, e.cy);
   if (nearest) {
     const distMan = Math.abs(nearest.x - e.cx) + Math.abs(nearest.y - e.cy);
-    const range = (typeof e.attackRange === 'number') ? e.attackRange : 1;
+    const range = (typeof e.range === 'number') ? e.range : 1;
 
     if (distMan <= range) {
       // In range: pause movement and apply continuous DPS
       e.pausedForAttack = true;
       e.isAttacking = true;
 
-      const rate = Math.max(0, e.attackRate || 0);             // attacks/sec
-      const perHit = (typeof e.attackDamage === 'number')
-        ? e.attackDamage
-        : (e.contactDamage | 0);                                // fallback
+      const rate = Math.max(0, e.rate || 0);             // attacks/sec
+      const perHit = (typeof e.damage === 'number')
+        ? e.damage
+        :                        
       const dps = rate * perHit;
 
       // deal damage continuously (no ticking/round timer)
@@ -973,20 +972,7 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
   continue;
 }
 
-    // --- Legacy contact: if an enemy actually steps *into* a dragon cell (rare),
-    //     still apply a contact hit but don't assume death-on-contact. Keep it small.
-    if (
-      Number.isInteger(e.cx) && Number.isInteger(e.cy) &&
-      state.isDragonCell(e.cx, e.cy, gs)
-    ) {
-      // If somehow inside dragon hitbox, inflict a single chunk of damage and remove:
-      // (This keeps old behavior if something forces an enemy into dragon cells.)
-      gs.dragonHP = Math.max(0, gs.dragonHP - (e.contactDamage | 0));
-      enemies.splice(i, 1);
-      continue;
-    }
-  }
-
+  
   // 3) Bomb timers
   for (let i = gs.effects.length - 1; i >= 0; i--) {
     const fx = gs.effects[i];
