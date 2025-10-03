@@ -281,6 +281,7 @@ bindUI();
   loadConfigFiles()
   .then(cfg => {
     state.applyConfig(state.GameState, cfg);
+    UI.renderUpgradesPanel?.();
     recomputePath(state.GameState);   // safe: if waves/enemies affect path calc later
     UI.renderUpgradesPanel?.();
     UI.refreshHUD?.();
