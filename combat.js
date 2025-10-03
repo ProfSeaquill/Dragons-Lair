@@ -4,10 +4,13 @@ import { updateEnemyDistance, raycastOpenCellsFromExit } from './pathing.js';
 import { getCfg } from './state.js';
 
 // === Ability cooldown timers (module-local) ===
-gustCooldown  = getCfg(gs).tuning.abilities.gust;
-roarCooldown  = getCfg(gs).tuning.abilities.roar;
-stompCooldown = getCfg(gs).tuning.abilities.stomp;
-clawCooldown = getCfg(gs).tuning.abilities.claw;
+// Initialized to 0; abilities will set cooldowns from cfg on use (ps.cd),
+// and you may also reset them at wave start if desired.
+let gustCooldown  = 0;
+let roarCooldown  = 0;
+let stompCooldown = 0;
+let clawCooldown  = 0;
+
 
 // Unique enemy IDs (module-local counter)
 let __ENEMY_ID = 0;
@@ -18,9 +21,10 @@ export function getCooldowns() {
     gust:  Math.max(0, gustCooldown  || 0),
     roar:  Math.max(0, roarCooldown  || 0),
     stomp: Math.max(0, stompCooldown || 0),
-    claw: Math.max(0, stompCooldown || 0),
+    claw:  Math.max(0, clawCooldown  || 0),
   };
 }
+
 
 // Quick helper: any tile adjacent to any dragon cell?
 function isAdjacentToDragon(gs, cx, cy) {
@@ -103,7 +107,7 @@ function wingGustPush(gs, tiles) {
     let cx = Math.floor(fx.x / state.GRID.tile);
     let cy = Math.floor(fx.y / state.GRID.tile);
 
-    const dx = cx - ex, dy = cy - ey;
+    const dx = cx - ax, dy = cy - ay;
     let dir;
     if (Math.abs(dx) >= Math.abs(dy)) dir = (dx >= 0) ? 'E' : 'W';
     else                              dir = (dy >= 0) ? 'S' : 'N';
@@ -332,17 +336,35 @@ function makeEnemy(type, wave) {
   };
 
   // (keep your existing switch with names/flags)
+   let out;
   switch (type) {
-    case 'villager':   return { ...base, name: 'Villager' };
-    case 'squire':     return { ...base, name: 'Squire' };
-    case 'knight':     return { ...base, name: 'Knight' };
-    case 'hero':       return { ...base, name: 'Hero', shield: true };
-    case 'engineer':   return { ...base, name: 'Engineer', tunneling: true, tunnelT: FLAGS.engineerTravelTime, updateByCombat: true };
-    case 'kingsguard': return { ...base, name: "King's Guard", miniboss: true };
-    case 'boss':       return { ...base, name: 'Knight of the Round Table', miniboss: true };
-    default:           return base;
+    case 'villager':   out = { ...base, name: 'Villager' }; break;
+    case 'squire':     out = { ...base, name: 'Squire' }; break;
+    case 'knight':     out = { ...base, name: 'Knight' }; break;
+    case 'hero':       out = { ...base, name: 'Hero', shield: true }; break;
+    case 'engineer':   out = { ...base, name: 'Engineer', tunneling: true, tunnelT: FLAGS.engineerTravelTime, updateByCombat: true }; break;
+    case 'kingsguard': out = { ...base, name: "King's Guard", miniboss: true }; break;
+    case 'boss':       out = { ...base, name: 'Knight of the Round Table', miniboss: true }; break;
+    default:           out = base; break;
   }
+
+  // --- Phase 5: apply per-type overrides from cfg.enemies[type], if present ---
+  const cfg = state.getCfg?.(state.GameState) || state.getCfg?.(state.GameState);
+  const ov = cfg?.enemies?.[type];
+  if (ov && typeof ov === 'object') {
+    if (typeof ov.hp === 'number')      { out.hp = Math.max(1, ov.hp|0); out.maxHp = out.hp; }
+    if (typeof ov.speed === 'number')   { out.speed = ov.speed; }
+    if (typeof ov.armor === 'number')   { out.armor = ov.armor|0; }
+    if (typeof ov.gold === 'number')    { out.gold  = ov.gold|0; }
+    if (typeof ov.bones === 'number')   { out.bones = ov.bones|0; }
+    if (typeof ov.shielded === 'boolean'){ out.shield = !!ov.shielded; }
+    if (Array.isArray(ov.tags))         { out.tags = [...ov.tags]; }
+    if (typeof ov.size === 'number')    { out.size = ov.size; }
+    if (typeof ov.sprite === 'string')  { out.sprite = ov.sprite; }
+  }
+  return out;
 }
+
 
 /* =========================
  * Spawning
@@ -452,6 +474,10 @@ const R = {
   groupRemaining: 0,
   groupLeaderId: null,
 };
+
+// --- Phase 5: JSON wave plan (null when not using JSON-driven waves) ---
+let _jsonPlan = null; // { groups: [{ type, remaining, interval, nextAt }], startedAt }
+
 // module-scope breath cooldown (must be top-level)
 let fireCooldown = 0;
 
@@ -657,16 +683,38 @@ export function startWave(gs = state.GameState) {
   gs.enemies = gs.enemies || [];
   gs.effects = gs.effects || [];
 
-  // build queue and flip flags
-  R.queue = buildWaveQueue(gs);
-  R.spawning = true;
-  R.waveActive = true;
-  R.spawnTimer = 0; // spawn immediately on next update tick
-  R.groupId = 0;
-  R.groupRemaining = 0;
-  R.groupLeaderId = null;
+ // build queue (legacy) OR initialize JSON plan
+const cfgWaves = state.getCfg?.(gs)?.waves;
+const waveIdx0 = Math.max(0, ((gs.wave | 0) - 1));
+_jsonPlan = null;
 
-  return true;
+if (Array.isArray(cfgWaves) && cfgWaves.length && cfgWaves[waveIdx0] && Array.isArray(cfgWaves[waveIdx0].groups)) {
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  _jsonPlan = {
+    startedAt: now,
+    groups: cfgWaves[waveIdx0].groups.map(g => ({
+      type: String(g.type || 'villager'),
+      remaining: Math.max(0, g.count | 0),
+      interval: Math.max(0, (g.interval_ms | 0) || 0),
+      nextAt: now + Math.max(0, (g.delay_ms | 0) || 0),
+      groupId: 0 // filled during spawn
+    }))
+  };
+  // Keep wave-complete gate from firing early: use a sentinel in R.queue
+  R.queue = ['__json__'];
+} else {
+  R.queue = buildWaveQueue(gs); // legacy path
+}
+
+R.spawning = true;
+R.waveActive = true;
+R.spawnTimer = 0; // spawn immediately on next update tick
+R.groupId = 0;
+R.groupRemaining = 0;
+R.groupLeaderId = null;
+
+return true;
+
 }
 
 export function previewWaveList(arg) {
@@ -721,6 +769,43 @@ if (T) {
   }
 }
 
+// --- Phase 5: JSON-configured spawning (runs when _jsonPlan is active) ---
+if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+  for (const G of _jsonPlan.groups) {
+    if (G.remaining <= 0) continue;
+    if (now >= G.nextAt) {
+      // Start new group id when we spawn the first member of this group's burst
+      if (!G.groupId) {
+        R.groupId++;
+        G.groupId = R.groupId;
+        R.groupLeaderId = null; // first member will become leader
+      }
+
+      const type = G.type;
+      const e = spawnOneIntoGroup(state.GameState, type, G.groupId, R.groupLeaderId);
+      if (R.groupLeaderId == null) {
+        R.groupLeaderId = e.id;
+        e.leader = true;
+        e.torchBearer = true;
+        e.behavior.sense = (e.behavior.sense || 0.5) * 1.15;
+        e.trailStrength = Math.max(e.trailStrength || 0.5, 1.5);
+      }
+      e.followLeaderId = R.groupLeaderId;
+
+      G.remaining -= 1;
+      G.nextAt = (G.interval > 0) ? (now + G.interval) : (now + 1e9); // no interval => effectively "only once"
+    }
+  }
+
+  // When all JSON groups are depleted, drop the sentinel R.queue so wave-complete can trigger.
+  const anyLeft = _jsonPlan.groups.some(g => g.remaining > 0);
+  if (!anyLeft) {
+    _jsonPlan = null;
+    R.queue = []; // release sentinel
+  }
+}
 
   // 1) Spawning (group-based)
 if (R.spawning && R.queue.length > 0) {
@@ -877,11 +962,13 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
 
     // Death -> rewards (DoT, projectiles, or other effects may have killed them)
     if (e.hp <= 0) {
-      gs.gold  = (gs.gold  | 0) + 5;
-      gs.bones = (gs.bones | 0) + 1;
-      enemies.splice(i, 1);
-      continue;
-    }
+  const eg = (typeof e.gold  === 'number') ? (e.gold  | 0) : 5;
+  const eb = (typeof e.bones === 'number') ? (e.bones | 0) : 1;
+  gs.gold  = (gs.gold  | 0) + eg;
+  gs.bones = (gs.bones | 0) + eb;
+  enemies.splice(i, 1);
+  continue;
+}
 
     // --- Legacy contact: if an enemy actually steps *into* a dragon cell (rare),
     //     still apply a contact hit but don't assume death-on-contact. Keep it small.
