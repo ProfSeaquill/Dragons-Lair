@@ -8,7 +8,7 @@ import {
   wouldDisconnectEntryAndExit,
   chooseNextDirectionToExit,
   recomputePath,
-} from './pathing.js';
+} from '../pathing.js';
 
 function fresh(gs = state.GameState) {
   state.resetState(gs);
