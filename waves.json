@@ -1,29 +1,15 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "array",
-  "items": {
-    "type": "object",
-    "required": ["groups"],
-    "properties": {
-      "id":        { "type": "integer", "minimum": 1 },
-      "rewardBonus": { "type": "number", "minimum": 0 },
-      "boss":      { "type": "boolean", "default": false },
-      "groups": {
-        "type": "array",
-        "items": {
-          "type": "object",
-          "required": ["type", "count"],
-          "properties": {
-            "type":       { "type": "string" },
-            "count":      { "type": "integer", "minimum": 1 },
-            "interval_ms":{ "type": "integer", "minimum": 0 },
-            "delay_ms":   { "type": "integer", "minimum": 0 }
-          },
-          "additionalProperties": false
-        }
-      }
-    },
-    "additionalProperties": false
-  }
-}
-
+[
+  { "id": 1, "groups": [
+    { "type": "villager", "count": 6, "interval_ms": 500 },
+    { "type": "squire",   "count": 3, "delay_ms": 1500, "interval_ms": 700 }
+  ]},
+  { "id": 2, "groups": [
+    { "type": "villager", "count": 8, "interval_ms": 400 },
+    { "type": "squire",   "count": 4, "interval_ms": 600 }
+  ]},
+  { "id": 5, "boss": true, "rewardBonus": 10, "groups": [
+    { "type": "knight",    "count": 4, "interval_ms": 1200 },
+    { "type": "kingsguard","count": 1, "delay_ms": 2000 },
+    { "type": "boss",      "count": 1, "delay_ms": 3500 }
+  ]}
+]
