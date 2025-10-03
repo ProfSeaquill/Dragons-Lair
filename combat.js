@@ -354,6 +354,9 @@ function makeEnemy(type, wave) {
   if (ov && typeof ov === 'object') {
     if (typeof ov.hp === 'number')      { out.hp = Math.max(1, ov.hp|0); out.maxHp = out.hp; }
     if (typeof ov.speed === 'number')   { out.speed = ov.speed; }
+    if (typeof ov.attackRate === 'number') { out.attackRate = ov.attackRate;
+  out.attackTimer = Math.random() * (1 / Math.max(0.0001, out.attackRate));
+}
     if (typeof ov.armor === 'number')   { out.armor = ov.armor|0; }
     if (typeof ov.gold === 'number')    { out.gold  = ov.gold|0; }
     if (typeof ov.bones === 'number')   { out.bones = ov.bones|0; }
