@@ -4,3 +4,23 @@
   "abilities": { "gust": 30, "roar": 60, "stomp": 30 }
 }
 
+{
+  "flame": {
+    "baseRangeTiles": 6,            // replaces default breath range base (in tiles)
+    "rangePerLevelTiles": 0.75,     // +tiles per 'flame_range' level
+    "dmgPerHit": 18,                // per breath tick damage
+    "burnDps": 6,                   // burn damage per second
+    "fireRate": 1.25                // breaths per second
+  },
+  "claw": {
+    "baseDamage": 35,               // base claw hit
+    "damagePerLevel": 7,            // +damage per 'claw_dmg_*' level
+    "baseCooldownSec": 1.8,         // base cooldown in seconds
+    "cooldownMultPerLevel": 0.9     // each 'claw_speed_*' level multiplies cd
+  },
+  "crowd": {
+    "gust":  { "pushTiles": 3 },    // tiles pushed away from dragon if adjacent
+    "roar":  { "stunSec": 1.5 },    // stun duration
+    "stomp": { "slowMult": 0.5, "slowSec": 2.0 } // slow % and duration
+  }
+}
