@@ -486,6 +486,9 @@ const R = {
 // --- Phase 5: JSON wave plan (null when not using JSON-driven waves) ---
 let _jsonPlan = null; // { groups: [{ type, remaining, interval, nextAt }], startedAt }
 
+// Warn once per wave per unknown type referenced by waves.json
+let _warnedTypesThisWave = new Set();
+
 // module-scope breath cooldown (must be top-level)
 let fireCooldown = 0;
 
@@ -684,6 +687,7 @@ function buildWaveQueue(gs = state.GameState) {
 }
 
 export function startWave(gs = state.GameState) {
+  _warnedTypesThisWave = new Set();
   // prevent re-entrancy while a wave is active or still spawning
   if (R.waveActive || R.spawning || (R.queue && R.queue.length > 0)) return false;
 
@@ -698,16 +702,37 @@ _jsonPlan = null;
 
 if (Array.isArray(cfgWaves) && cfgWaves.length && cfgWaves[waveIdx0] && Array.isArray(cfgWaves[waveIdx0].groups)) {
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-  _jsonPlan = {
-    startedAt: now,
-    groups: cfgWaves[waveIdx0].groups.map(g => ({
-      type: String(g.type || 'villager'),
-      remaining: Math.max(0, g.count | 0),
-      interval: Math.max(0, (g.interval_ms | 0) || 0),
-      nextAt: now + Math.max(0, (g.delay_ms | 0) || 0),
-      groupId: 0 // filled during spawn
-    }))
-  };
+
+function clampInt(v, lo, hi) {
+  v = (v|0);
+  if (!Number.isFinite(v)) v = lo;
+  return Math.max(lo, Math.min(hi, v));
+}
+function clampMs(v, lo, hi) {
+  v = (v|0);
+  if (!Number.isFinite(v)) v = lo;
+  return Math.max(lo, Math.min(hi, v));
+}
+
+// sensible bounds to avoid microbursts and huge delays
+const MIN_INTERVAL_MS = 16;     // ~1 frame
+const MAX_INTERVAL_MS = 60000;  // 60s
+const MIN_DELAY_MS    = 0;
+const MAX_DELAY_MS    = 120000; // 2m
+const MIN_COUNT       = 1;
+const MAX_COUNT       = 1000;
+
+_jsonPlan = {
+  startedAt: now,
+  groups: cfgWaves[waveIdx0].groups.map(g => ({
+    type: String(g.type || 'villager'),
+    remaining: clampInt(g.count ?? 0, MIN_COUNT, MAX_COUNT),
+    interval: clampMs((g.interval_ms ?? 0), MIN_INTERVAL_MS, MAX_INTERVAL_MS),
+    nextAt: now + clampMs((g.delay_ms ?? 0), MIN_DELAY_MS, MAX_DELAY_MS),
+    groupId: 0
+  }))
+};
+
   // Keep wave-complete gate from firing early: use a sentinel in R.queue
   R.queue = ['__json__'];
 } else {
@@ -789,6 +814,13 @@ if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
         R.groupId++;
         G.groupId = R.groupId;
         R.groupLeaderId = null; // first member will become leader
+
+        const hasCfg = !!(state.getCfg?.(gs)?.enemies?.[type]);
+if (!hasCfg && !_warnedTypesThisWave.has(type)) {
+  console.warn('[waves.json] Unknown enemy type in wave', (gs.wave|0), '→', type, '— using legacy defaults');
+  _warnedTypesThisWave.add(type);
+}
+
       }
 
       const type = G.type;
