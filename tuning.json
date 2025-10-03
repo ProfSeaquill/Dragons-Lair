@@ -1,1 +1,6 @@
+{
+  "dragon": { "maxHP": 100, "healCostBone": 1 },
+  "economy": { "wallCostBones": 1, "goldBase": 20 },
+  "abilities": { "gust": 30, "roar": 60, "stomp": 30 }
+}
 
