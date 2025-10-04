@@ -33,7 +33,7 @@ jobs:
       - name: Install (skip if no package.json)
         run: |
           if [ -f package.json ]; then
-            npm ci || npm i
+            npm install --no-audit --no-fund
           else
             echo "No package.json; skipping install"
           fi
