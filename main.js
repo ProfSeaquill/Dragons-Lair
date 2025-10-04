@@ -16,6 +16,12 @@ import { buyUpgrade } from './upgrades.js';
 // ----- Combat (robust namespace import; tolerant of export name variants) -----
 import * as combat from './combat.js';
 
+
+// ===== Phase 7: autosave =====
+let __autosaveAccum = 0;
+let __lastWaveSaved = 0;
+
+
 async function loadConfigFiles() {
   const [tuning, enemies, waves, upgrades] = await Promise.all([
     fetch('./tuning.json').then(r => r.ok ? r.json() : null).catch(() => null),
@@ -271,6 +277,11 @@ window.addEventListener('dl-load', () => {
   }
 });
 
+  window.addEventListener('dl-save-clear', () => {
+  const ok = state.clearSave();
+  UI.tell?.(ok ? 'Save cleared' : 'No save to clear');
+});
+
 window.addEventListener('dl-upgrade-buy', (e) => {
   const id = e.detail?.id;
   if (!id) return;
@@ -286,6 +297,9 @@ window.addEventListener('dl-upgrade-buy', (e) => {
 
 // Wire UI after listeners are set
 bindUI();
+
+__lastWaveSaved = (state.GameState.wave | 0) || 0;
+
   
   loadConfigFiles()
   .then(cfg => {
@@ -405,6 +419,42 @@ for (const enemy of gs.enemies) {
     }
     gs.effects = arr.filter(fx => !fx?.dead);
   }
+
+  // --- Phase 7: autosave ---
+{
+  const cfg = state.getCfg(state.GameState) || {};
+  const dev = state.GameState.dev || {};
+  // Enable if cfg.tuning.saves.autosaveSec > 0 OR dev.autosave truthy
+  const autosaveSecCfg = cfg?.tuning?.saves?.autosaveSec;
+  const autosaveFromDev = dev.autosave; // true or a number (seconds)
+  const enabled = (typeof autosaveSecCfg === 'number' && autosaveSecCfg > 0) || !!autosaveFromDev;
+
+  if (enabled) {
+    const period =
+      (typeof autosaveFromDev === 'number' && autosaveFromDev > 0)
+        ? autosaveFromDev
+        : (typeof autosaveSecCfg === 'number' ? autosaveSecCfg : 30);
+
+    __autosaveAccum += dt;
+    if (__autosaveAccum >= period) {
+      __autosaveAccum = 0;
+      const ok = state.saveState(state.GameState);
+      UI.tell?.(ok ? 'Saved' : 'Save failed', ok ? '#8f8' : '#f88');
+    }
+
+    // On wave end: detect wave increment and save once
+    const w = state.GameState.wave | 0;
+    if (w !== __lastWaveSaved) {
+      __lastWaveSaved = w;
+      const ok = state.saveState(state.GameState);
+      UI.tell?.(ok ? 'Saved' : 'Save failed', ok ? '#8f8' : '#f88');
+    }
+  } else {
+    __autosaveAccum = 0;
+    __lastWaveSaved = state.GameState.wave | 0;
+  }
+}
+
 }
 // ---------- Go ----------
 boot();
