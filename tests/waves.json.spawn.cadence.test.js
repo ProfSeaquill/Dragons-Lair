@@ -1,8 +1,8 @@
 // tests/waves.json.spawn.cadence.test.js
 import { test } from 'node:test';
 import assert from 'node:assert';
-import * as state from '../../state.js';
-import * as combat from '../../combat.js';
+import * as state from '../state.js';
+import * as combat from '../combat.js';
 
 state.ENTRY = { x: 0, y: 0 };
 state.EXIT  = { x: 5, y: 0 };
