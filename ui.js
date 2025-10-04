@@ -21,9 +21,7 @@ const hud = {
   upgrades: $('upgrades'),
   preview:  $('preview'),
   clear:   $('clearBtn'),
-
 }
-};
 
 // For render.js hover highlight
 state.GameState.uiHoverEdge = null;
