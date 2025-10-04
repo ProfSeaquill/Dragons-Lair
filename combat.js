@@ -3,6 +3,7 @@ import * as state from './state.js';
 import { updateEnemyDistance, raycastOpenCellsFromExit } from './pathing.js';
 import { getCfg } from './state.js';
 
+
 // === Ability cooldown timers (module-local) ===
 // Initialized to 0; abilities will set cooldowns from cfg on use (ps.cd),
 // and you may also reset them at wave start if desired.
@@ -11,9 +12,51 @@ let roarCooldown  = 0;
 let stompCooldown = 0;
 let clawCooldown  = 0;
 
-
 // Unique enemy IDs (module-local counter)
 let __ENEMY_ID = 0;
+
+// ===== Phase 9: object pools (prevent GC churn) =====
+const ENEMY_POOL = new Map();   // type -> array of recycled enemies
+const EFFECT_POOL = new Map();  // kind -> array of recycled effects
+
+function acquireEnemy(type, wave, initFn) {
+  const pool = ENEMY_POOL.get(type);
+  let e = (pool && pool.length) ? pool.pop() : makeEnemy(type, wave);
+  // RESET mutable fields fast (avoid per-spawn object literals)
+  e.id = 0; e.groupId = 0; e.followLeaderId = null; e.leader = false; e.torchBearer = false;
+  e.updateByCombat = !!e.updateByCombat; // preserve special flags (engineer)
+  e.burnLeft = 0; e.burnDps = 0; e.stunLeft = 0; e.slowLeft = 0; e.roarBuffLeft = 0;
+  e.pausedForAttack = false; e.isAttacking = false;
+  e.hp = e.maxHp; e.lastHitAt = 0; e.showHpUntil = 0;
+  if (initFn) initFn(e);
+  return e;
+}
+function releaseEnemy(e) {
+  if (!e || !e.type) return;
+  let pool = ENEMY_POOL.get(e.type);
+  if (!pool) { pool = []; ENEMY_POOL.set(e.type, pool); }
+  pool.push(e);
+}
+
+function acquireEffect(kind, seedObj) {
+  const pool = EFFECT_POOL.get(kind);
+  let fx = (pool && pool.length) ? pool.pop() : {};
+  // reset in-place (no new objects)
+  fx.type = kind; fx.dead = false; fx.t = 0; fx.dur = 0;
+  fx.x = 0; fx.y = 0;
+  fx.path = null; fx.headIdx = 0; fx.tilesPerSec = 0; fx.widthPx = 0;
+  fx.timer = 0; fx.dmg = 0;
+  if (seedObj) Object.assign(fx, seedObj);
+  return fx;
+}
+function releaseEffect(fx) {
+  if (!fx || !fx.type) return;
+  let pool = EFFECT_POOL.get(fx.type);
+  if (!pool) { pool = []; EFFECT_POOL.set(fx.type, pool); }
+  // drop large references
+  fx.path = null;
+  pool.push(fx);
+}
 
 // expose cooldowns for UI
 export function getCooldowns() {
@@ -171,12 +214,7 @@ function stompAffect(gs, ss) {
 // --- VISUAL: spawn a one-shot mouth fire effect
 function spawnMouthFire(gs, dur = 0.6) {
   gs.effects = gs.effects || [];
-  gs.effects.push({
-    type: 'fireMouth',
-    t: 0,          // elapsed seconds
-    dur,           // how long the animation runs
-    dead: false,   // cleanup flag
-  });
+gs.effects.push(acquireEffect('fireMouth', { t: 0, dur, dead: false }));
 }
 
 function nextGroupSize() {
@@ -379,7 +417,7 @@ function makeEnemy(type, wave) {
  * ========================= */
 
 function spawnOne(gs, type) {
-  const e = makeEnemy(type, gs.wave | 0);
+  const e = acquireEnemy(type, gs.wave | 0);
   e.cx = state.ENTRY.x;
   e.cy = state.ENTRY.y;
   e.dir = 'E';
@@ -401,7 +439,7 @@ function spawnOne(gs, type) {
 }
 
 function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
-  const e = makeEnemy(type, gs.wave | 0);
+  const e = acquireEnemy(type, gs.wave | 0);
   e.id = (++__ENEMY_ID);
   e.groupId = groupId | 0;
   e.routeSeed = e.routeSeed ?? ((Math.random() * 1e9) | 0);
@@ -436,7 +474,7 @@ function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
 export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
   n = Math.max(1, n | 0);
   for (let i = 0; i < n; i++) {
-    const e = makeEnemy(type, gs.wave | 0);
+    const e = acquireEnemy(type, gs.wave | 0);
     e.cx = state.ENTRY.x;
     e.cy = state.ENTRY.y;
     e.dir = 'E';
@@ -565,28 +603,21 @@ function dragonBreathTick(gs, dt, ds) {
   // Make duration long enough to traverse its truncated path (plus fade tail)
   const tilesPerSec = 14; // travel speed of flame head
   const travelSec = truncatedPath.length / Math.max(1, tilesPerSec);
-  (gs.effects || (gs.effects = [])).push({
-    type: 'flameWave',
-    path: truncatedPath,     // array of {x,y,dir?} from your pathing
-    headIdx: 0,
-    t: 0,
-    tilesPerSec,
-    widthPx: state.GRID.tile * 0.85,
-    dur: travelSec + 0.6,    // +fade tail time
-  });
+  (gs.effects || (gs.effects = [])).push(
+  acquireEffect('flameWave', {
+    path: truncatedPath, headIdx: 0, t: 0,
+    tilesPerSec, widthPx: state.GRID.tile * 0.85, dur: travelSec + 0.6
+  })
+);
+
 
   // --- If hero blocked, add a short "splash" effect at that tile
   const blockedByHero = (heroBlockIdx <= nearestIdx);
   if (blockedByHero && isFinite(heroBlockIdx)) {
     const hit = path[heroBlockIdx];
-    (gs.effects || (gs.effects = [])).push({
-      type: 'fireSplash',
-      x: (hit.x + 0.5) * state.GRID.tile,
-      y: (hit.y + 0.5) * state.GRID.tile,
-      t: 0,
-      dur: 0.35,
-    });
-  }
+    (gs.effects || (gs.effects = [])).push(
+  acquireEffect('fireSplash', { x: (hit.x + 0.5) * state.GRID.tile, y: (hit.y + 0.5) * state.GRID.tile, t: 0, dur: 0.35 })
+);
 
   // --- Apply damage ONCE per breath:
   //   - Direct+burn to enemies on tiles up to nearestIdx
@@ -936,13 +967,8 @@ if (R.spawning && R.queue.length > 0) {
           by = cy + (dy / L) * halfTile;
         }
 
-        gs.effects.push({
-          type: 'bomb',
-          x: bx,
-          y: by,
-          timer: FLAGS.engineerBombTimer,
-          dmg: FLAGS.engineerBombDmg,
-        });
+        gs.effects.push(acquireEffect('bomb', { x: bx, y: by, timer: FLAGS.engineerBombTimer, dmg: FLAGS.engineerBombDmg }));
+
       }
     }
 
@@ -1007,6 +1033,7 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
   gs.gold  = (gs.gold  | 0) + eg;
   gs.bones = (gs.bones | 0) + eb;
   enemies.splice(i, 1);
+  releaseEnemy(e);
   continue;
 }
 
@@ -1039,6 +1066,7 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
           if (e.hp <= 0) {
             gs.gold  = (gs.gold  | 0) + 5;
             gs.bones = (gs.bones | 0) + 1;
+            releaseEnemy(e);
             gs.enemies.splice(i, 1);
           }
         }
