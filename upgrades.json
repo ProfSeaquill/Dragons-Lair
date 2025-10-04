@@ -1,8 +1,4 @@
 [
-  { "key": "gust",  "type": "ability", "title": "Wing Gust", "desc": "Push nearby foes back.",         "cost": 100, "max": 1 },
-  { "key": "roar",  "type": "ability", "title": "Roar",      "desc": "Stun all enemies briefly.",      "cost": 150, "max": 1 },
-  { "key": "stomp", "type": "ability", "title": "Stomp",     "desc": "Slow enemies in a wide radius.", "cost": 150, "max": 1 },
-
   { "key": "fire_rate_1",   "title": "Faster Fire I",    "desc": "Increased fire rate",     "cost": 100, "max": 1 },
   { "key": "fire_dmg_1",    "title": "Hotter Flames I",  "desc": "Increased fire damage",     "cost": 120, "max": 1 },
   { "key": "burn_dot_1",    "title": "Smolder I",        "desc": "Burn damage over time",        "cost": 140, "max": 1 },
@@ -10,4 +6,8 @@
 
   { "key": "claw_dmg_1",    "title": "Sharper Claws I",  "desc": "Increased claw damage",     "cost": 120, "max": 1 },
   { "key": "claw_speed_1",  "title": "Quicker Claws I",  "desc": "Decreased claw cooldown -10%", "cost": 140, "max": 1 }
+  
+  { "key": "gust",  "type": "ability", "title": "Wing Gust", "desc": "Push nearby foes back.",         "cost": 100, "max": 1 },
+  { "key": "roar",  "type": "ability", "title": "Roar",      "desc": "Stun all enemies briefly.",      "cost": 150, "max": 1 },
+  { "key": "stomp", "type": "ability", "title": "Stomp",     "desc": "Slow enemies in a wide radius.", "cost": 150, "max": 1 }, 
 ]
