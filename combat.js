@@ -883,7 +883,6 @@ if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
       if (R.groupLeaderId == null) {
         R.groupLeaderId = e.id;
         e.leader = true;
-        e.torchBearer = true;
         e.behavior.sense = (e.behavior.sense || 0.5) * 1.15;
         e.trailStrength = Math.max(e.trailStrength || 0.5, 1.5);
       }
@@ -927,7 +926,6 @@ if (R.spawning && !_jsonPlan && R.queue.length > 0) {
     if (R.groupLeaderId == null) {
       R.groupLeaderId = e.id;
       e.leader = true;
-      e.torchBearer = true;
       e.behavior.sense = (e.behavior.sense || 0.5) * 1.15;
       e.trailStrength = Math.max(e.trailStrength || 0.5, 1.5);
     }
