@@ -1050,6 +1050,7 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
   // --- Wing Gust (button request → push away, respect walls)
   if (gs.reqWingGust && gustCooldown <= 0) {
     gs.reqWingGust = false;
+    globalThis.Telemetry?.log('ability:use', { key: 'gust' });
     const ps = state.getGustStatsTuned(gs);
     wingGustPush(gs, ps.pushTiles);
     gustCooldown = ps.cd;
@@ -1058,6 +1059,7 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
   // --- Roar (button request → stun + fear buffs)
   if (gs.reqRoar && roarCooldown <= 0) {
     gs.reqRoar = false;
+    globalThis.Telemetry?.log('ability:use', { key: 'roar' });
     const rs = state.getRoarStatsTuned(gs);
     roarAffect(gs, rs);
     roarCooldown = rs.cd;
@@ -1066,6 +1068,7 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
   // --- Stomp (button request → AoE slow + chip dmg)
   if (gs.reqStomp && stompCooldown <= 0) {
     gs.reqStomp = false;
+    globalThis.Telemetry?.log('ability:use', { key: 'stomp' });
     const ss = state.getStompStatsTuned(gs);
     stompAffect(gs, ss);
     stompCooldown = ss.cd;
@@ -1079,6 +1082,7 @@ if (enemies.length > 0) {
 
   // 5) Wave completion
   if (R.waveActive && R.queue.length === 0 && enemies.length === 0) {
+    globalThis.Telemetry?.log('wave:end', { wave: gs.wave | 0 });
     R.waveActive = false;
     R.spawning = false;
     gs.wave = (gs.wave | 0) + 1;
