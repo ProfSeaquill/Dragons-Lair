@@ -1046,6 +1046,9 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
       // In range: pause movement and apply continuous DPS
       e.pausedForAttack = true;
       e.isAttacking = true;
+      e.commitDir = null;
+      e.commitSteps = 0;
+      e.vx = 0; e.vy = 0;   // harmless if undefined
 
       const rate = Math.max(0, e.rate || 0);             // attacks/sec
 const perHit = (typeof e.damage === 'number') ? e.damage : 0;
