@@ -20,7 +20,8 @@ const hud = {
   canvas:  $('game'),
   upgrades: $('upgrades'),
   preview:  $('preview'),
-  timer: $('timer'),
+  clear:   $('clearBtn'),
+
 }
 };
 
@@ -148,6 +149,13 @@ function wireButtons() {
   window.dispatchEvent(new CustomEvent('dl-load'));
 });
   }
+
+    if (hud.clear) {
+    hud.clear.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('dl-save-clear'));
+    });
+  }
+
 }
 
 function renderHealButtonLabel(gs) {
