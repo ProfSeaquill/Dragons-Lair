@@ -4,6 +4,15 @@
 
 import * as state from './state.js';
 
+// ===== Phase 9: render scratch + caches =====
+const SCR = {
+  rect: { x:0, y:0, w:0, h:0 },       // generic rect scratch
+  p: { x:0, y:0 },                    // generic point scratch
+};
+function isOnScreen(x, y, w, h, cw, ch) {
+  return !(x + w < 0 || y + h < 0 || x > cw || y > ch);
+}
+
 /* -----------------------------------------------------------
  * DRAGON SPRITE (singleton loader)
  * --------------------------------------------------------- */
@@ -341,6 +350,11 @@ function drawEnemies(ctx, gs) {
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
   for (const e of gs.enemies) {
+    const t = state.GRID.tile; // or your existing tile size ref
+    const ex = (e.x != null) ? e.x : (e.cx + 0.5) * t;
+    const ey = (e.y != null) ? e.y : (e.cy + 0.5) * t;
+    const size = (e.size || 1) * t * 0.9;
+    if (!isOnScreen(ex - size*0.5, ey - size*0.5, size, size, ctx.canvas.width, ctx.canvas.height)) continue;
     const p = enemyPixelPosition(e);
     if (!p) continue;
 
