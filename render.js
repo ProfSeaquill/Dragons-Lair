@@ -436,7 +436,6 @@ function drawDragonAndMouthFire(ctx, gs) {
 
 function drawFireSplash(ctx, gs) {
   const tsize = state.GRID.tile;
-  if (!isOnScreen(p.x - r, p.y - r, r*2, r*2, ctx.canvas.width, ctx.canvas.height)) { continue; }
   for (const fx of (gs.effects || [])) {
     if (fx.type !== 'fireSplash') continue;
     const p = { x: fx.x, y: fx.y };
@@ -444,6 +443,7 @@ function drawFireSplash(ctx, gs) {
 
     // Expanding ring + short forward cone
     const r = tsize * (0.40 + 0.55 * progress);
+    if (!isOnScreen(p.x - r, p.y - r, r * 2, r * 2, ctx.canvas.width, ctx.canvas.height)) continue;
     ctx.save();
     ctx.globalAlpha = 0.85 * (1 - progress);
 
