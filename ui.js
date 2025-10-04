@@ -21,7 +21,7 @@ const hud = {
   upgrades: $('upgrades'),
   preview:  $('preview'),
   clear:   $('clearBtn'),
-}
+};
 
 // For render.js hover highlight
 state.GameState.uiHoverEdge = null;
@@ -184,7 +184,7 @@ function renderUpgradesPanel() {
   const root = hud.upgrades;
   if (!root) return;
 
-  const data = listUpgrades(gs);
+  const data = listUpgrades(state.GameState);
   const list = Array.isArray(data) ? data : Object.values(data);
   root.innerHTML = '';
 
@@ -287,7 +287,7 @@ function renderGridHelp(gs) {
   el.textContent =
     `Build Mode: Click a TILE EDGE to add a wall (${cost} bone). ` +
     `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
-  
+}
 
 // ---------- Canvas Edge Build Mode ----------
 function wireCanvasEdgeBuild() {
@@ -312,9 +312,6 @@ function wireCanvasEdgeBuild() {
     state.GameState.uiHoverEdge = null;
   });
 
-  // (optional) disable right-click context menu on the canvas
-  cv.addEventListener('contextmenu', e => e.preventDefault());
-  
   cv.addEventListener('mousedown', (e) => {
   const hover = edgeHitTest(cv, e);
   if (!hover) return;
@@ -390,11 +387,7 @@ function edgeHitTest(canvas, evt) {
   return { x: cx, y: cy, side };
 }
 
-function edgeHasWall(gs, x, y, side) {
-  const rec = state.ensureCell(gs, x, y);
-  return !!rec?.[side];
-}
-
+// (removed) local edgeHasWall: use imported one from pathing.js
 
 function edgeTouchesDragon(gs, x, y, side) {
   // side is 'N','S','E','W' for the edge on cell (x,y)
