@@ -527,8 +527,9 @@ let _warnedTypesThisWave = new Set();
 // module-scope breath cooldown (must be top-level)
 let fireCooldown = 0;
 
-// module-scope accumulator for throttled trail decay (top-level)
-let trailDecayAccum = 0;
+// module-scope accumulator for bomb tick (1 Hz)
+let bombAccum = 0;
+
 /**
  * Dragon breath tick:
  * - builds a reachable path of tiles from the EXIT (via raycastOpenCellsFromExit)
@@ -922,6 +923,25 @@ if (R.spawning && R.queue.length > 0) {
   }
 }
 
+// --- Bomb timers (tick at 1 Hz, real time; outside enemy loop) ---
+bombAccum += dt;
+if (bombAccum >= 1.0) {
+  const steps = Math.floor(bombAccum / 1.0);
+  bombAccum -= steps * 1.0;
+
+  for (let i = gs.effects.length - 1; i >= 0; i--) {
+    const fx = gs.effects[i];
+    if (fx.type !== 'bomb') continue;
+
+    // timers are in seconds; decrement by whole seconds
+    fx.timer -= steps;
+
+    if (fx.timer <= 0) {
+      gs.dragonHP = Math.max(0, gs.dragonHP - (fx.dmg | 0));
+      gs.effects.splice(i, 1);
+    }
+  }
+}
 
   // 2) Enemy status (engineer tunneling, burn DoT, deaths, contact/attack)
   const exitCx = state.EXIT.x, exitCy = state.EXIT.y;
@@ -1035,17 +1055,6 @@ const dps = rate * perHit;
   continue;
 }
 
-  
-  // 3) Bomb timers
-  for (let i = gs.effects.length - 1; i >= 0; i--) {
-    const fx = gs.effects[i];
-    if (fx.type !== 'bomb') continue;
-    fx.timer -= dt;
-    if (fx.timer <= 0) {
-      gs.dragonHP = Math.max(0, gs.dragonHP - (fx.dmg | 0));
-      gs.effects.splice(i, 1);
-    }
-  }
 
   // --- Claw: high dmg melee, auto when any adjacent enemy exists (gated by CD)
   {
