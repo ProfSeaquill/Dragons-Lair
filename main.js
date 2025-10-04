@@ -264,6 +264,7 @@ window.addEventListener('dl-auto-start', (e) => {
 
 window.addEventListener('dl-save', () => {
   const ok = state.saveState(state.GameState);
+  globalThis.Telemetry?.log(`save:${ok ? 'success' : 'fail'}`, { manual: true });
   UI.tell?.(ok ? 'Saved' : 'Save failed', ok ? '#8f8' : '#f88');
 });
 
@@ -279,6 +280,7 @@ window.addEventListener('dl-load', () => {
 
   window.addEventListener('dl-save-clear', () => {
   const ok = state.clearSave();
+  globalThis.Telemetry?.log('save:clear', { ok: !!ok });
   UI.tell?.(ok ? 'Save cleared' : 'No save to clear');
 });
 
@@ -289,6 +291,7 @@ window.addEventListener('dl-upgrade-buy', (e) => {
   if (ok) {
     // HUD refresh also triggers upgrade button re-eval when gold changes
     UI.refreshHUD?.();
+    globalThis.Telemetry?.log('upgrade:buy', { id, level: state.GameState.upgrades?.[id] | 0 });
     UI.tell?.(`Upgraded ${id}`);
   } else {
     UI.tell?.('Not enough gold');
@@ -310,6 +313,7 @@ __lastWaveSaved = (state.GameState.wave | 0) || 0;
     UI.tell?.('Config loaded');
   })
   .catch(err => console.warn('Config load failed, using defaults', err));
+  globalThis.Telemetry?.setup(() => !!state.GameState.dev?.telemetry || !!state.getCfg(state.GameState)?.tuning?.telemetry?.enabled);
 }
 
 function startWave() {
@@ -322,6 +326,9 @@ function startWave() {
     combatSpawnWave(state.GameState);
   }
   waveJustStartedAt = performance.now();
+
+  globalThis.Telemetry?.log('wave:start', { wave: state.GameState.wave | 0 });
+
 
     // --- Phase 7: disable autosave by default ---
   state.GameState.dev = state.GameState.dev || {};
@@ -339,6 +346,7 @@ function update(dt) {
   if ((gs.dragonHP | 0) <= 0) {
     if (!gs.gameOver) {
       gs.gameOver = true;
+      globalThis.Telemetry?.log('dragon:death', { wave: gs.wave | 0 });
       gs.autoStart = false;
 
       // stop any current action
