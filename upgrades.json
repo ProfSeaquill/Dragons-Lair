@@ -1,13 +1,13 @@
 [
-  { "key": "fire_rate_1",   "title": "Faster Fire I",    "desc": "Increased fire rate",     "cost": 100, "max": 1 },
-  { "key": "fire_dmg_1",    "title": "Hotter Flames I",  "desc": "Increased fire damage",     "cost": 120, "max": 1 },
-  { "key": "burn_dot_1",    "title": "Smolder I",        "desc": "Burn damage over time",        "cost": 140, "max": 1 },
-  { "key": "flame_range_1", "title": "Longer Breath I",  "desc": "Increased flame range","cost": 160, "max": 1 },
+  { "key": "fire_dmg_1",    "title": "Power",  "desc": "Flame damage",     "cost": 15, "max": 1 },
+  { "key": "fire_rate_1",   "title": "Fire Speed",    "desc": "Fire rate",     "cost": 25, "max": 1 },
+  { "key": "burn_dot_1",    "title": "Burn",        "desc": "Burn damage over time",        "cost": 20, "max": 1 },
+  { "key": "flame_range_1", "title": "Reach",  "desc": "Flame range","cost": 25, "max": 1 },
 
-  { "key": "claw_dmg_1",    "title": "Sharper Claws I",  "desc": "Increased claw damage",     "cost": 120, "max": 1 },
-  { "key": "claw_speed_1",  "title": "Quicker Claws I",  "desc": "Decreased claw cooldown -10%", "cost": 140, "max": 1 }
+  { "key": "claw_dmg_1",    "title": "Claws",  "desc": "Claws damage",     "cost": 120, "max": 1 },
+  { "key": "claw_speed_1",  "title": "Claws Speed",  "desc": "Decreased claw cooldown", "cost": 140, "max": 1 }
   
-  { "key": "gust",  "type": "ability", "title": "Wing Gust", "desc": "Push nearby foes back.",         "cost": 100, "max": 1 },
-  { "key": "roar",  "type": "ability", "title": "Roar",      "desc": "Stun all enemies briefly.",      "cost": 150, "max": 1 },
-  { "key": "stomp", "type": "ability", "title": "Stomp",     "desc": "Slow enemies in a wide radius.", "cost": 150, "max": 1 }, 
+  { "key": "gust",  "type": "ability", "title": "Wing Gust", "desc": "Push back nearby foes",         "cost": 300, "max": 1 },
+  { "key": "roar",  "type": "ability", "title": "Roar",      "desc": "Briefly stun all enemies",      "cost": 400, "max": 1 },
+  { "key": "stomp", "type": "ability", "title": "Stomp",     "desc": "Damage and slow all enemies", "cost": 500, "max": 1 }, 
 ]
