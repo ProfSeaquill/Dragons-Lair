@@ -21,24 +21,67 @@ function abilityLvl(gs, key) {
   return Math.max(0, (gs.upgrades?.[key] | 0));
 }
 
+// ---- helper to build the live rows the UI expects
+function buildUpgradeRows(gs) {
+  const statLive    = buildFireDesc(gs);
+  const abilityLive = buildAbilityDesc(gs);
 
-// If you already have a STATIC_UPGRADES constant, keep it.
-// Prefer config when provided; fall back to static.
+  const statRows = STAT_UPGRADES.map(def => {
+    const level = statLvl(gs, def.key);
+    return {
+      key: def.key,
+      title: def.title,
+      level,
+      cost: costFor(def, level),
+      desc: statLive[def.key] || '',
+      max: undefined,
+      isMax: false,
+      type: def.type, // 'stat'
+    };
+  });
+
+  const abilityRows = ABILITY_UPGRADES.map(def => {
+    const level = abilityLvl(gs, def.key);
+    return {
+      key: def.key,
+      title: def.title,
+      level,
+      cost: costFor(def, level),
+      desc: abilityLive[def.key] || '',
+      max: undefined,
+      isMax: false,
+      type: def.type, // 'ability'
+    };
+  });
+
+  return [...statRows, ...abilityRows];
+}
+
 export function listUpgrades(gs) {
-  const cfg = getCfg(gs);
-  const fromCfg = cfg.upgrades;
-
-  // If cfg.upgrades is present and non-empty, prefer it.
+  // If config supplies overrides, prefer them; otherwise build from our defs.
+  const fromCfg = getCfg(gs)?.upgrades;
   const hasCfg = fromCfg && (
     (Array.isArray(fromCfg) && fromCfg.length > 0) ||
     (!Array.isArray(fromCfg) && Object.keys(fromCfg).length > 0)
   );
 
-  // Optional: shallow-clone to avoid accidental UI mutation
   if (hasCfg) {
-    return Array.isArray(fromCfg) ? fromCfg.slice() : { ...fromCfg };
+    // UI accepts an array; if it’s an object map, normalize to array.
+    return Array.isArray(fromCfg) ? fromCfg.slice() : Object.values(fromCfg);
   }
-  return Array.isArray(STATIC_UPGRADES) ? STATIC_UPGRADES.slice() : { ...STATIC_UPGRADES };
+
+  return buildUpgradeRows(gs);
+}
+
+// Back-compat: if called with (gs) return all rows; if called with (key, gs) return one row
+export function getUpgradeInfo(a = GameState, maybeGs) {
+  if (typeof a === 'string') {
+    const gs = maybeGs || GameState;
+    return buildUpgradeRows(gs).find(r => r.key === a) || null;
+  } else {
+    const gs = a || GameState;
+    return buildUpgradeRows(gs);
+  }
 }
 
 
@@ -130,49 +173,6 @@ function buildAbilityDesc(gs) {
 /* ============================================================
  * Public API expected by ui.js
  * ========================================================== */
-
-/**
- * Returns array of { key, title, level, cost, desc, type }
- * - Stat upgrades read/write gs.upgrades[key]
- * - Ability upgrades read/write gs.upgrades[key]
- * - Abilities are appended AFTER stat upgrades so they appear last
- */
-export function getUpgradeInfo(gs = GameState) {
-  const statLive = buildFireDesc(gs);
-  const abilityLive = buildAbilityDesc(gs);
-
-  // Stats first
-  const statRows = STAT_UPGRADES.map(def => {
-    const level = statLvl(gs, def.key);
-    return {
-      key: def.key,
-      title: def.title,
-      level,
-      cost: costFor(def, level),
-      desc: statLive[def.key] || '',
-      max: undefined,
-      isMax: false,
-      type: def.type, // 'stat'
-    };
-  });
-
-  // Abilities after (so they’re grouped at the end/side)
-  const abilityRows = ABILITY_UPGRADES.map(def => {
-    const level = abilityLvl(gs, def.key);
-    return {
-      key: def.key,
-      title: def.title,
-      level,
-      cost: costFor(def, level),
-      desc: abilityLive[def.key] || '',
-      max: undefined,
-      isMax: false,
-      type: def.type, // 'ability'
-    };
-  });
-
-  return [...statRows, ...abilityRows];
-}
 
 /**
  * Attempt to buy upgrade by key.
