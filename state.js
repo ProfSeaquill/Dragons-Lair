@@ -428,26 +428,23 @@ export function clearSave() {
 const LS_KEY = 'dragons-lair-save';
 
 export function saveState(gs) {
-  const cellWallsArr = Array.from(gs.cellWalls.entries());
-  const data = {
-    version: gs.version,
-    wave: gs.wave,
-    gold: gs.gold,
-    bones: gs.bones,
-    dragonHP: gs.dragonHP,
-    autoStart: gs.autoStart,
-    upgrades: gs.upgrades,
-    seed: gs.seed,
-    cellWalls: cellWallsArr,
-  };
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
+    const payload = {
+      schemaVersion: SAVE_SCHEMA_VERSION,
+      createdAt: Date.now(),
+      // Store just what you already stored; if you saved the whole gs, keep doing that:
+      state: gs
+    };
+    const txt = JSON.stringify(payload);
+    // write with your existing key
+    localStorage.setItem('dl.save', txt);
     return true;
-  } catch (e) {
-    console.warn('saveState failed:', e);
+  } catch (err) {
+    console.warn('Save failed:', err);
     return false;
   }
 }
+
 
 export function loadState() {
   try {
