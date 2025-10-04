@@ -360,6 +360,7 @@ function wireCanvasEdgeBuild() {
   recomputePath(gs);
   UI.refreshHUD?.();
 });
+}
 
 function edgeHitTest(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
