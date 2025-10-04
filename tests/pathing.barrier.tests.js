@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import * as state from '../state.js';
-import { edgeHasWall, toggleEdge, recomputePath } from '../pathing.js';
+import { toggleEdge, recomputePath } from '../pathing.js';
 
 // Helper: ensure an edge exists (true) or is removed (false)
 function ensureEdge(gs, x, y, side, shouldExist) {
