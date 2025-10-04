@@ -789,10 +789,13 @@ export function previewWaveList(arg) {
     (arg && typeof arg.wave === 'number') ? (arg.wave | 0) :
     ((state.GameState.wave | 0) || 1);
 
-  const cfgWaves = state.getCfg?.(state.GameState)?.waves;
+  // Prefer explicit gs/cfg on arg, else fall back to global state
+  const gsArg = (arg && arg.gs) ? arg.gs : state.GameState;
+  const cfgArg = arg && arg.cfg ? arg.cfg : state.getCfg?.(gsArg);
+  const cfgWaves = cfgArg?.waves;
+
   const waveIdx0 = Math.max(0, wave - 1);
 
-  // If JSON waves exist for THIS wave, expand groups -> flat list
   if (Array.isArray(cfgWaves) && cfgWaves[waveIdx0] && Array.isArray(cfgWaves[waveIdx0].groups)) {
     const groups = cfgWaves[waveIdx0].groups;
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, (v | 0) || 0));
@@ -806,10 +809,9 @@ export function previewWaveList(arg) {
     }
     return list;
   }
-
-  // Fallback: legacy generator
   return buildWaveQueueFromWave(wave, { preview: true }).slice();
 }
+
 
 export function previewWaveCounts(arg) {
   const list = previewWaveList(arg);
