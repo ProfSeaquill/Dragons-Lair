@@ -1,9 +1,86 @@
 {
-  "villager": { "hp": 12, "speed": 1.0, "rate": 0.3, "damage": 2, "range": 1, "gold": 1, "bones": 1, "tags": ["trash"] },
-  "squire":   { "hp": 20, "speed": 1.1, "rate": 0.3, "damage": 3, "range": 1, "gold": 2, "bones": 1 },
-  "knight":   { "hp": 60, "speed": 1.8, "rate": 0.7, "damage": 5, "range": 1, "gold": 4, "bones": 3, "armor": 2, "shielded": false },
-  "hero":     { "hp": 120, "speed": 1.2, "rate": 1.0, "damage": 5, "range": 1, "gold": 6, "bones": 2, "shielded": true, "tags": ["shield"] },
-  "engineer": { "hp": 40, "speed": 1.15, "rate": 0.3, "damage": 1, "range": 1, "gold": 3, "bones": 1, "tags": ["utility"] },
-  "kingsguard": { "hp": 180, "speed": 1.6, "rate": 0.5, "damage": 15, "range": 1, "gold": 15, "bones": 4, "armor": 3, "tags": ["miniboss"] },
-  "boss":     { "hp": 900, "speed": 1.4, "rate": 0.3, "damage": 40, "range": 1, "gold": 50, "bones": 6, "armor": 5, "tags": ["boss"] }
+  "villager": {
+    "hp": 12,
+    "speed": 1.0,
+    "rate": 0.3,
+    "damage": 2,
+    "range": 1,
+    "gold": 1,
+    "bones": 1,
+    "armor": 0,
+    "shielded": false,
+    "tags": ["trash"]
+  },
+  "squire": {
+    "hp": 20,
+    "speed": 1.1,
+    "rate": 0.3,
+    "damage": 3,
+    "range": 1,
+    "gold": 2,
+    "bones": 1,
+    "armor": 0,
+    "shielded": false,
+    "tags": []
+  },
+  "knight": {
+    "hp": 60,
+    "speed": 1.8,
+    "rate": 0.7,
+    "damage": 5,
+    "range": 1,
+    "gold": 4,
+    "bones": 3,
+    "armor": 2,
+    "shielded": false,
+    "tags": []
+  },
+  "hero": {
+    "hp": 120,
+    "speed": 1.2,
+    "rate": 1.0,
+    "damage": 5,
+    "range": 1,
+    "gold": 6,
+    "bones": 2,
+    "armor": 0,
+    "shielded": true,
+    "tags": ["shield"]
+  },
+  "engineer": {
+    "hp": 40,
+    "speed": 1.15,
+    "rate": 0.3,
+    "damage": 1,
+    "range": 1,
+    "gold": 3,
+    "bones": 1,
+    "armor": 0,
+    "shielded": false,
+    "tags": ["utility"]
+  },
+  "kingsguard": {
+    "hp": 180,
+    "speed": 1.6,
+    "rate": 0.5,
+    "damage": 15,
+    "range": 1,
+    "gold": 15,
+    "bones": 4,
+    "armor": 3,
+    "shielded": false,
+    "tags": ["miniboss"]
+  },
+  "boss": {
+    "hp": 900,
+    "speed": 1.4,
+    "rate": 0.3,
+    "damage": 40,
+    "range": 1,
+    "gold": 50,
+    "bones": 6,
+    "armor": 5,
+    "shielded": false,
+    "tags": ["boss"]
+  }
 }
