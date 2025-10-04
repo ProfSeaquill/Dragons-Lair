@@ -33,9 +33,9 @@ test('enemies.json overrides apply to spawned enemy', async () => {
   assert.equal(e.speed, 1.75);
   assert.equal(e.armor, 4);
   assert.equal(!!e.shield, true);
-  assert.equal(e.attackRate, 0.9);
-  assert.equal(e.attackDamage, 17);
-  assert.equal(e.attackRange, 2);
+  assert.equal(e.rate, 0.9);
+  assert.equal(e.damage, 17);
+  assert.equal(e.range, 2);
   assert.equal(e.gold, 9);
   assert.equal(e.bones, 2);
 });
