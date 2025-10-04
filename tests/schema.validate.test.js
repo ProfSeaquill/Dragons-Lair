@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import Ajv from 'ajv';
+import Ajv from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
 const ROOT = path.resolve(process.cwd());
