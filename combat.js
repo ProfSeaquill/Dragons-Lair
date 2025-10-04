@@ -527,6 +527,9 @@ let _warnedTypesThisWave = new Set();
 // module-scope breath cooldown (must be top-level)
 let fireCooldown = 0;
 
+// module-scope accumulator for throttled trail decay (5 Hz)
+let trailDecayAccum = 0;
+
 // module-scope accumulator for bomb tick (1 Hz)
 let bombAccum = 0;
 
@@ -1054,7 +1057,7 @@ const dps = rate * perHit;
   releaseEnemy(e);
   continue;
 }
-
+}
 
   // --- Claw: high dmg melee, auto when any adjacent enemy exists (gated by CD)
   {
