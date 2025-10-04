@@ -76,6 +76,11 @@ export function toggleEdge(gs, x, y, side, place = true) {
   return { ok: true };
 }
 
+export function edgeHasWall(gs, x, y, side) {
+  const here = state.ensureCell(gs, x, y);
+  return !!here?.[side];
+}
+
 /* =========================
  * Success Trail (herding)
  * ========================= */
