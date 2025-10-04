@@ -1,7 +1,6 @@
 // combat.js (top)
 import * as state from './state.js';
 import { updateEnemyDistance, raycastOpenCellsFromExit } from './pathing.js';
-import { getCfg } from './state.js';
 
 
 // === Ability cooldown timers (module-local) ===
