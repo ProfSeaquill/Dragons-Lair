@@ -391,13 +391,10 @@ function makeEnemy(type, wave) {
   if (ov && typeof ov === 'object') {
     if (typeof ov.hp === 'number')      { out.hp = Math.max(1, ov.hp|0); out.maxHp = out.hp; }
     if (typeof ov.speed === 'number')   { out.speed = ov.speed; }
-    if (typeof ov.damage === 'number') {
-  out.damage = ov.attackDamage;
-}
-    if (typeof ov.rnge === 'number') {
-  out.range = ov.range;
-}
-    if (typeof ov.rate === 'number') { out.rate = ov.rate;
+    if (typeof ov.damage === 'number')  { out.damage = ov.damage; }
+if (typeof ov.range === 'number')   { out.range = ov.range; }
+if (typeof ov.rate === 'number')    {
+  out.rate = ov.rate;
   out.attackTimer = Math.random() * (1 / Math.max(0.0001, out.rate));
 }
     if (typeof ov.armor === 'number')   { out.armor = ov.armor|0; }
@@ -618,7 +615,8 @@ function dragonBreathTick(gs, dt, ds) {
     (gs.effects || (gs.effects = [])).push(
   acquireEffect('fireSplash', { x: (hit.x + 0.5) * state.GRID.tile, y: (hit.y + 0.5) * state.GRID.tile, t: 0, dur: 0.35 })
 );
-
+  }
+  
   // --- Apply damage ONCE per breath:
   //   - Direct+burn to enemies on tiles up to nearestIdx
   //   - But if heroBlockIdx < nearestIdx, direct is stopped at hero (no direct past it),
@@ -841,18 +839,19 @@ if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
     if (G.remaining <= 0) continue;
     if (now >= G.nextAt) {
       // Start new group id when we spawn the first member of this group's burst
-      if (!G.groupId) {
-        R.groupId++;
-        G.groupId = R.groupId;
-        R.groupLeaderId = null; // first member will become leader
+     if (!G.groupId) {
+  R.groupId++;
+  G.groupId = R.groupId;
+  R.groupLeaderId = null; // first member will become leader
 
-        const hasCfg = !!(state.getCfg?.(gs)?.enemies?.[type]);
-if (!hasCfg && !_warnedTypesThisWave.has(type)) {
-  console.warn('[waves.json] Unknown enemy type in wave', (gs.wave|0), '→', type, '— using legacy defaults');
-  _warnedTypesThisWave.add(type);
+  const type = G.type;
+  const hasCfg = !!(state.getCfg?.(gs)?.enemies?.[type]);
+  if (!hasCfg && !_warnedTypesThisWave.has(type)) {
+    console.warn('[waves.json] Unknown enemy type in wave', (gs.wave|0), '→', type, '— using legacy defaults');
+    _warnedTypesThisWave.add(type);
+  }
 }
 
-      }
 
       const type = G.type;
       const e = spawnOneIntoGroup(state.GameState, type, G.groupId, R.groupLeaderId);
@@ -1006,10 +1005,9 @@ if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
       e.isAttacking = true;
 
       const rate = Math.max(0, e.rate || 0);             // attacks/sec
-      const perHit = (typeof e.damage === 'number')
-        ? e.damage
-        :                        
-      const dps = rate * perHit;
+const perHit = (typeof e.damage === 'number') ? e.damage : 0;
+const dps = rate * perHit;
+
 
       // deal damage continuously (no ticking/round timer)
       if (dps > 0 && gs.dragonHP > 0) {
