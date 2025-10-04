@@ -64,6 +64,11 @@ export function bindUI() {
 // Track last values so we only rebuild when needed
 let _lastPreviewWave = -1;
 let _lastGold = -1;
+let _lastWaveHUD = -1;
+let _lastBones = -1;
+let _lastHPStr = '';
+let _lastAuto = null;
+
 
 // ---------- Optional small API for main/render ----------
 export const UI = { refreshHUD, tell, renderUpgradesPanel };
@@ -72,17 +77,23 @@ export function refreshHUD() {
   const gs = state.GameState;
   const ds = state.getDragonStats(gs);
 
+const waveNow  = gs.wave | 0;
+const goldNow  = gs.gold | 0;
+const bonesNow = gs.bones | 0;
+const hpStrNow = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
+const autoNow  = !!gs.autoStart;
+
+if (hud.wave && waveNow !== _lastWaveHUD) { _lastWaveHUD = waveNow; hud.wave.textContent = String(waveNow); }
+if (hud.gold && goldNow !== _lastGold)    { _lastGold = goldNow;   hud.gold.textContent = String(goldNow); }
+if (hud.bones && bonesNow !== _lastBones) { _lastBones = bonesNow; hud.bones.textContent = String(bonesNow); }
+if (hud.hp && hpStrNow !== _lastHPStr)    { _lastHPStr = hpStrNow; hud.hp.textContent = hpStrNow; }
+if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.checked = autoNow; }
+
   // Dev: keep topped up if infiniteMoney is on
   if (gs.dev?.infiniteMoney) {
     if ((gs.gold | 0) < 500_000)  gs.gold  = 1_000_000;
     if ((gs.bones | 0) < 500_000) gs.bones = 1_000_000;
   }
-
-  if (hud.wave)  hud.wave.textContent  = String(gs.wave | 0);
-  if (hud.gold)  hud.gold.textContent  = String(gs.gold | 0);
-  if (hud.bones) hud.bones.textContent = String(gs.bones | 0);
-  if (hud.hp)    hud.hp.textContent    = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
-  if (hud.auto)  hud.auto.checked      = !!gs.autoStart;
 
   // Rebuild upgrade buttons when gold changes so disabled/enabled updates live
   if ((gs.gold | 0) !== _lastGold) {
@@ -106,13 +117,17 @@ export function refreshHUD() {
 // Lightweight message banner
 function tell(s, color = '') {
   if (!hud.msg) return;
-  hud.msg.textContent = String(s);
-  hud.msg.style.color = color || '';
+  const same = (hud.msg.textContent === String(s)) && (hud.msg.style.color === (color || ''));
+  if (!same) {
+    hud.msg.textContent = String(s);
+    hud.msg.style.color = color || '';
+  }
   if (s) {
     clearTimeout(tell._t);
     tell._t = setTimeout(() => { if (hud.msg.textContent === s) hud.msg.textContent = ''; }, 2500);
   }
 }
+
   
 // ---------- Buttons / HUD wiring ----------
 function wireButtons() {
