@@ -4,11 +4,10 @@ import assert from 'node:assert';
 import * as state from '../state.js';
 import * as combat from '../combat.js';
 
-state.ENTRY = { x: 0, y: 0 };
-state.EXIT  = { x: 5, y: 0 };
-state.GRID  = { tile: 32, rows: 10, cols: 10 };
-state.inBounds = (x,y) => (x>=0 && y>=0 && x<state.GRID.cols && y<state.GRID.rows);
-state.dragonCells = () => [{ x: state.EXIT.x, y: state.EXIT.y }];
+Object.assign(state.ENTRY, { x: 0, y: 0 });
+Object.assign(state.EXIT,  { x: 5, y: 0 });
+Object.assign(state.GRID,  { tile: 32, rows: 10, cols: 10 });
+
 
 test('JSON wave spawns the right counts per group', async () => {
   // JSON wave for CURRENT wave = 1
