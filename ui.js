@@ -335,9 +335,12 @@ function wireCanvasEdgeBuild() {
     // Charge after successful placement
     gs.bones -= cost;
 
+    globalThis.Telemetry?.log('wall:place', { x: hover.x, y: hover.y, side: hover.side, cost });
+
   } else if (remove) {
     // Remove (no refund; add one if you want)
     toggleEdge(gs, hover.x, hover.y, hover.side);
+    globalThis.Telemetry?.log('wall:remove', { x: hover.x, y: hover.y, side: hover.side });
 
     // Example refund logic if you decide to support it later:
     // const refund = (state.getCfg(gs).tuning.economy.wallRefundBones | 0) || 0;
