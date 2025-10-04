@@ -788,6 +788,26 @@ export function previewWaveList(arg) {
     (typeof arg === 'number') ? (arg | 0) :
     (arg && typeof arg.wave === 'number') ? (arg.wave | 0) :
     ((state.GameState.wave | 0) || 1);
+
+  const cfgWaves = state.getCfg?.(state.GameState)?.waves;
+  const waveIdx0 = Math.max(0, wave - 1);
+
+  // If JSON waves exist for THIS wave, expand groups -> flat list
+  if (Array.isArray(cfgWaves) && cfgWaves[waveIdx0] && Array.isArray(cfgWaves[waveIdx0].groups)) {
+    const groups = cfgWaves[waveIdx0].groups;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, (v | 0) || 0));
+    const MIN_COUNT = 1, MAX_COUNT = 1000;
+
+    const list = [];
+    for (const g of groups) {
+      const type = String(g.type || 'villager');
+      const count = clamp(g.count ?? 0, MIN_COUNT, MAX_COUNT);
+      for (let i = 0; i < count; i++) list.push(type);
+    }
+    return list;
+  }
+
+  // Fallback: legacy generator
   return buildWaveQueueFromWave(wave, { preview: true }).slice();
 }
 
