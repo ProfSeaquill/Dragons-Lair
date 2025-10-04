@@ -880,7 +880,7 @@ if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
 
 
       const type = G.type;
-      const e = spawnOneIntoGroup(state.GameState, type, G.groupId, R.groupLeaderId);
+      const e = spawnOneIntoGroup(gs, type, G.groupId, R.groupLeaderId);
       if (R.groupLeaderId == null) {
         R.groupLeaderId = e.id;
         e.leader = true;
@@ -923,7 +923,7 @@ if (R.spawning && R.queue.length > 0) {
   if (R.spawnTimer <= 0 && R.groupRemaining > 0) {
     // Pop the next type for this group
     const type = R.queue.shift();
-    const e = spawnOneIntoGroup(state.GameState, type, R.groupId, R.groupLeaderId);
+    const e = spawnOneIntoGroup(gs, type, R.groupId, R.groupLeaderId);
 
     // First member becomes leader if none yet. Also force torch for hero/kingsguard/boss.
     if (R.groupLeaderId == null) {
