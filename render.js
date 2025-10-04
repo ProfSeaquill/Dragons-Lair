@@ -135,13 +135,20 @@ function drawVignette(ctx) {
   const { width, height } = ctx.canvas;
   const cx = width * 0.55, cy = height * 0.5; // slight bias toward dragon side
   const rOuter = Math.hypot(width, height) * 0.65;
+  // cache by canvas size; recompute if size changes
+drawVignette._cache = drawVignette._cache || { w:0, h:0, grad:null };
+if (drawVignette._cache.w !== width || drawVignette._cache.h !== height) {
+  drawVignette._cache.w = width;
+  drawVignette._cache.h = height;
   const g = ctx.createRadialGradient(cx, cy, rOuter * 0.15, cx, cy, rOuter);
   g.addColorStop(0, 'rgba(0,0,0,0.0)');
   g.addColorStop(1, 'rgba(0,0,0,0.35)');
-  ctx.save();
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
+  drawVignette._cache.grad = g;
+}
+ctx.save();
+ctx.fillStyle = drawVignette._cache.grad;
+ctx.fillRect(0, 0, width, height);
+ctx.restore();
 }
 
 /* -----------------------------------------------------------
@@ -355,8 +362,9 @@ function drawEnemies(ctx, gs) {
     const ey = (e.y != null) ? e.y : (e.cy + 0.5) * t;
     const size = (e.size || 1) * t * 0.9;
     if (!isOnScreen(ex - size*0.5, ey - size*0.5, size, size, ctx.canvas.width, ctx.canvas.height)) continue;
-    const p = enemyPixelPosition(e);
-    if (!p) continue;
+    if (!enemyPixelPositionInto(SCR.p, e)) continue;
+    const p = SCR.p;
+
 
     const bodyColor = TYPE_COLOR[e.type] || (e?.shield ? '#5cf' : '#fc3');
     circle(ctx, p.x, p.y, r, bodyColor, true);
@@ -428,6 +436,7 @@ function drawDragonAndMouthFire(ctx, gs) {
 
 function drawFireSplash(ctx, gs) {
   const tsize = state.GRID.tile;
+  if (!isOnScreen(p.x - r, p.y - r, r*2, r*2, ctx.canvas.width, ctx.canvas.height)) { continue; }
   for (const fx of (gs.effects || [])) {
     if (fx.type !== 'fireSplash') continue;
     const p = { x: fx.x, y: fx.y };
@@ -616,6 +625,7 @@ function drawBombs(ctx, gs) {
   for (const fx of gs.effects) {
     if (fx.type !== 'bomb') continue;
     const r = Math.max(6, t * 0.22);
+    if (!isOnScreen(fx.x - r, fx.y - r, r*2, r*2, ctx.canvas.width, ctx.canvas.height)) continue;
     const pulse = 0.5 + 0.5 * Math.sin((fx.timer || 0) * 6.283);
     circle(ctx, fx.x, fx.y, r * (0.9 + 0.2 * pulse), '#f44', true);
     ring(ctx, fx.x, fx.y, r + 4, '#faa');
@@ -692,3 +702,16 @@ function enemyPixelPosition(e) {
   }
   return null;
 }
+
+function enemyPixelPositionInto(out, e) {
+  if (!out) return false;
+  if (typeof e.x === 'number' && typeof e.y === 'number') {
+    out.x = e.x; out.y = e.y; return true;
+  }
+  if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
+    const c = centerOf(e.cx, e.cy);
+    out.x = c.x; out.y = c.y; return true;
+  }
+  return false;
+}
+
