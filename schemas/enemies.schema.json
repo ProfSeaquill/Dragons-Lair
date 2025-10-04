@@ -8,7 +8,7 @@
     "properties": {
       "rate":      { "type": "number", "minimum": 0 },
       "damage":    { "type": "number", "minimum": 0 },
-      "range":     { "type": "number", "minimum": 1 }
+      "range":     { "type": "number", "minimum": 1 },
       "gold":      { "type": "number", "minimum": 0, "default": 1 },
       "bones":     { "type": "number", "minimum": 0, "default": 1 },
       "armor":     { "type": "number", "minimum": 0, "default": 0 },
