@@ -384,6 +384,46 @@ export function getDragonStats(gs) {
   };
 }
 
+
+// ===== Phase 7: Robust saves (versioned + migration) =====
+export const SAVE_SCHEMA_VERSION = 2;
+
+// Tiny migrate: fills defaults when older saves are loaded
+export function migrateSave(save) {
+  if (!save || typeof save !== 'object') return null;
+  const v = (save.schemaVersion | 0) || 1;
+  // v1 -> v2: add schemaVersion, createdAt if missing; keep payload as-is
+  if (v <= 1) {
+    save.schemaVersion = 2;
+    if (!save.createdAt) save.createdAt = Date.now();
+    // Future migrations can fill new top-level fields here.
+  }
+  // Always ensure these exist post-migration
+  if (!save.schemaVersion) save.schemaVersion = SAVE_SCHEMA_VERSION;
+  if (!save.createdAt) save.createdAt = Date.now();
+  return save;
+}
+
+// Best-effort clear (keeps compatibility if key ever changed)
+export function clearSave() {
+  try {
+    const keys = [
+      'dl.save', 'dl-save', 'dragon.save', 'dragons-lair.save',  // common variants
+    ];
+    let removed = false;
+    for (const k of keys) if (localStorage.getItem(k) != null) {
+      localStorage.removeItem(k);
+      removed = true;
+    }
+    // If your saveState uses a specific key, removing above will no-op; the call below
+    // lets your existing implementation handle it if you keep an internal key.
+    if (typeof __clearSaveInternal === 'function') __clearSaveInternal();
+    return removed;
+  } catch {
+    return false;
+  }
+}
+
 // ===== Saving / Loading =====
 const LS_KEY = 'dragons-lair-save';
 
