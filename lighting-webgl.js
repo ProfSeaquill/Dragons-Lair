@@ -9,6 +9,9 @@ export function initLighting(glCanvas, W, H) {
   gl.disable(gl.DEPTH_TEST);
   gl.disable(gl.BLEND);
   gl.clearColor(0, 0, 0, 0);
+  // Pixel-store flags (set once)
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
 
   // Resize helper
   function resize(w, h) {
@@ -151,17 +154,6 @@ vec3 base = texture2D(uScene, vUV).rgb;
     // Upload scene bitmap to texture unit 0
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sceneTex);
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-// Upload scene bitmap to texture unit 0
-gl.activeTexture(gl.TEXTURE0);
-gl.bindTexture(gl.TEXTURE_2D, sceneTex);
-
-// Add this line (can be set once after context creation too):
-gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-
-gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sceneCanvas);
-
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sceneCanvas);
 
     // Fill light uniforms
