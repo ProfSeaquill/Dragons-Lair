@@ -765,8 +765,8 @@ _jsonPlan = {
   }))
 };
 
-  // Keep wave-complete gate from firing early: use a sentinel in R.queue
-  R.queue = ['__json__'];
+  // No sentinel; let JSON plan presence control completion gate
+  R.queue = [];
 } else {
   R.queue = buildWaveQueue(gs); // legacy path
 }
@@ -903,7 +903,7 @@ if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
 }
 
   // 1) Spawning (group-based)
-if (R.spawning && R.queue.length > 0) {
+if (R.spawning && !_jsonPlan && R.queue.length > 0) {
   R.spawnTimer -= dt;
 
   if (R.groupRemaining <= 0) {
@@ -914,8 +914,7 @@ if (R.spawning && R.queue.length > 0) {
       R.groupLeaderId = null;                 // will be set by first member
       R.spawnTimer = 0;                       // spawn leader immediately
     } else {
-      // waiting for groupGap; do nothing
-      return;
+      // waiting for groupGap; do nothing (but continue update)
     }
   }
 
@@ -1140,7 +1139,7 @@ if (enemies.length > 0) {
 
 
   // 5) Wave completion
-  if (R.waveActive && R.queue.length === 0 && enemies.length === 0) {
+  if (R.waveActive && !_jsonPlan && R.queue.length === 0 && enemies.length === 0) {
     globalThis.Telemetry?.log('wave:end', { wave: gs.wave | 0 });
     R.waveActive = false;
     R.spawning = false;
