@@ -1,4 +1,3 @@
-
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
@@ -6,14 +5,16 @@
     "type": "object",
     "required": ["hp", "speed"],
     "properties": {
-      "rate":      { "type": "number", "minimum": 0 },
-      "damage":    { "type": "number", "minimum": 0 },
-      "range":     { "type": "number", "minimum": 1 },
-      "gold":      { "type": "number", "minimum": 0, "default": 1 },
-      "bones":     { "type": "number", "minimum": 0, "default": 1 },
-      "armor":     { "type": "number", "minimum": 0, "default": 0 },
-      "shielded":  { "type": "boolean", "default": false },
-      "tags":      { "type": "array", "items": { "type": "string" } },
+      "hp":       { "type": "integer", "minimum": 1 },
+      "speed":    { "type": "number",  "exclusiveMinimum": 0 },
+      "rate":     { "type": "number",  "minimum": 0 },
+      "damage":   { "type": "integer", "minimum": 0 },
+      "range":    { "type": "integer", "minimum": 1 },
+      "gold":     { "type": "integer", "minimum": 0, "default": 1 },
+      "bones":    { "type": "integer", "minimum": 0, "default": 1 },
+      "armor":    { "type": "integer", "minimum": 0, "default": 0 },
+      "shielded": { "type": "boolean", "default": false },
+      "tags":     { "type": "array", "items": { "type": "string" }, "default": [] }
     },
     "additionalProperties": false
   }
