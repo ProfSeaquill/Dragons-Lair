@@ -407,7 +407,17 @@ for (const enemy of gs.enemies) {
     eff.headIdx = Math.min((eff.path?.length ?? 0) - 1, head);
     if (eff.t > (eff.dur || 0.7)) eff.dead = true;
   }
-  gs.effects = gs.effects.filter(eff => !eff.dead);
+  {
+  const arr = gs.effects || [];
+  let w = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const fx = arr[i];
+    if (fx && !fx.dead) arr[w++] = fx;
+  }
+  arr.length = w;
+  gs.effects = arr;
+}
+
 
   // 3) Auto-start waves if enabled and field is clear
   if (gs.autoStart) {
@@ -429,7 +439,16 @@ for (const enemy of gs.enemies) {
       fx.t += dt;
       if (fx.t >= fx.dur) fx.dead = true;
     }
-    gs.effects = arr.filter(fx => !fx?.dead);
+    {
+  let w = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const fx = arr[i];
+    if (fx && !fx.dead) arr[w++] = fx;
+  }
+  arr.length = w;
+  gs.effects = arr;
+}
+
   }
 
   // --- Phase 7: autosave ---
