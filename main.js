@@ -322,6 +322,10 @@ function startWave() {
     combatSpawnWave(state.GameState);
   }
   waveJustStartedAt = performance.now();
+
+    // --- Phase 7: disable autosave by default ---
+  state.GameState.dev = state.GameState.dev || {};
+  state.GameState.dev.autosave = false;
 }
 
 function update(dt) {
