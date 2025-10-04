@@ -620,3 +620,4 @@ async function ensureDevPanel() {
 
   rightCol.appendChild(panel);
 }
+}
