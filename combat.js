@@ -1064,6 +1064,17 @@ const dps = rate * perHit;
       // Out of range: resume movement
       e.pausedForAttack = false;
       e.isAttacking = false;
+
+      // Near the lair but not yet adjacent? Bias straight into it.
+     if (distMan <= 2) {
+       const dx = nearest.x - e.cx;
+       const dy = nearest.y - e.cy;
+       const dir = (Math.abs(dx) >= Math.abs(dy))
+         ? (dx > 0 ? 'E' : 'W')
+         : (dy > 0 ? 'S' : 'N');
+       e.commitDir = dir;
+       e.commitSteps = Math.max(e.commitSteps | 0, 2);
+     }
     }
   }
 }
