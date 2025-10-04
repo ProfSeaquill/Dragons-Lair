@@ -428,6 +428,18 @@ export function clearSave() {
 const LS_KEY = 'dragons-lair-save';
 
 export function saveState(gs) {
+   const cellWallsArr = Array.from(gs.cellWalls.entries());
+  const data = {
+    version: gs.version,
+    wave: gs.wave,
+    gold: gs.gold,
+    bones: gs.bones,
+    dragonHP: gs.dragonHP,
+    autoStart: gs.autoStart,
+    upgrades: gs.upgrades,
+    seed: gs.seed,
+    cellWalls: cellWallsArr,
+  };
   try {
     const payload = {
       schemaVersion: SAVE_SCHEMA_VERSION,
@@ -448,48 +460,27 @@ export function saveState(gs) {
 
 export function loadState() {
   try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return false;
-    const data = JSON.parse(raw);
+    const txt =
+      localStorage.getItem('dl.save') ??
+      localStorage.getItem('dl-save') ??
+      localStorage.getItem('dragon.save');
+    if (!txt) return false;
 
-    GameState.wave      = data.wave ?? GameState.wave;
-    GameState.gold      = data.gold ?? GameState.gold;
-    GameState.bones     = data.bones ?? GameState.bones;
-    GameState.dragonHP  = data.dragonHP ?? GameState.dragonHP;
-    GameState.autoStart = data.autoStart ?? GameState.autoStart;
-    GameState.upgrades  = data.upgrades ?? {};
-    GameState.seed      = data.seed ?? 0;
+    const raw = JSON.parse(txt);
+    const save = migrateSave(raw);
+    if (!save) return false;
 
-    GameState.cellWalls = new Map();
-    if (Array.isArray(data.cellWalls)) {
-      for (const [k, v] of data.cellWalls) {
-        const rec = { N: !!v?.N, E: !!v?.E, S: !!v?.S, W: !!v?.W };
-        GameState.cellWalls.set(k, rec);
-      }
-    } else if (Array.isArray(data.walls)) {
-      // legacy
-      for (const k of data.walls) {
-        const [sx, sy] = k.split(',');
-        const x = +sx, y = +sy;
-        if (!inBounds(x, y)) continue;
-        setEdgeWall(GameState, x, y, 'N', true);
-        setEdgeWall(GameState, x, y, 'E', true);
-        setEdgeWall(GameState, x, y, 'S', true);
-        setEdgeWall(GameState, x, y, 'W', true);
-      }
-    }
+    const loaded = save.state;
+    if (!loaded || typeof loaded !== 'object') return false;
 
-    // Fresh fields (recomputed properly by pathing on boot/toggle)
-    GameState.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
-    GameState.distToExit    = makeScalarField(GRID.cols, GRID.rows, Infinity);
-    GameState.successTrail  = makeScalarField(GRID.cols, GRID.rows, 0);
-
+    Object.assign(GameState, loaded);
     return true;
-  } catch (e) {
-    console.warn('loadState failed:', e);
+  } catch (err) {
+    console.warn('Load failed:', err);
     return false;
   }
 }
+
 
 // ===== Convenience Reset =====
 export function resetState(gs = GameState) {
