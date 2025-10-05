@@ -236,6 +236,10 @@ lighting.render(sceneCanvas, lights, ambient);
 function boot() {
   recomputePath(state.GameState);
 
+  // lock Start until config is loaded
+  const startBtn = document.getElementById('startBtn');
+  if (startBtn) startBtn.disabled = true;
+
   // Bind all CustomEvent listeners before UI wiring
   window.addEventListener('dl-start-wave', () => { startWave(); });
     
@@ -311,9 +315,12 @@ __lastWaveSaved = (state.GameState.wave | 0) || 0;
     recomputePath(state.GameState);   // safe: if waves/enemies affect path calc later
     UI.refreshHUD?.();
     UI.tell?.('Config loaded');
-  })
-  .catch(err => console.warn('Config load failed, using defaults', err));
-  globalThis.Telemetry?.setup(() => !!state.GameState.dev?.telemetry || !!state.getCfg(state.GameState)?.tuning?.telemetry?.enabled);
+    globalThis.Telemetry?.setup(() => !!state.GameState.dev?.telemetry || !!state.getCfg(state.GameState)?.tuning?.telemetry?.enabled);
+    // now safe to start waves; also refresh preview once more
+    if (startBtn) startBtn.disabled = false;
+    window.dispatchEvent(new CustomEvent('dl-preview-refresh'));
+    })
+    .catch(err => console.warn('Config load failed, using defaults', err));
 }
 
 function startWave() {
