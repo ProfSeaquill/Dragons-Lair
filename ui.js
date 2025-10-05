@@ -62,6 +62,7 @@ export function bindUI() {
 // Track last values so we only rebuild when needed
 let _lastPreviewWave = -1;
 let _lastGold = -1;
+let _lastGoldForPanel = -1; 
 let _lastWaveHUD = -1;
 let _lastBones = -1;
 let _lastHPStr = '';
@@ -76,7 +77,6 @@ export function refreshHUD() {
   const ds = state.getDragonStats(gs);
 
 const waveNow  = gs.wave | 0;
-const goldNow  = gs.gold | 0;
 const bonesNow = gs.bones | 0;
 const hpStrNow = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
 const autoNow  = !!gs.autoStart;
@@ -84,7 +84,6 @@ const autoNow  = !!gs.autoStart;
 const data = getUpgradeInfo(state.GameState);   // <-- computed rows
   
 if (hud.wave && waveNow !== _lastWaveHUD) { _lastWaveHUD = waveNow; hud.wave.textContent = String(waveNow); }
-if (hud.gold && goldNow !== _lastGold)    { _lastGold = goldNow;   hud.gold.textContent = String(goldNow); }
 if (hud.bones && bonesNow !== _lastBones) { _lastBones = bonesNow; hud.bones.textContent = String(bonesNow); }
 if (hud.hp && hpStrNow !== _lastHPStr)    { _lastHPStr = hpStrNow; hud.hp.textContent = hpStrNow; }
 if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.checked = autoNow; }
@@ -95,21 +94,25 @@ if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.chec
     if ((gs.bones | 0) < 500_000) gs.bones = 1_000_000;
   }
 
-  // Rebuild upgrade buttons when gold changes so disabled/enabled updates live
-  if ((gs.gold | 0) !== _lastGold) {
-    _lastGold = gs.gold | 0;
-    renderUpgradesPanel(); // <-- ensure correct casing
+  // Now compute gold AFTER any changes, then update HUD & panel
+  const goldNow = gs.gold | 0;
+  if (hud.gold && goldNow !== _lastGoldHUD) {
+    _lastGoldHUD = goldNow;
+    hud.gold.textContent = String(goldNow);
+  }
+  // Rebuild the upgrades panel whenever gold changes (compared to last panel build)
+  if (goldNow !== _lastGoldForPanel) {
+    _lastGoldForPanel = goldNow;
+    renderUpgradesPanel();
   }
 
-  // Only rebuild the Next Wave preview when the wave number changes
+  // Preview re-render on wave change (unchanged)
   if ((gs.wave | 0) !== _lastPreviewWave) {
     _lastPreviewWave = gs.wave | 0;
     renderNextWavePreview().catch(err => console.warn('preview failed:', err));
   }
 
   renderHealButtonLabel(gs);
-  
-  // keep this LAST so it always reflects current config
   renderGridHelp(gs);
 }
 
