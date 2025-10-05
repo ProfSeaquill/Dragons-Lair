@@ -81,6 +81,8 @@ const bonesNow = gs.bones | 0;
 const hpStrNow = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
 const autoNow  = !!gs.autoStart;
 
+const data = getUpgradeInfo(state.GameState);   // <-- computed rows
+  
 if (hud.wave && waveNow !== _lastWaveHUD) { _lastWaveHUD = waveNow; hud.wave.textContent = String(waveNow); }
 if (hud.gold && goldNow !== _lastGold)    { _lastGold = goldNow;   hud.gold.textContent = String(goldNow); }
 if (hud.bones && bonesNow !== _lastBones) { _lastBones = bonesNow; hud.bones.textContent = String(bonesNow); }
@@ -184,7 +186,7 @@ function renderUpgradesPanel() {
   const root = hud.upgrades;
   if (!root) return;
 
-  const data = listUpgrades(state.GameState);
+  const data = getUpgradeInfo(state.GameState);   // <-- computed rows
   const list = Array.isArray(data) ? data : Object.values(data);
   root.innerHTML = '';
 
