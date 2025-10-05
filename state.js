@@ -55,6 +55,9 @@ export const GRID = { cols: 24, rows: 16, tile: 32 };
 export const ENTRY = { x: 0, y: Math.floor(GRID.rows / 2) };
 export const EXIT  = { x: GRID.cols - 1, y: Math.floor(GRID.rows / 2) };
 
+// --- TEST HOOKS (used only by tests) ---
+export const __testHooks = Object.create(null);
+
 // ===== Economy / Costs =====
 export const COSTS = {
   edgeWall: 1,   // bones to place an edge wall
@@ -264,9 +267,19 @@ export function makeScalarField(w, h, fill = 0) {
 
 // ===== Helpers: keys, bounds =====
 export const tileKey = (x, y) => `${x},${y}`;
-export function inBounds(x, y) {
-  return x >= 0 && x < GRID.cols && y >= 0 && y < GRID.rows;
+
+// Keep the real logic private:
+function _inBoundsImpl(x, y) {
+  return x >= 0 && y >= 0 && x < GRID.cols && y < GRID.rows;
 }
+
+// Public export delegates to a test override if present
+export function inBounds(x, y) {
+  return (typeof __testHooks.inBounds === 'function')
+    ? __testHooks.inBounds(x, y)
+    : _inBoundsImpl(x, y);
+}
+
 
 // ===== Game State (single mutable object) =====
 export const GameState = {
