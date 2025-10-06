@@ -76,31 +76,31 @@ export function refreshHUD() {
   const gs = state.GameState;
   const ds = state.getDragonStats(gs);
 
-const waveNow  = gs.wave | 0;
-const bonesNow = gs.bones | 0;
-const hpStrNow = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
-const autoNow  = !!gs.autoStart;
-
-const data = getUpgradeInfo(state.GameState);   // <-- computed rows
-  
-if (hud.wave && waveNow !== _lastWaveHUD) { _lastWaveHUD = waveNow; hud.wave.textContent = String(waveNow); }
-if (hud.bones && bonesNow !== _lastBones) { _lastBones = bonesNow; hud.bones.textContent = String(bonesNow); }
-if (hud.hp && hpStrNow !== _lastHPStr)    { _lastHPStr = hpStrNow; hud.hp.textContent = hpStrNow; }
-if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.checked = autoNow; }
-
-  // Dev: keep topped up if infiniteMoney is on
+  // Dev: top up first (this may change gold/bones)
   if (gs.dev?.infiniteMoney) {
-    if ((gs.gold | 0) < 500_000)  gs.gold  = 1_000_000;
+    if ((gs.gold | 0)  < 500_000) gs.gold  = 1_000_000;
     if ((gs.bones | 0) < 500_000) gs.bones = 1_000_000;
   }
 
- // Rebuild the upgrades panel whenever gold changes (compared to last panel build)
-  if (goldNow !== _lastGoldForPanel) {
-    _lastGoldForPanel = goldNow;
+  // --- GOLD ---
+  const goldNow = gs.gold | 0;            // define once, early
+  if (hud.gold) hud.gold.textContent = String(goldNow);
+  if (goldNow !== _lastGold) {            // use _lastGold only as the rebuild gate
+    _lastGold = goldNow;
     renderUpgradesPanel();
   }
 
-  // Preview re-render on wave change (unchanged)
+  // --- Rest of HUD (unchanged) ---
+  const waveNow  = gs.wave | 0;
+  const bonesNow = gs.bones | 0;
+  const hpStrNow = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
+  const autoNow  = !!gs.autoStart;
+
+  if (hud.wave && waveNow !== _lastWaveHUD) { _lastWaveHUD = waveNow; hud.wave.textContent = String(waveNow); }
+  if (hud.bones && bonesNow !== _lastBones) { _lastBones = bonesNow; hud.bones.textContent = String(bonesNow); }
+  if (hud.hp && hpStrNow !== _lastHPStr)    { _lastHPStr = hpStrNow; hud.hp.textContent = hpStrNow; }
+  if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.checked = autoNow; }
+
   if ((gs.wave | 0) !== _lastPreviewWave) {
     _lastPreviewWave = gs.wave | 0;
     renderNextWavePreview().catch(err => console.warn('preview failed:', err));
@@ -109,6 +109,7 @@ if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.chec
   renderHealButtonLabel(gs);
   renderGridHelp(gs);
 }
+
 
 
 // Lightweight message banner
