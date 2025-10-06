@@ -94,13 +94,7 @@ if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.chec
     if ((gs.bones | 0) < 500_000) gs.bones = 1_000_000;
   }
 
-  // Now compute gold AFTER any changes, then update HUD & panel
-  const goldNow = gs.gold | 0;
-  if (hud.gold && goldNow !== _lastGoldHUD) {
-    _lastGoldHUD = goldNow;
-    hud.gold.textContent = String(goldNow);
-  }
-  // Rebuild the upgrades panel whenever gold changes (compared to last panel build)
+ // Rebuild the upgrades panel whenever gold changes (compared to last panel build)
   if (goldNow !== _lastGoldForPanel) {
     _lastGoldForPanel = goldNow;
     renderUpgradesPanel();
