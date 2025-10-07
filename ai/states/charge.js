@@ -1,6 +1,6 @@
 import { CFG } from '../config.js';
 import { followPath } from '../steering.js';
-import { computeShortestPath } from './internal_path.js'; // implement A* or BFS here
+import { computeShortestPath } from '../topology.js';
 
 export function enter(e, gs) {
   e.speedMul = CFG.CHARGE_MUL;
