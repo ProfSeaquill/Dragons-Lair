@@ -289,6 +289,7 @@ export const GameState = {
   bones: 0,
   dragonHP: DRAGON_BASE.maxHP,
   autoStart: false,
+  topologyVersion: 0,   // bumped whenever walls/topology change
 
   // Visual-only dragon breath (mouth burst / sprite timing)
   dragonFX: { attacking: false, t: 0, dur: 0.5 },
@@ -303,9 +304,6 @@ export const GameState = {
   reqWingGust: false,
   reqRoar:     false,
   reqStomp:    false,
-
-  // upgrades
-  upgrades: {},
 
   // Per-cell edge walls: Map<"x,y", {N,E,S,W:boolean}>
   cellWalls: new Map(),
