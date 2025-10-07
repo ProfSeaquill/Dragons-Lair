@@ -225,12 +225,14 @@ function spawnMouthFire(gs, dur = 0.6) {
 gs.effects.push(acquireEffect('fireMouth', { t: 0, dur, dead: false }));
 }
 
-function nextGroupSize() {
-  const a = FLAGS.groupMin | 0, b = FLAGS.groupMax | 0;
+function nextGroupSize(gs = state.GameState) {
+  const p = tunedSpawnParams(gs);
+  const a = p.min | 0, b = p.max | 0;
   if (b <= a) return Math.max(1, a);
   const r = a + ((Math.random() * (b - a + 1)) | 0);
   return Math.min(Math.max(1, r), b);
 }
+
 
 // --- Spawn helper: give freshly-spawned enemies a "previous cell" (if available)
 // and a short forward commit so they don't immediately reconsider direction.
@@ -316,13 +318,85 @@ const FLAGS = {
   groupMin: 6,
   groupMax: 10,
 };
+// -------- Wave tuning helpers (reads tuning.json) --------
+function TW(gs = state.GameState) {
+  return state.getCfg?.(gs)?.tuning?.waves || null;
+}
+const _val = (v, d) => (v == null ? d : v);
 
-function waveCountFor(wave) {
-  const base = 7;          // wave 1 size
-  const cap  = 70;         // hard-ish ceiling you wanted (~50)
-  const k    = 0.07;       // growth tempo
+function tunedSpawnParams(gs = state.GameState) {
+  const g = TW(gs)?.groups;
+  return {
+    min:      _val(g?.min,      FLAGS.groupMin),
+    max:      _val(g?.max,      FLAGS.groupMax),
+    spawnGap: _val(g?.spawnGap, FLAGS.spawnGap),
+    groupGap: _val(g?.groupGap, FLAGS.groupGap),
+  };
+}
+
+function waveCountFor(wave, gs = state.GameState) {
+  const c = TW(gs)?.count;
+  const base = _val(c?.base, 7);
+  const cap  = _val(c?.cap,  300);
+  const k    = _val(c?.k,   0.07);
   return Math.max(1, Math.round(approachCap(base, cap, wave, k)));
 }
+
+function cadenceFor(wave, gs = state.GameState) {
+  const c = TW(gs)?.cadence || {};
+  return {
+    bossEvery:       _val(c.bossEvery,        FLAGS.bossEvery),
+    kingsguardEvery: _val(c.kingsguardEvery,  FLAGS.kingsguardEvery),
+    heroFromWave:    _val(c.heroFromWave,     10),
+    heroEvery:       _val(c.heroEvery,         4),
+    engineerFromWave:_val(c.engineerFromWave, 20),
+    engineerEvery:   _val(c.engineerEvery,     3),
+  };
+}
+
+// choose a core mix for the wave from tuning.mix (deterministic)
+function selectWeightsForWave(wave, gs = state.GameState) {
+  const mix = TW(gs)?.mix;
+  if (Array.isArray(mix) && mix.length) {
+    // first rule whose [from,until] contains wave
+    for (const rule of mix) {
+      const from  = (rule.fromWave ?? -Infinity);
+      const until = (rule.untilWave ??  Infinity);
+      if (wave >= from && wave <= until && rule.weights) return rule.weights;
+    }
+  }
+  // fallback to old hardcoded tiers
+  if (wave < 4)  return { villager: 1 };
+  if (wave < 8)  return { villager: 2, squire: 1 };
+  return { squire: 1, knight: 1 };
+}
+
+// expand N core units using fractional rounding (no RNG => preview == live counts)
+function expandByWeights(weights, count) {
+  const keys = Object.keys(weights).filter(k => (weights[k] ?? 0) > 0);
+  if (!keys.length || count <= 0) return [];
+  const sum = keys.reduce((s, k) => s + Math.max(0, Number(weights[k]) || 0), 0) || 1;
+
+  const rows = keys.map(k => {
+    const ideal = (count * (weights[k] / sum));
+    const n = Math.floor(ideal);
+    return { k, n, frac: ideal - n };
+  });
+
+  let used = rows.reduce((s, r) => s + r.n, 0);
+  let rem = count - used;
+
+  // give remaining units to largest fractional parts (stable)
+  rows.sort((a, b) => (b.frac - a.frac) || (a.k < b.k ? -1 : 1));
+  for (let i = 0; i < rem; i++) rows[i % rows.length].n++;
+
+  // build list in a fixed key order for readability
+  rows.sort((a, b) => a.k.localeCompare(b.k));
+  const out = [];
+  for (const r of rows) for (let i = 0; i < r.n; i++) out.push(r.k);
+  return out;
+}
+
 
 // Smooth asymptotic growth: starts near `base`, rises quickly early,
 // then slows and approaches `cap` as wave → ∞.
@@ -701,30 +775,24 @@ function markHit(e, amount = 0) {
 
 // ---------------- Wave composition + start ----------------
 // === Pure queue builder (shared by live waves & preview) ===
-function buildWaveQueueFromWave(waveNum, { preview = false } = {}) {
+function buildWaveQueueFromWave(waveNum, { preview = false, gs = state.GameState } = {}) {
   const wave = Math.max(1, waveNum | 0);
-  const n = Math.max(1, waveCountFor(wave));
+  const n = Math.max(1, waveCountFor(wave, gs));
   const q = [];
 
-  // Specials cadence (match your current rules)
-  if (wave % FLAGS.bossEvery === 0)       q.push('boss');
-  if (wave % FLAGS.kingsguardEvery === 0) q.push('kingsguard');
-  if (wave >= 10 && wave % 4 === 0)        q.push('hero');
-  if (wave >= 20 && wave % 3 === 0)        q.push('engineer');
+  // Specials (cadence)
+  const cad = cadenceFor(wave, gs);
+  if (cad.bossEvery && (wave % cad.bossEvery === 0))         q.push('boss');
+  if (cad.kingsguardEvery && (wave % cad.kingsguardEvery === 0)) q.push('kingsguard');
+  if (wave >= cad.heroFromWave && cad.heroEvery && ((wave - cad.heroFromWave) % cad.heroEvery === 0)) q.push('hero');
+  if (wave >= cad.engineerFromWave && cad.engineerEvery && ((wave - cad.engineerFromWave) % cad.engineerEvery === 0)) q.push('engineer');
 
-  // Core troops fill
+  // Core troop fill from mix weights
   const remaining = Math.max(0, n - q.length);
-  for (let i = 0; i < remaining; i++) {
-    if (wave < 4) {
-      q.push('villager');
-    } else if (wave < 8) {
-      q.push((i % 3 === 0) ? 'squire' : 'villager');
-    } else {
-      q.push((i % 2 === 0) ? 'knight' : 'squire');
-    }
-  }
+  const weights = selectWeightsForWave(wave, gs);
+  q.push(...expandByWeights(weights, remaining));
 
-  // Keep preview deterministic; live gets a small shuffle
+  // Randomize order for live (keep preview deterministic)
   if (!preview && q.length > 1) {
     for (let i = 1; i < q.length; i++) {
       const j = 1 + ((Math.random() * (q.length - 1)) | 0);
@@ -734,10 +802,12 @@ function buildWaveQueueFromWave(waveNum, { preview = false } = {}) {
   return q;
 }
 
+
 function buildWaveQueue(gs = state.GameState) {
   const wave = (gs.wave | 0) || 1;
-  return buildWaveQueueFromWave(wave, { preview: false });
+  return buildWaveQueueFromWave(wave, { preview: false, gs });
 }
+
 
 export function startWave(gs = state.GameState) {
   _warnedTypesThisWave = new Set();
@@ -810,12 +880,12 @@ export function previewWaveList(arg) {
     ((state.GameState.wave | 0) || 1);
 
   // Prefer explicit gs/cfg on arg, else fall back to global state
-  const gsArg = (arg && arg.gs) ? arg.gs : state.GameState;
-  const cfgArg = arg && arg.cfg ? arg.cfg : state.getCfg?.(gsArg);
+  const gsArg  = (arg && arg.gs)  ? arg.gs  : state.GameState;
+  const cfgArg = (arg && arg.cfg) ? arg.cfg : state.getCfg?.(gsArg);
   const cfgWaves = cfgArg?.waves;
 
+  // If someone re-adds waves.json, keep supporting it:
   const waveIdx0 = Math.max(0, wave - 1);
-
   if (Array.isArray(cfgWaves) && cfgWaves[waveIdx0] && Array.isArray(cfgWaves[waveIdx0].groups)) {
     const groups = cfgWaves[waveIdx0].groups;
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, (v | 0) || 0));
@@ -829,7 +899,9 @@ export function previewWaveList(arg) {
     }
     return list;
   }
-  return buildWaveQueueFromWave(wave, { preview: true }).slice();
+
+  // Procedural path (uses tuning.json)
+  return buildWaveQueueFromWave(wave, { preview: true, gs: gsArg }).slice();
 }
 
 
@@ -877,26 +949,33 @@ if (T) {
   }
 }
 
-// --- Phase 5: JSON-configured spawning (runs when _jsonPlan is active) ---
-if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
-  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+if (R.spawning && !_jsonPlan && R.queue.length > 0) {
+  R.spawnTimer -= dt;
+  const gaps = tunedSpawnParams(gs);
 
-  for (const G of _jsonPlan.groups) {
-    if (G.remaining <= 0) continue;
-    if (now >= G.nextAt) {
-      // Start new group id when we spawn the first member of this group's burst
-     if (!G.groupId) {
-  R.groupId++;
-  G.groupId = R.groupId;
-  R.groupLeaderId = null; // first member will become leader
+  if (R.groupRemaining <= 0) {
+    if (R.spawnTimer <= 0) {
+      R.groupId++;
+      R.groupRemaining = Math.min(nextGroupSize(gs), R.queue.length);
+      R.groupLeaderId = null;
+      R.spawnTimer = 0;
+    } else {
+      // waiting for groupGap; do nothing (but continue update)
+    }
+  }
 
-  const type = G.type;
-  const hasCfg = !!(state.getCfg?.(gs)?.enemies?.[type]);
-  if (!hasCfg && !_warnedTypesThisWave.has(type)) {
-    console.warn('[waves.json] Unknown enemy type in wave', (gs.wave|0), '→', type, '— using legacy defaults');
-    _warnedTypesThisWave.add(type);
+  if (R.spawnTimer <= 0 && R.groupRemaining > 0) {
+    // Pop the next type for this group
+    ...
+    // Schedule next member or next group
+    if (R.groupRemaining > 0) {
+      R.spawnTimer = gaps.spawnGap;
+    } else {
+      R.spawnTimer = gaps.groupGap;
+    }
   }
 }
+
 
 
       const type = G.type;
