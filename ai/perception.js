@@ -26,3 +26,30 @@ export function reachableFromExit(gs) {
   }
   return out;
 }
+
+// Axis-aligned raycast along grid edges (N/E/S/W). True if all crossed edges are open.
+export function raycastLineClear(gs, x0, y0, x1, y1) {
+  if (x0 !== x1 && y0 !== y1) return false; // only straight lines
+  let x = x0, y = y0;
+  const dx = Math.sign(x1 - x0), dy = Math.sign(y1 - y0);
+  const steps = Math.abs(x1 - x0) + Math.abs(y1 - y0);
+  for (let i = 0; i < steps; i++) {
+    const side = dx > 0 ? 'E' : dx < 0 ? 'W' : dy > 0 ? 'S' : 'N';
+    if (!state.isOpen(gs, x, y, side)) return false;
+    if (dx !== 0) x += dx; else y += dy;
+  }
+  return true;
+}
+
+// True if the unit at (cx,cy) has straight line-of-sight to ANY dragon cell (same row/col), respecting walls.
+export function canSeeDragon(gs, cx, cy, { maxTiles = state.GRID.cols + state.GRID.rows } = {}) {
+  if (!Number.isInteger(cx) || !Number.isInteger(cy)) return false;
+  const cells = state.dragonCells(gs);
+  for (const d of cells) {
+    if (cx === d.x || cy === d.y) {
+      const dist = Math.abs(d.x - cx) + Math.abs(d.y - cy);
+      if (dist <= maxTiles && raycastLineClear(gs, cx, cy, d.x, d.y)) return true;
+    }
+  }
+  return false;
+}
