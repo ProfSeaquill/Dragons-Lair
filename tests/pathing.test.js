@@ -1,78 +1,122 @@
-// pathing.test.js — pathing/AI invariants
+// pathing.test.js — topology & pathing invariants (FSM-friendly)
+// Run with: node --test
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import * as state from '../state.js';
-import {
-  toggleEdge,
-  wouldDisconnectEntryAndExit,
-  chooseNextDirectionToExit,
-  recomputePath,
-} from '../pathing.js';
+import { isEntryConnectedToExit } from '../ai/topology.js';
+import { toggleEdge, edgeHasWall } from '../grid/walls.js';
 
+// --- Test helpers ---
 function fresh(gs = state.GameState) {
   state.resetState(gs);
-  // generous bones so cost checks never block the tests
+  // plenty of bones so UI-style costs never block (some UIs check this)
   gs.bones = 1_000_000;
-  recomputePath(gs);
+  // no global recomputePath anymore — just bump topology once (harmless)
+  gs.topologyVersion = (gs.topologyVersion || 0) + 1;
   return gs;
+}
+
+// "Place if absent" (since toggleEdge() is a toggle, not an explicit setter).
+function placeEdge(gs, x, y, side) {
+  if (!edgeHasWall(gs, x, y, side)) {
+    toggleEdge(gs, x, y, side); // attempt to place
+  }
+  return edgeHasWall(gs, x, y, side);
+}
+
+// "Remove if present"
+function removeEdge(gs, x, y, side) {
+  if (edgeHasWall(gs, x, y, side)) {
+    toggleEdge(gs, x, y, side);
+  }
+  return !edgeHasWall(gs, x, y, side);
 }
 
 test('toggleEdge never lets you fully block Entry ↔ Exit', () => {
   const gs = fresh();
 
-  // Build a vertical barrier at the middle; the last piece should be refused
+  // Build a vertical barrier near the middle; the last piece(s) must be refused.
   const midCol = Math.floor(state.GRID.cols / 2) - 1;
-  let okCount = 0, failCount = 0;
 
+  let placed = 0;
   for (let y = 0; y < state.GRID.rows; y++) {
-    const res = toggleEdge(gs, midCol, y, 'E', true); // place = true
-    if (res?.ok) okCount++; else failCount++;
+    const ok = placeEdge(gs, midCol, y, 'E'); // try to place the east edge
+    if (ok) placed++;
   }
 
-  // At least one edge placement must be refused to preserve connectivity
-  assert.ok(okCount < state.GRID.rows, 'At least one segment must be refused');
-  assert.ok(failCount >= 1, 'Refusal should have occurred for the last blocking segment');
+  // Still connected after all attempts:
+  assert.equal(
+    isEntryConnectedToExit(gs, state.ENTRY, state.EXIT),
+    true,
+    'Entry ↔ Exit must remain connected'
+  );
+
+  // At least one placement should have been refused to preserve connectivity:
+  assert.ok(
+    placed < state.GRID.rows,
+    'At least one segment must be refused (cannot fully block)'
+  );
 });
 
-test('wouldDisconnectEntryAndExit flags the last gap of a barrier', () => {
+test('closing the last gap of a barrier is refused', () => {
   const gs = fresh();
-
   const midCol = Math.floor(state.GRID.cols / 2) - 1;
-  const gapY = Math.floor(state.GRID.rows / 2); // leave a single opening
+  const gapY = Math.floor(state.GRID.rows / 2);
 
   // Place all segments except one gap
   for (let y = 0; y < state.GRID.rows; y++) {
     if (y === gapY) continue;
-    const res = toggleEdge(gs, midCol, y, 'E', true);
-    assert.ok(res.ok, `segment (${midCol},${y},E) should place`);
+    const ok = placeEdge(gs, midCol, y, 'E');
+    assert.ok(ok, `segment (${midCol},${y},E) should place before the gap is closed`);
   }
 
-  // Now, closing the gap should be detected as disconnecting
-  const wouldBlock = wouldDisconnectEntryAndExit(gs, midCol, gapY, 'E', true);
-  assert.equal(wouldBlock, true, 'closing the last gap must be detected as disconnecting');
+  // Now attempt to close the last gap — should be refused (edge remains absent)
+  const before = edgeHasWall(gs, midCol, gapY, 'E');
+  assert.equal(before, false, 'gap edge should be absent before placement');
 
-  // And toggleEdge should refuse it in practice
-  const res = toggleEdge(gs, midCol, gapY, 'E', true);
-  assert.equal(res.ok, false, 'toggleEdge should refuse a fully-blocking edge');
+  toggleEdge(gs, midCol, gapY, 'E'); // try to place the final blocking edge
+
+  const after = edgeHasWall(gs, midCol, gapY, 'E');
+  assert.equal(after, false, 'closing the last gap must be refused');
+
+  // Connectivity must remain true
+  assert.equal(
+    isEntryConnectedToExit(gs, state.ENTRY, state.EXIT),
+    true,
+    'Connectivity must remain after refused placement'
+  );
 });
 
-test('In a straight corridor, enemy keeps direction until a node/topology change', () => {
+test('A straight corridor has degree 2 at interior tiles (edge-aware neighbors)', () => {
   const gs = fresh();
 
-  // Build a 1-tile-high horizontal corridor across the ENTRY row:
+  // Build a 1-tile-high horizontal corridor along the ENTRY row by walling top+bottom
   const y = state.ENTRY.y;
   for (let x = 0; x < state.GRID.cols; x++) {
-    // ceiling and floor walls for a straight corridor
-    if (y - 1 >= 0) toggleEdge(gs, x, y, 'N', true);
-    if (y + 1 < state.GRID.rows) toggleEdge(gs, x, y, 'S', true);
+    if (y - 1 >= 0) placeEdge(gs, x, y, 'N'); // ceiling
+    if (y + 1 < state.GRID.rows) placeEdge(gs, x, y, 'S'); // floor
   }
-  recomputePath(gs);
+  gs.topologyVersion = (gs.topologyVersion || 0) + 1;
 
-  // Drop an enemy into the corridor, facing east (toward exit)
-  const e = { cx: Math.max(1, state.ENTRY.x + 2), cy: y, dir: 'E' };
+  // For interior cells along the corridor, the graph degree should be exactly 2
+  // when using edge-aware neighbors.
+  const first = 1;
+  const last = state.GRID.cols - 2;
 
-  // In a corridor (degree==2) with no visible topology change ahead, keep going straight
-  const dir = chooseNextDirectionToExit(gs, e);
-  assert.equal(dir, 'E', 'Enemy should prefer to keep going straight in a corridor');
+  for (let x = first; x <= last; x++) {
+    const neigh = state.neighborsByEdges(gs, x, y);
+    assert.equal(
+      neigh.length, 2,
+      `corridor interior at (${x},${y}) should have exactly 2 open neighbors`
+    );
+  }
+
+  // And start/end of the corridor should have <= 2 neighbors (not >2)
+  {
+    const n0 = state.neighborsByEdges(gs, first, y).length;
+    const n1 = state.neighborsByEdges(gs, last, y).length;
+    assert.ok(n0 <= 2 && n1 <= 2, 'corridor endpoints should not exceed degree 2');
+  }
 });
