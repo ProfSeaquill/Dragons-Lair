@@ -1,36 +1,36 @@
 {
   "dragon": { "maxHP": 100, "healCostBone": 1 },
-  "economy": { "wallCostBones": 1, "goldBase": 20 },
-  "abilities": { "gust": 30, "roar": 60, "stomp": 30 },
+  "economy": { "wallCostBones": 1, "goldBase": 15 },
+  "abilities": { "gust": 5, "roar": 5, "stomp": 5 },
   "saves": { "autosaveSec": 0 },
   "telemetry": { "enabled": false }
 }
 
 {
   "flame": {
-    "baseRangeTiles": 6,
-    "rangePerLevelTiles": 0.75,
-    "dmgPerHit": 18,
-    "burnDps": 6,
-    "fireRate": 1.25
+    "baseRangeTiles": 8,
+    "rangePerLevelTiles": 2,
+    "dmgPerHit": 14,
+    "burnDps": 1,
+    "fireRate": 0.50
   },
   "claw": {
-    "baseDamage": 35,
-    "damagePerLevel": 7,
-    "baseCooldownSec": 1.8,
+    "baseDamage": 100,
+    "damagePerLevel": 10,
+    "baseCooldownSec": 5,
     "cooldownMultPerLevel": 0.9
   },
   "crowd": {
     "gust": { "pushTiles": 3 },
-    "roar": { "stunSec": 1.5 },
-    "stomp": { "slowMult": 0.5, "slowSec": 2.0 }
+    "roar": { "stunSec": 2 },
+    "stomp": { "slowMult": 0.5, "slowSec": 3.0 }
   }
 }
 
 // Waves tuning
 {
   "waves": {
-    "count": { "base": 7, "cap": 70, "k": 0.07 },
+    "count": { "base": 7, "cap": 300, "k": 0.07 },
     "cadence": {
       "bossEvery": 10,
       "kingsguardEvery": 5,
