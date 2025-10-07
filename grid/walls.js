@@ -1,27 +1,36 @@
 // grid/walls.js — edge wall toggles + query, with connectivity guard
 import * as state from '../state.js';
-import { isEntryConnectedToExit } from '../ai/topology.js';
+import * as topology from '../ai/topology.js';
 
-export function edgeHasWall(gs, x, y, side) {
-  // In your model: "open" means no wall
-  return !state.isOpen(gs, x, y, side);
+// Example toggle that prevents full block:
+export function toggleEdge(gs, x, y, side, forcePlace /* optional boolean */) {
+  // current state
+  const here = state.ensureCell(gs, x, y);
+  const curr = !!here[side];
+
+  const next = (typeof forcePlace === 'boolean') ? !!forcePlace : !curr;
+
+  // Fast no-op
+  if (next === curr) return { ok: true, changed: false };
+
+  // Tentatively apply
+  state.setEdgeWall(gs, x, y, side, next);
+
+  // Don’t allow fully blocking entry↔exit
+  const connected = topology.isEntryConnectedToExit(gs);
+  if (!connected) {
+    // revert
+    state.setEdgeWall(gs, x, y, side, curr);
+    return { ok: false, changed: false, reason: 'disconnect' };
+  }
+
+  return { ok: true, changed: true };
 }
 
-export function toggleEdge(gs, x, y, side) {
-  const before = edgeHasWall(gs, x, y, side);
-
-  // Disallow edges that touch the dragon footprint
-  if (edgeTouchesDragon(gs, x, y, side)) return;
-
-  // Toggle
-  state.setEdgeWall(gs, x, y, side, !before);
-
-  // Prevent fully blocking entry ↔ exit; revert if it does
-  const ok = isEntryConnectedToExit(gs, state.ENTRY, state.EXIT);
-  if (!ok) {
-    state.setEdgeWall(gs, x, y, side, before);
-    return;
-  }
+export function edgeHasWall(gs, x, y, side) {
+  const c = state.ensureCell(gs, x, y);
+  return !!c[side];
+}
 
   // Nudge topology so any path caches refresh
   gs.topologyVersion = (gs.topologyVersion || 0) + 1;
