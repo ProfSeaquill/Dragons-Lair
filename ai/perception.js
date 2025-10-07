@@ -1,6 +1,26 @@
 // ai/perception.js
 import * as state from '../state.js';
-import { neighbors4 } from './topology.js';
+import { neighbors4, cellDegree } from './topology.js';
+
+// Junction helpers (degree-based)
+export function isJunction(gs, x, y) {        // ≥3 exits
+  return cellDegree(gs, x, y) >= 3;
+}
+export function isDeadEnd(gs, x, y) {         // ≤1 exit
+  return cellDegree(gs, x, y) <= 1;
+}
+export function isCorridor(gs, x, y) {        // exactly 2 exits
+  return cellDegree(gs, x, y) === 2;
+}
+// Some state machines want a single “decision node” check:
+export function isDecisionNode(gs, x, y) {
+  // junctions OR dead-ends are “decision points”; corridors are not
+  const d = cellDegree(gs, x, y);
+  return d !== 2;
+}
+
+// (optional) re-export for convenience if other modules want degrees directly
+export { cellDegree } from './topology.js';
 
 // “Visible” neighbors respecting edge walls
 export function visibleNeighbors(gs, cx, cy) {
