@@ -30,10 +30,12 @@ export function toggleEdge(gs, x, y, side, forcePlace /* optional boolean */) {
 export function edgeHasWall(gs, x, y, side) {
   const c = state.ensureCell(gs, x, y);
   return !!c[side];
+  // after you’ve updated the edge(s) successfully:
+gs.topologyVersion = (gs.topologyVersion || 0) + 1;
+return true; // (or your existing return)
+
 }
 
-  // Nudge topology so any path caches refresh
-  gs.topologyVersion = (gs.topologyVersion || 0) + 1;
 
 function edgeTouchesDragon(gs, x, y, side) {
   const a = { x, y };
