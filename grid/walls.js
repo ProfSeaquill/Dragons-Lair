@@ -34,7 +34,6 @@ export function edgeHasWall(gs, x, y, side) {
 
   // Nudge topology so any path caches refresh
   gs.topologyVersion = (gs.topologyVersion || 0) + 1;
-}
 
 function edgeTouchesDragon(gs, x, y, side) {
   const a = { x, y };
