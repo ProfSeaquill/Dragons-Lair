@@ -965,8 +965,6 @@ if (R.spawning && !_jsonPlan && R.queue.length > 0) {
   }
 
   if (R.spawnTimer <= 0 && R.groupRemaining > 0) {
-    // Pop the next type for this group
-    ...
     // Schedule next member or next group
     if (R.groupRemaining > 0) {
       R.spawnTimer = gaps.spawnGap;
