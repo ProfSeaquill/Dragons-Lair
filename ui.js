@@ -1,6 +1,6 @@
 // ui.js — edge-wall build mode + HUD + Next Wave preview
 import * as state from './state.js';
-import { toggleEdge, edgeHasWall, recomputePath } from './pathing.js';
+import { toggleEdge, edgeHasWall } from './grid/walls.js';
 import { getUpgradeInfo, listUpgrades } from './upgrades.js';
 import { getCfg } from './state.js';
 
@@ -51,7 +51,8 @@ export function bindUI() {
   wireCanvasEdgeBuild();
   renderUpgradesPanel();
   refreshHUD();          // also triggers first preview render
-  recomputePath(state.GameState);
+  state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
+
 
   // Dev tools
   ensureDevPanel();
@@ -357,7 +358,7 @@ function wireCanvasEdgeBuild() {
     // if (refund) gs.bones += refund;
   }
 
-  recomputePath(gs);
+  gs.topologyVersion = (gs.topologyVersion || 0) + 1;
   UI.refreshHUD?.();
 });
 }
