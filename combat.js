@@ -988,7 +988,7 @@ if (R.spawning && !_jsonPlan && R.queue.length > 0) {
 
       G.remaining -= 1;
       G.nextAt = (G.interval > 0) ? (now + G.interval) : (now + 1e9); // no interval => effectively "only once"
-    }
+    
 
   // When all JSON groups are depleted, drop the sentinel R.queue so wave-complete can trigger.
   const anyLeft = _jsonPlan.groups.some(g => g.remaining > 0);
@@ -996,7 +996,7 @@ if (R.spawning && !_jsonPlan && R.queue.length > 0) {
     _jsonPlan = null;
     R.queue = []; // release sentinel
   }
-}
+
 
   // 1) Spawning (group-based)
 if (R.spawning && !_jsonPlan && R.queue.length > 0) {
