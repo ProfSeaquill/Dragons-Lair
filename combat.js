@@ -496,6 +496,10 @@ function spawnOne(gs, type) {
   // initialize prev/commit so freshly-spawned enemies head straight initially
   initializeSpawnPrevAndCommit(e);
 
+    // Ensure FSM is initialized for this enemy
+  import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
+
+
   gs.enemies.push(e);
 
 if (typeof e.trailStrength === 'number') {
@@ -524,6 +528,7 @@ function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
   e.followLeaderId = currentLeaderId ?? null;
 
   initializeSpawnPrevAndCommit(e);
+  import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
   (gs.enemies || (gs.enemies = [])).push(e);
 
 if (typeof e.trailStrength === 'number') {
