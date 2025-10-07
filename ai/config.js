@@ -5,7 +5,6 @@ export const CFG = {
   VISITED_PENALTY: 3,             // score penalty if branch was seen recently
   VISITED_DECAY_SEC: 20,          // how fast “seen recently” fades
   FORWARD_BIAS: 0.5,              // prefer not to U-turn
-  DRAGON_SCENT: 1.0,              // heuristic pull toward dragon tile
 
   // Speed modifiers
   CHARGE_MUL: 1.10,
@@ -13,7 +12,6 @@ export const CFG = {
 
   // Perception
   LOS_MAX_TILES: 8,               // line-of-sight radius
-  SCENT_RADIUS: 12,               // manhattan radius for heuristic pull
 
   // Priority (higher beats lower)
   PRI: { search:0, fear:1, decision:2, charge:3 },
