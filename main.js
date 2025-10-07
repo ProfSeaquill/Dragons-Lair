@@ -5,11 +5,8 @@ import { getCooldowns } from './combat.js';
 import * as state from './state.js';
 import { bindUI, UI } from './ui.js';
 import * as render from './render.js';
-import {
-  gs.topologyVersion++,
-  stepEnemyFSM,
-  updateEnemyDistance,
-} from './pathing.js';
+import { stepEnemyFSM } from './ai/fsm.js';
+import { updateEnemyDistance } from './ai/metrics.js';
 import { initLighting } from './lighting-webgl.js';
 import { buyUpgrade } from './upgrades.js';
 
@@ -234,7 +231,7 @@ lighting.render(sceneCanvas, lights, ambient);
 
 // ---------- Boot ----------
 function boot() {
-  recomputePath(state.GameState);
+  state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
 
   // lock Start until config is loaded
   const startBtn = document.getElementById('startBtn');
@@ -274,7 +271,7 @@ window.addEventListener('dl-save', () => {
 
 window.addEventListener('dl-load', () => {
   if (state.loadState()) {
-    recomputePath(state.GameState);
+    state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
     UI.refreshHUD?.();
     UI.tell?.('Loaded', '#8f8');
   } else {
@@ -312,7 +309,7 @@ __lastWaveSaved = (state.GameState.wave | 0) || 0;
   .then(cfg => {
     state.applyConfig(state.GameState, cfg);
     UI.renderUpgradesPanel?.();
-    recomputePath(state.GameState);   // safe: if waves/enemies affect path calc later
+    state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
     UI.refreshHUD?.();
     UI.tell?.('Config loaded');
     globalThis.Telemetry?.setup(() => !!state.GameState.dev?.telemetry || !!state.getCfg(state.GameState)?.tuning?.telemetry?.enabled);
@@ -392,7 +389,7 @@ for (const enemy of gs.enemies) {
       enemy.speed = enemy.speed || 2.5;
     }
     stepEnemyFSM(gs, enemy, dt);
-    updateEnemyDistance(gs, enemy);
+    updateEnemyDistance(enemy, gs);
   }
 }
 
