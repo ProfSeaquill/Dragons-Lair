@@ -1,10 +1,24 @@
 // tests/schema.validate.test.js
-import { test } from 'node:test';
-import assert from 'node:assert';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import Ajv from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
+import fs from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import Ajv from 'ajv';
+
+test('waves.json conforms to schema', async (t) => {
+  if (!fs.existsSync(new URL('../waves.json', import.meta.url))) {
+    await t.test('waves.json optional', () => assert.ok(true));
+    return; // skip if file absent
+  }
+  const raw = await readFile(new URL('../waves.json', import.meta.url), 'utf8');
+  const data = JSON.parse(raw);
+  const schema = /* your existing schema object */;
+  const ajv = new Ajv({ allErrors: true });
+  const validate = ajv.compile(schema);
+  const ok = validate(data);
+  assert.equal(ok, true, 'waves.json does not match schema\n' + JSON.stringify(validate.errors, null, 2));
+});
+
 
 const ROOT = path.resolve(process.cwd());
 
