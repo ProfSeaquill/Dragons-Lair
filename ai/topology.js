@@ -1,6 +1,46 @@
 // ai/topology.js
 import * as state from '../state.js';
 
+function key(x,y){ return `${x},${y}`; }
+
+// Accepts either a Grid (with isWalkable) or a GameState (uses neighborsByEdges)
+export function floodFrom(gridOrGs, start) {
+  const sx = start.tileX ?? start.x, sy = start.tileY ?? start.y;
+
+  const useGrid = !!(gridOrGs && typeof gridOrGs.isWalkable === 'function');
+  const gs = useGrid ? null : (gridOrGs && gridOrGs.enemies ? gridOrGs : state.GameState);
+
+  const neighbors = useGrid
+    ? (x, y) => {
+        const out = [];
+        if (gridOrGs.isWalkable(x+1,y)) out.push([x+1,y]);
+        if (gridOrGs.isWalkable(x-1,y)) out.push([x-1,y]);
+        if (gridOrGs.isWalkable(x,y+1)) out.push([x,y+1]);
+        if (gridOrGs.isWalkable(x,y-1)) out.push([x,y-1]);
+        return out;
+      }
+    : (x, y) => state.neighborsByEdges(gs, x, y).map(n => [n.x, n.y]);
+
+  const q = [[sx, sy]];
+  const seen = new Set([key(sx, sy)]);
+
+  while (q.length) {
+    const [x, y] = q.shift();
+    for (const [nx, ny] of neighbors(x, y)) {
+      const k = key(nx, ny);
+      if (!seen.has(k)) { seen.add(k); q.push([nx, ny]); }
+    }
+  }
+  return seen; // Set of "x,y"
+}
+
+export function isEntryConnectedToExit(gridOrGs, entry, exit) {
+  const seen = floodFrom(gridOrGs, entry);
+  const ex = exit.tileX ?? exit.x, ey = exit.tileY ?? exit.y;
+  return seen.has(key(ex, ey));
+}
+
+// (keep your computeShortestPath here too, unchanged)
 /**
  * computeShortestPath(gridOrGs, [sx,sy], [tx,ty])
  * - If the first arg has isWalkable(x,y), we use that (plain grid).
@@ -60,28 +100,6 @@ export function computeShortestPath(gridOrGs, start, goal) {
     cur = prev.get(pk) || null;
   }
   return path;
-}
-
-
-// Simple flood fill from a start tile to check reachability.
-
-export function floodFrom(grid, start) {
-  const W = grid.W, H = grid.H;
-  const q = [ [start.tileX, start.tileY] ];
-  const seen = new Set([ key(start.tileX, start.tileY) ]);
-  while (q.length) {
-    const [x, y] = q.shift();
-    for (const [nx, ny] of neighbors4(grid, x, y)) {
-      const k = key(nx, ny);
-      if (!seen.has(k)) { seen.add(k); q.push([nx, ny]); }
-    }
-  }
-  return seen; // Set of "x,y"
-}
-
-export function isEntryConnectedToExit(grid, entry, exit) {
-  const seen = floodFrom(grid, entry);
-  return seen.has(key(exit.tileX, exit.tileY));
 }
 
 function neighbors4(grid, x, y) {
