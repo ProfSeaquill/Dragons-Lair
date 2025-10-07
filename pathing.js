@@ -823,7 +823,7 @@ function stepFrom(x, y, dir) {
  * Movement API
  * ========================= */
 
-export function stepEnemyInterpolated(gs, e, dtSec) {
+export function stepEnemyFSM(gs, e, dtSec) {
   if (e.pausedForAttack || e.isAttacking) {
     // lock the unit in place at the center of its current tile
     const c = {
@@ -918,7 +918,7 @@ function directionFromDelta(dx, dy) {
  * Public convenience
  * ========================= */
 
-export function raycastOpenCellsFromExit(gs, maxSteps) {
+export function floodFrom(gs, maxSteps) {
   const dist = gs?.distFromEntry;
   if (!dist) return [];
 

@@ -6,8 +6,8 @@ import * as state from './state.js';
 import { bindUI, UI } from './ui.js';
 import * as render from './render.js';
 import {
-  recomputePath,
-  stepEnemyInterpolated,
+  gs.topologyVersion++,
+  stepEnemyFSM,
   updateEnemyDistance,
 } from './pathing.js';
 import { initLighting } from './lighting-webgl.js';
@@ -391,7 +391,7 @@ for (const enemy of gs.enemies) {
     if (typeof enemy.pxPerSec !== 'number' && typeof enemy.speed !== 'number') {
       enemy.speed = enemy.speed || 2.5;
     }
-    stepEnemyInterpolated(gs, enemy, dt);
+    stepEnemyFSM(gs, enemy, dt);
     updateEnemyDistance(gs, enemy);
   }
 }

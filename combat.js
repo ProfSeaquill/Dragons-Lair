@@ -540,7 +540,7 @@ let bombAccum = 0;
 
 /**
  * Dragon breath tick:
- * - builds a reachable path of tiles from the EXIT (via raycastOpenCellsFromExit)
+ * - builds a reachable path of tiles from the EXIT (via floodFrom)
  * - finds the nearest reachable enemy on that path
  * - spawns a flameWave effect for visuals
  * - applies damage on a cadence (fireCooldown)
@@ -558,7 +558,7 @@ function dragonBreathTick(gs, dt, ds) {
 
   // --- Build path from EXIT up to range (no walls) ---
   const maxTiles = Math.max(1, Math.round(ds.breathRange / state.GRID.tile));
-  const path = raycastOpenCellsFromExit(gs, maxTiles);
+  const path = floodFrom(gs, maxTiles);
   if (!path || path.length === 0) {
     // nothing to do, reset cooldown so we won't retry every frame
     fireCooldown = firePeriod * 0.25;
