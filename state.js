@@ -71,9 +71,8 @@ export const DRAGON_HITBOX = {
   h: 3,   // height in tiles (try 3, 4, or 5)
 };
 
-// Returns an array of tile coords covered by the dragon hitbox
-export function dragonCells(gs) {
-  const { x: cx, y: cy } = EXIT; // EXIT is the lair mouth tile
+function _dragonCellsImpl(gs) {
+const { x: cx, y: cy } = EXIT; // EXIT is the lair mouth tile
   const halfW = Math.floor(DRAGON_HITBOX.w / 2);
   const halfH = Math.floor(DRAGON_HITBOX.h / 2);
 
@@ -85,6 +84,12 @@ export function dragonCells(gs) {
     }
   }
   return cells;
+}
+
+export function dragonCells(gs) {
+  return (typeof __testHooks?.dragonCells === 'function')
+    ? __testHooks.dragonCells(gs)
+    : _dragonCellsImpl(gs);
 }
 
 // Fast check for a single tile
