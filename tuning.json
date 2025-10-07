@@ -30,17 +30,26 @@
 // Waves tuning
 {
   "waves": {
-    "count": { "base": 7, "cap": 200, "k": 0.05 },
+    "count": { "base": 7, "cap": 300, "k": 0.07 },
+
+    "mixCurves": {
+      "villager":   { "minWave": 1,  "base": 1.00, "cap": 0.45, "k": 0.08 },
+      "squire":     { "minWave": 4,  "base": 0.00, "cap": 0.20, "k": 0.06 },
+      "knight":     { "minWave": 8,  "base": 0.00, "cap": 0.20, "k": 0.05 },
+      "hero":       { "minWave": 10, "base": 0.05, "cap": 0.15, "k": 0.015 },
+      "engineer":   { "minWave": 20, "base": 0.00, "cap": 0.05, "k": 0.02 }
+      /* You can add kingsguard/boss here too, but see “Cadence specials” below */
+    },
+
+    "mixOptions": {
+      "floor": 0.0,       // clamp shares >= this after normalization
+      "ceil":  0.8,       // clamp shares <= this after normalization
+      "unlockFill": "renorm" // how to redistribute locked-out or clamped mass: "renorm" or "leave"
+    },
+
     "cadence": {
       "bossEvery": 10,
-      "kingsguardEvery": 5,
-      "heroFromWave": 10, "heroEvery": 4,
-      "engineerFromWave": 20, "engineerEvery": 3
-    },
-    "mix": [
-      { "untilWave": 3, "weights": { "villager": 1 } },
-      { "fromWave": 4, "untilWave": 7, "weights": { "villager": 2, "squire": 1 } },
-      { "fromWave": 8, "weights": { "squire": 1, "knight": 1 } }
-    ]
+      "kingsguardEvery": 5
+    }
   }
 }
