@@ -1,42 +1,37 @@
+// decision.js (scent-free)
 import { CFG } from '../config.js';
 import { visitedScore } from '../memory.js';
-import { dragonScentHeuristic } from '../perception.js';
 import { setDirToward } from '../steering.js';
 
 export function enter(e, gs) {
-  e.speedMul = 0;        // stop while thinking
-  e.stateT = 0;
-  e._decisionChosen = null;
+  e.speedMul = 0; e.stateT = 0;
 }
 
 export function update(e, gs, dt) {
   e.stateT += dt;
   if (e.stateT < CFG.DECISION_THINK_TIME) return null;
 
-  // Score candidate branches
   const cands = neighborDirs(gs.grid, e.tileX, e.tileY);
   let best = null, bestScore = +1e9;
 
   for (const dir of cands) {
-    // discourage immediate U-turns
-    const forwardPenalty = (dir.dx === -e.dirX && dir.dy === -e.dirY) ? CFG.FORWARD_BIAS : 0;
-
     const nx = e.tileX + dir.dx, ny = e.tileY + dir.dy;
-    const tileId = (ny<<16) | nx;
+    const forwardPenalty = (dir.dx === -e.dirX && dir.dy === -e.dirY) ? CFG.FORWARD_BIAS : 0;
+    const v = visitedScore(e, (ny<<16)|nx, gs.time.now);
 
-    const v = visitedScore(e, tileId, gs.time.now);
-    const scent = dragonScentHeuristic(gs.grid, {x:nx,y:ny}, gs.dragon);
+    // Optional, very cheap tie-breaker: Manhattan to dragon OR to exit
+    const tieBreak =
+      Math.abs(nx - gs.dragon.tileX) + Math.abs(ny - gs.dragon.tileY);
 
-    const score = forwardPenalty + v + scent;
+    const score = forwardPenalty + v + 0.01 * tieBreak; // tiny weight
     if (score < bestScore) { bestScore = score; best = dir; }
   }
 
-  // Commit
   if (best) {
     e.dirX = best.dx; e.dirY = best.dy;
     e.commitTilesLeft = CFG.COMMIT_TILES;
   }
-  e.speedMul = 1; // resume movement
+  e.speedMul = 1;
   return 'search';
 }
 
