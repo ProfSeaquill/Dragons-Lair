@@ -1,7 +1,11 @@
 // combat.js (top)
 import * as state from './state.js';
-import { updateEnemyDistance } from './ai/metrics.js';
-import { floodFrom, isEntryConnectedToExit } from './ai/topology.js';
+import * as topology from './ai/topology.js';
+import * as metrics from './ai/metrics.js';
+
+const seen = topology.floodFrom(gs.grid, gs.exit);
+const ok   = topology.isEntryConnectedToExit(gs.grid, entry, exit);
+metrics.updateEnemyDistance(e, gs);
 
 
 // === Ability cooldown timers (module-local) ===
