@@ -26,3 +26,21 @@
     "stomp": { "slowMult": 0.5, "slowSec": 2.0 }
   }
 }
+
+// Waves tuning
+{
+  "waves": {
+    "count": { "base": 7, "cap": 70, "k": 0.07 },
+    "cadence": {
+      "bossEvery": 10,
+      "kingsguardEvery": 5,
+      "heroFromWave": 10, "heroEvery": 4,
+      "engineerFromWave": 20, "engineerEvery": 3
+    },
+    "mix": [
+      { "untilWave": 3, "weights": { "villager": 1 } },
+      { "fromWave": 4, "untilWave": 7, "weights": { "villager": 2, "squire": 1 } },
+      { "fromWave": 8, "weights": { "squire": 1, "knight": 1 } }
+    ]
+  }
+}
