@@ -30,7 +30,7 @@
 // Waves tuning
 {
   "waves": {
-    "count": { "base": 7, "cap": 300, "k": 0.07 },
+    "count": { "base": 7, "cap": 300, "k": 0.05 },
     "cadence": {
       "bossEvery": 10,
       "kingsguardEvery": 5,
