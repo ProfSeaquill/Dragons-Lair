@@ -94,18 +94,3 @@ export function computeShortestPath(
   }
   return path;
 }
-
-// Convenience: just the next step / dir toward the dragon
-export function nextStepTowardDragon(gs, cx, cy) {
-  const p = computeShortestPath(gs, cx, cy);
-  return (p && p.length >= 2) ? p[1] : { x: cx, y: cy };
-}
-export function nextDirTowardDragon(gs, cx, cy) {
-  const n = nextStepTowardDragon(gs, cx, cy);
-  if (!n) return null;
-  if (n.x > cx) return 'E';
-  if (n.x < cx) return 'W';
-  if (n.y > cy) return 'S';
-  if (n.y < cy) return 'N';
-  return null;
-}
