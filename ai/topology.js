@@ -110,5 +110,3 @@ function neighbors4(grid, x, y) {
   if (grid.isWalkable(x,y-1)) out.push([x,y-1]);
   return out;
 }
-
-function key(x,y){ return `${x},${y}`; }
