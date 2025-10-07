@@ -867,26 +867,6 @@ function clampMs(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-// sensible bounds to avoid microbursts and huge delays
-const MIN_INTERVAL_MS = 16;     // ~1 frame
-const MAX_INTERVAL_MS = 60000;  // 60s
-const MIN_DELAY_MS    = 0;
-const MAX_DELAY_MS    = 120000; // 2m
-const MIN_COUNT       = 1;
-const MAX_COUNT       = 1000;
-
-};
-
-R.spawning = true;
-R.waveActive = true;
-R.groupId = 0;
-R.groupRemaining = 0;
-R.groupLeaderId = null;
-
-return true;
-
-}
-
 export function previewWaveList(arg) {
   const gsArg  = (arg && arg.gs) ? arg.gs : state.GameState;
   const cfgArg = arg && arg.cfg ? arg.cfg : state.getCfg?.(gsArg);
