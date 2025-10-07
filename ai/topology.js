@@ -1,112 +1,53 @@
 // ai/topology.js
 import * as state from '../state.js';
 
-function key(x,y){ return `${x},${y}`; }
-
-// Accepts either a Grid (with isWalkable) or a GameState (uses neighborsByEdges)
-export function floodFrom(gridOrGs, start) {
-  const sx = start.tileX ?? start.x, sy = start.tileY ?? start.y;
-
-  const useGrid = !!(gridOrGs && typeof gridOrGs.isWalkable === 'function');
-  const gs = useGrid ? null : (gridOrGs && gridOrGs.enemies ? gridOrGs : state.GameState);
-
-  const neighbors = useGrid
-    ? (x, y) => {
-        const out = [];
-        if (gridOrGs.isWalkable(x+1,y)) out.push([x+1,y]);
-        if (gridOrGs.isWalkable(x-1,y)) out.push([x-1,y]);
-        if (gridOrGs.isWalkable(x,y+1)) out.push([x,y+1]);
-        if (gridOrGs.isWalkable(x,y-1)) out.push([x,y-1]);
-        return out;
-      }
-    : (x, y) => state.neighborsByEdges(gs, x, y).map(n => [n.x, n.y]);
-
-  const q = [[sx, sy]];
-  const seen = new Set([key(sx, sy)]);
-
-  while (q.length) {
-    const [x, y] = q.shift();
-    for (const [nx, ny] of neighbors(x, y)) {
-      const k = key(nx, ny);
-      if (!seen.has(k)) { seen.add(k); q.push([nx, ny]); }
-    }
-  }
-  return seen; // Set of "x,y"
-}
-
-export function isEntryConnectedToExit(gridOrGs, entry, exit) {
-  const seen = floodFrom(gridOrGs, entry);
-  const ex = exit.tileX ?? exit.x, ey = exit.tileY ?? exit.y;
-  return seen.has(key(ex, ey));
-}
-
-// (keep your computeShortestPath here too, unchanged)
-/**
- * computeShortestPath(gridOrGs, [sx,sy], [tx,ty])
- * - If the first arg has isWalkable(x,y), we use that (plain grid).
- * - Otherwise we treat it as GameState and use state.neighborsByEdges(...) so walls are respected.
- * Returns an array of tiles [[nx,ny], ...] from the tile AFTER start to the goal, or [] if unreachable.
- */
-export function computeShortestPath(gridOrGs, start, goal) {
-  const [sx, sy] = start || [];
-  const [tx, ty] = goal  || [];
-  if (!Number.isInteger(sx) || !Number.isInteger(sy) ||
-      !Number.isInteger(tx) || !Number.isInteger(ty)) return [];
-
-  let neighbors;
-  if (gridOrGs && typeof gridOrGs.isWalkable === 'function') {
-    const g = gridOrGs;
-    neighbors = (x, y) => {
-      const out = [];
-      if (g.isWalkable(x + 1, y)) out.push([x + 1, y]);
-      if (g.isWalkable(x - 1, y)) out.push([x - 1, y]);
-      if (g.isWalkable(x, y + 1)) out.push([x, y + 1]);
-      if (g.isWalkable(x, y - 1)) out.push([x, y - 1]);
-      return out;
-    };
-  } else {
-    const gs = (gridOrGs && gridOrGs.enemies) ? gridOrGs : state.GameState;
-    neighbors = (x, y) => state.neighborsByEdges(gs, x, y).map(n => [n.x, n.y]);
-  }
-
-  // BFS
-  const startKey = state.tileKey(sx, sy);
-  const goalKey  = state.tileKey(tx, ty);
-  const q = [[sx, sy]];
-  const seen = new Set([startKey]);
-  const prev = new Map();
-
-  while (q.length) {
-    const [x, y] = q.shift();
-    if (x === tx && y === ty) break;
-    for (const [nx, ny] of neighbors(x, y)) {
-      const k = state.tileKey(nx, ny);
-      if (!seen.has(k)) {
-        seen.add(k);
-        prev.set(k, [x, y]);
-        q.push([nx, ny]);
-      }
-    }
-  }
-
-  if (!seen.has(goalKey)) return [];
-
-  // Reconstruct path (exclude start, include goal)
-  const path = [];
-  let cur = [tx, ty];
-  while (cur && !(cur[0] === sx && cur[1] === sy)) {
-    path.unshift(cur);
-    const pk = state.tileKey(cur[0], cur[1]);
-    cur = prev.get(pk) || null;
-  }
-  return path;
-}
-
-function neighbors4(grid, x, y) {
+// Edge-aware 4-neighbors: only cross edges that are open according to gs.cellWalls
+export function neighbors4(gs, x, y) {
   const out = [];
-  if (grid.isWalkable(x+1,y)) out.push([x+1,y]);
-  if (grid.isWalkable(x-1,y)) out.push([x-1,y]);
-  if (grid.isWalkable(x,y+1)) out.push([x,y+1]);
-  if (grid.isWalkable(x,y-1)) out.push([x,y-1]);
+  if (state.isOpen(gs, x, y, 'N')) out.push({ x,     y: y - 1 });
+  if (state.isOpen(gs, x, y, 'E')) out.push({ x: x+1, y      });
+  if (state.isOpen(gs, x, y, 'S')) out.push({ x,     y: y + 1 });
+  if (state.isOpen(gs, x, y, 'W')) out.push({ x: x-1, y      });
   return out;
+}
+
+// BFS flood from one or more start tiles; returns distance field
+export function floodFrom(gs, starts) {
+  const startList = Array.isArray(starts) ? starts
+                    : (starts && typeof starts === 'object') ? [starts]
+                    : [ state.EXIT ]; // default: from EXIT
+  const w = state.GRID.cols, h = state.GRID.rows;
+  const dist = state.makeScalarField(w, h, Infinity);
+
+  const q = [];
+  for (const s of startList) {
+    if (!state.inBounds(s.x, s.y)) continue;
+    dist[s.y][s.x] = 0;
+    q.push({ x: s.x, y: s.y });
+  }
+
+  let head = 0;
+  while (head < q.length) {
+    const { x, y } = q[head++];
+    const d = dist[y][x];
+    for (const n of neighbors4(gs, x, y)) {
+      if (dist[n.y][n.x] > d + 1) {
+        dist[n.y][n.x] = d + 1;
+        q.push(n);
+      }
+    }
+  }
+  return dist;
+}
+
+// Connectivity check: is ENTRY reachable from EXIT given current edge walls?
+export function isEntryConnectedToExit(gs, entry = state.ENTRY, exit = state.EXIT) {
+  const D = floodFrom(gs, exit);
+  const v = D?.[entry.y]?.[entry.x];
+  return Number.isFinite(v);
+}
+
+// Degree at a tile (how many open edges)
+export function cellDegree(gs, x, y) {
+  return neighbors4(gs, x, y).length;
 }
