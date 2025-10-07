@@ -1,12 +1,6 @@
 // combat.js (top)
 import * as state from './state.js';
-import * as topology from './ai/topology.js';
-import * as metrics from './ai/metrics.js';
-import * as walls from './grid/walls.js';
-
-const seen = topology.floodFrom(gs.grid, gs.exit);
-const ok   = topology.isEntryConnectedToExit(gs.grid, entry, exit);
-metrics.updateEnemyDistance(e, gs);
+import { updateEnemyDistance } from './ai/metrics.js';
 
 
 // === Ability cooldown timers (module-local) ===
@@ -61,6 +55,15 @@ function releaseEffect(fx) {
   // drop large references
   fx.path = null;
   pool.push(fx);
+}
+
+// Seed "success trail" at a tile — replaces old pathing.bumpSuccess dynamic import
+function bumpSuccess(gs, x, y, amt = 1) {
+  const T = gs.successTrail;
+  if (!T) return;
+  if (!state.inBounds(x, y)) return;
+  const v = (T[y][x] || 0) + amt;
+  T[y][x] = v;
 }
 
 // expose cooldowns for UI
@@ -429,15 +432,10 @@ function spawnOne(gs, type) {
 
   gs.enemies.push(e);
 
-  // seed an initial trail at the spawn tile so followers can latch on quickly
-  if (typeof e.trailStrength === 'number') {
-    // dynamic import avoids cyclic top-level import problems if pathing isn't imported here
-    import('./pathing.js').then(m => {
-      if (typeof m.bumpSuccess === 'function') m.bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
-    }).catch(() => {
-      // swallow failure silently in dev builds; not critical
-    });
-  }
+if (typeof e.trailStrength === 'number') {
+  bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
+}
+
 }
 
 function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
@@ -462,12 +460,9 @@ function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
   initializeSpawnPrevAndCommit(e);
   (gs.enemies || (gs.enemies = [])).push(e);
 
-  // seed trail: helps bunching
-  if (typeof e.trailStrength === 'number') {
-    import('./pathing.js').then(m => {
-      if (typeof m.bumpSuccess === 'function') m.bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
-    }).catch(() => {});
-  }
+if (typeof e.trailStrength === 'number') {
+  bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
+}
   return e;
 }
 
@@ -482,12 +477,10 @@ export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
     e.dir = 'E';
     initializeSpawnPrevAndCommit(e);
     gs.enemies.push(e);
-    // seed trail immediately for dev-spawned units too
-    if (typeof e.trailStrength === 'number') {
-      import('./pathing.js').then(m => {
-        if (typeof m.bumpSuccess === 'function') m.bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
-      }).catch(() => {});
-    }
+  if (typeof e.trailStrength === 'number') {
+  bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
+}
+
   }
 }
 
@@ -538,6 +531,28 @@ let trailDecayAccum = 0;
 // module-scope accumulator for bomb tick (1 Hz)
 let bombAccum = 0;
 
+function breathPathFromExit(gs, maxTiles) {
+  const start = { x: state.EXIT.x, y: state.EXIT.y };
+  const out = [{ x: start.x, y: start.y }];
+  const q = [[start.x, start.y]];
+  const seen = new Set([state.tileKey(start.x, start.y)]);
+
+  while (q.length && out.length < maxTiles) {
+    const [x, y] = q.shift();
+    // Use your edge-aware neighbors (respects walls)
+    for (const n of state.neighborsByEdges(gs, x, y)) {
+      const k = state.tileKey(n.x, n.y);
+      if (!seen.has(k)) {
+        seen.add(k);
+        q.push([n.x, n.y]);
+        out.push({ x: n.x, y: n.y });
+        if (out.length >= maxTiles) break;
+      }
+    }
+  }
+  return out;
+}
+
 /**
  * Dragon breath tick:
  * - builds a reachable path of tiles from the EXIT (via floodFrom)
@@ -558,7 +573,7 @@ function dragonBreathTick(gs, dt, ds) {
 
   // --- Build path from EXIT up to range (no walls) ---
   const maxTiles = Math.max(1, Math.round(ds.breathRange / state.GRID.tile));
-  const path = floodFrom(gs, maxTiles);
+  const path = breathPathFromExit(gs, maxTiles);
   if (!path || path.length === 0) {
     // nothing to do, reset cooldown so we won't retry every frame
     fireCooldown = firePeriod * 0.25;
@@ -976,7 +991,7 @@ if (bombAccum >= 1.0) {
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
 
-    updateEnemyDistance(gs, e);
+    updateEnemyDistance(e, gs);
 
     // Engineers: tunneling -> pop near dragon -> plant bomb
     if (e.type === 'engineer' && e.tunneling) {
