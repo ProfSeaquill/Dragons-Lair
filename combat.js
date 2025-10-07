@@ -2,6 +2,7 @@
 import * as state from './state.js';
 import * as topology from './ai/topology.js';
 import * as metrics from './ai/metrics.js';
+import * as walls from './grid/walls.js';
 
 const seen = topology.floodFrom(gs.grid, gs.exit);
 const ok   = topology.isEntryConnectedToExit(gs.grid, entry, exit);
