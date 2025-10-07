@@ -823,34 +823,122 @@ function makePlanFromConfig(gs, waveRec) {
   };
 }
 
+
+// ===== Wave mix (asymptotic shares) =========================================
+
+// gated asymptotic share: 0 before minWave, then base→cap with tempo k
+function _curveShare(wave, { minWave = 1, base = 0, cap = 0, k = 0.01 }) {
+  if (wave < minWave) return 0;
+  const progress = (wave - minWave + 1);
+  return cap - (cap - base) * Math.exp(-k * progress);
+}
+
+// Build normalized shares Map<type, fraction 0..1> for this wave
+function _computeSharesForWave(wave, mixCurves = {}, opts = {}) {
+  const floor = Math.max(0, opts.floor ?? 0);
+  const ceil  = Math.min(1, opts.ceil  ?? 1);
+  const unlockFill = opts.unlockFill ?? 'renorm'; // 'renorm' | 'leave'
+
+  const raw = Object.entries(mixCurves).map(([type, cfg]) => [type, Math.max(0, _curveShare(wave, cfg))]);
+  let sum = raw.reduce((a, [,s]) => a + s, 0);
+
+  // fallback: equal split among unlocked types (cap>0) if all zero
+  if (sum <= 0) {
+    const unlocked = raw.filter(([t]) => (mixCurves[t]?.cap ?? 0) > 0);
+    if (!unlocked.length) return new Map();
+    const eq = 1 / unlocked.length;
+    return new Map(unlocked.map(([t]) => [t, eq]));
+  }
+
+  // normalize
+  let norm = raw.map(([t, s]) => [t, s / sum]);
+
+  // clamp then (optionally) renormalize
+  let clipped = norm.map(([t, s]) => [t, Math.min(Math.max(s, floor), ceil)]);
+  let clippedSum = clipped.reduce((a, [,s]) => a + s, 0);
+  if (unlockFill === 'renorm' && clippedSum > 0) {
+    clipped = clipped.map(([t, s]) => [t, s / clippedSum]);
+  }
+  return new Map(clipped);
+}
+
+// Largest remainder: fractional shares → integer counts summing to total
+function _apportion(total, sharesMap) {
+  const entries = Array.from(sharesMap.entries());
+  const fracs = entries.map(([t, s]) => [t, s * total]);
+  let ints = fracs.map(([t, f]) => [t, Math.floor(f)]);
+  let used = ints.reduce((a, [,n]) => a + n, 0);
+  let left = Math.max(0, total - used);
+  const rema = fracs.map(([t, f], i) => [i, f - Math.floor(f)]).sort((a,b)=>b[1]-a[1]);
+  for (let k = 0; k < left && k < rema.length; k++) {
+    const idx = rema[k][0];
+    ints[idx][1] += 1;
+  }
+  return new Map(ints);
+}
+
+// Optional sparse specials (kept out of shares)
+function _cadenceSpecials(wave, cadence, FLAGS) {
+  const out = [];
+  const kgEvery = cadence?.kingsguardEvery ?? FLAGS.kingsguardEvery;
+  const bossEvery = cadence?.bossEvery ?? FLAGS.bossEvery;
+  if (kgEvery && wave % kgEvery === 0) out.push('kingsguard');
+  if (bossEvery && wave % bossEvery === 0) out.push('boss');
+  return out;
+}
+
+// Main builder: reads getCfg(gs).waves { count, mixCurves, mixOptions, cadence }
+function buildWaveListFromCurves(gs, wave, W, FLAGS) {
+  const C = W?.count || {};
+  // reuse your existing approachCap(base, cap, wave, k) if it exists; else inline the math
+  const baseCount = Math.round(
+    Math.max(1, typeof approachCap === 'function'
+      ? approachCap(C.base ?? 7, C.cap ?? 300, wave, C.k ?? 0.07)
+      : ( // fallback math
+        (() => {
+          const w = Math.max(0, (wave|0) - 1);
+          const base = C.base ?? 7, cap = C.cap ?? 300, k = C.k ?? 0.07;
+          return cap - (cap - base) * Math.exp(-k * w);
+        })()
+      )
+    )
+  );
+
+  const specials = _cadenceSpecials(wave, W?.cadence, FLAGS);
+  const fillerN  = Math.max(0, baseCount - specials.length);
+
+  const shares = _computeSharesForWave(wave, W?.mixCurves || {}, W?.mixOptions || {});
+  const alloc  = _apportion(fillerN, shares);
+
+  const list = specials.slice();
+  for (const [type, n] of alloc.entries()) for (let i = 0; i < n; i++) list.push(type);
+
+  // (optional) shuffle indices >=1 to keep the leader slot deterministic
+  // for (let i = 1; i < list.length; i++) { const j = 1 + ((Math.random() * (list.length-1))|0); [list[i], list[j]] = [list[j], list[i]]; }
+
+  return list;
+}
+
+progressWave = max(0, w - minWave + 1)
+share_raw(w) = cap - (cap - base) * e^(-k * progressWave)
+
 // Derive a JSON-shaped plan so the game runs even without waves.json
 function makePlanDerived(gs) {
-  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  const now  = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   const wave = (gs.wave | 0) || 1;
+  const W    = (state.getCfg?.(gs)?.waves) || {};
 
-  const gaps = tunedSpawnParams(gs); // seconds
-  const intervalMs = Math.max(16, Math.round((gaps.spawnGap || FLAGS.spawnGap) * 1000));
+  // Your existing tunable gaps → spawn interval
+  const gaps = (typeof tunedSpawnParams === 'function') ? tunedSpawnParams(gs) : null;
+  const intervalMs = Math.max(16, Math.round(((gaps?.spawnGap ?? FLAGS.spawnGap) || 0.45) * 1000));
 
-  // Simple composition, close to your earlier rules
-  const list = (() => {
-    const out = [];
-    const n = Math.max(1, Math.round(approachCap(7, 70, wave, 0.07)));
-    if (wave % FLAGS.bossEvery === 0)       out.push('boss');
-    if (wave % FLAGS.kingsguardEvery === 0) out.push('kingsguard');
-    if (wave >= 10 && wave % 4 === 0)       out.push('hero');
-    if (wave >= 20 && wave % 3 === 0)       out.push('engineer');
-    while (out.length < n) {
-      if (wave < 4) out.push('villager');
-      else if (wave < 8) out.push(out.length % 3 === 0 ? 'squire' : 'villager');
-      else out.push(out.length % 2 === 0 ? 'knight' : 'squire');
-    }
-    return out;
-  })();
+  // Build the concrete type list for this wave using JSON tunables
+  const list = buildWaveListFromCurves(gs, wave, W, FLAGS);
 
   return {
     startedAt: now,
     groups: [{
-      type: '__mixed__',            // marker: we’ll draw from __types sequence
+      type: '__mixed__',            // marker: draw each spawn from __types
       remaining: list.length,
       interval: intervalMs,
       nextAt: now,
@@ -859,6 +947,7 @@ function makePlanDerived(gs) {
     }]
   };
 }
+
 
 
 function clampInt(v, lo, hi) {
