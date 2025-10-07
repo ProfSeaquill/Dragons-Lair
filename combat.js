@@ -225,14 +225,6 @@ function spawnMouthFire(gs, dur = 0.6) {
 gs.effects.push(acquireEffect('fireMouth', { t: 0, dur, dead: false }));
 }
 
-function nextGroupSize(gs = state.GameState) {
-  const p = tunedSpawnParams(gs);
-  const a = p.min | 0, b = p.max | 0;
-  if (b <= a) return Math.max(1, a);
-  const r = a + ((Math.random() * (b - a + 1)) | 0);
-  return Math.min(Math.max(1, r), b);
-}
-
 
 // --- Spawn helper: give freshly-spawned enemies a "previous cell" (if available)
 // and a short forward commit so they don't immediately reconsider direction.
@@ -580,15 +572,12 @@ export function debugEnemy(e) {
 // (keeps spawn queue/timer and whether a wave is active)
 const R = {
   spawning: false,
-  queue: [],
-  spawnTimer: 0,
   waveActive: false,
-  
-  // new
+
   groupId: 0,
-  groupRemaining: 0,
   groupLeaderId: null,
 };
+
 
 // --- Phase 5: JSON wave plan (null when not using JSON-driven waves) ---
 let _jsonPlan = null; // { groups: [{ type, remaining, interval, nextAt }], startedAt }
@@ -773,58 +762,99 @@ function markHit(e, amount = 0) {
   e.showHpUntil = now + 1000; // visible for 1s since last damage tick
 }
 
-// ---------------- Wave composition + start ----------------
-// === Pure queue builder (shared by live waves & preview) ===
-function buildWaveQueueFromWave(waveNum, { preview = false, gs = state.GameState } = {}) {
-  const wave = Math.max(1, waveNum | 0);
-  const n = Math.max(1, waveCountFor(wave, gs));
-  const q = [];
-
-  // Specials (cadence)
-  const cad = cadenceFor(wave, gs);
-  if (cad.bossEvery && (wave % cad.bossEvery === 0))         q.push('boss');
-  if (cad.kingsguardEvery && (wave % cad.kingsguardEvery === 0)) q.push('kingsguard');
-  if (wave >= cad.heroFromWave && cad.heroEvery && ((wave - cad.heroFromWave) % cad.heroEvery === 0)) q.push('hero');
-  if (wave >= cad.engineerFromWave && cad.engineerEvery && ((wave - cad.engineerFromWave) % cad.engineerEvery === 0)) q.push('engineer');
-
-  // Core troop fill from mix weights
-  const remaining = Math.max(0, n - q.length);
-  const weights = selectWeightsForWave(wave, gs);
-  q.push(...expandByWeights(weights, remaining));
-
-  // Randomize order for live (keep preview deterministic)
-  if (!preview && q.length > 1) {
-    for (let i = 1; i < q.length; i++) {
-      const j = 1 + ((Math.random() * (q.length - 1)) | 0);
-      [q[i], q[j]] = [q[j], q[i]];
-    }
-  }
-  return q;
-}
-
-
-function buildWaveQueue(gs = state.GameState) {
-  const wave = (gs.wave | 0) || 1;
-  return buildWaveQueueFromWave(wave, { preview: false, gs });
-}
-
 
 export function startWave(gs = state.GameState) {
   _warnedTypesThisWave = new Set();
-  // prevent re-entrancy while a wave is active or still spawning
-  if (R.waveActive || R.spawning || (R.queue && R.queue.length > 0)) return false;
+
+  if (R.waveActive || R.spawning) return false; // simple re-entrancy guard
 
   // ensure containers
   gs.enemies = gs.enemies || [];
   gs.effects = gs.effects || [];
 
- // build queue (legacy) OR initialize JSON plan
-const cfgWaves = state.getCfg?.(gs)?.waves;
-const waveIdx0 = Math.max(0, ((gs.wave | 0) - 1));
-_jsonPlan = null;
+  const waveIdx0 = Math.max(0, ((gs.wave | 0) - 1));
+  const cfgWaves = state.getCfg?.(gs)?.waves;
 
-if (Array.isArray(cfgWaves) && cfgWaves.length && cfgWaves[waveIdx0] && Array.isArray(cfgWaves[waveIdx0].groups)) {
+  // Build _jsonPlan either from config or derive a minimal plan
+  _jsonPlan = (Array.isArray(cfgWaves) &&
+               cfgWaves[waveIdx0] &&
+               Array.isArray(cfgWaves[waveIdx0].groups))
+    ? makePlanFromConfig(gs, cfgWaves[waveIdx0])
+    : makePlanDerived(gs);
+
+  R.groupId = 0;
+  R.groupLeaderId = null;
+  R.spawning = true;
+  R.waveActive = true;
+
+  return true;
+}
+
+// Build a JSON plan from waves.json for the current wave
+function makePlanFromConfig(gs, waveRec) {
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+  // sensible defaults if the JSON omits interval/delay
+  const gaps = tunedSpawnParams(gs); // seconds
+  const defaultIntervalMs = Math.max(16, Math.round((gaps.spawnGap || FLAGS.spawnGap) * 1000));
+
+  // local helpers so we don't leak globals
+  const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, (v|0)));
+  const clampMs  = (v, lo, hi) => Math.max(lo, Math.min(hi, (v|0)));
+
+  const MIN_INTERVAL_MS = 16,    MAX_INTERVAL_MS = 60000;
+  const MIN_DELAY_MS    = 0,     MAX_DELAY_MS    = 120000;
+  const MIN_COUNT       = 1,     MAX_COUNT       = 1000;
+
+  return {
+    startedAt: now,
+    groups: waveRec.groups.map(g => ({
+      type: String(g.type || 'villager'),
+      remaining: clampInt(g.count ?? 1, MIN_COUNT, MAX_COUNT),
+      interval:  clampMs((g.interval_ms ?? defaultIntervalMs), MIN_INTERVAL_MS, MAX_INTERVAL_MS),
+      nextAt:    now + clampMs((g.delay_ms ?? 0), MIN_DELAY_MS, MAX_DELAY_MS),
+      groupId: 0
+    }))
+  };
+}
+
+// Derive a JSON-shaped plan so the game runs even without waves.json
+function makePlanDerived(gs) {
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  const wave = (gs.wave | 0) || 1;
+
+  const gaps = tunedSpawnParams(gs); // seconds
+  const intervalMs = Math.max(16, Math.round((gaps.spawnGap || FLAGS.spawnGap) * 1000));
+
+  // Simple composition, close to your earlier rules
+  const list = (() => {
+    const out = [];
+    const n = Math.max(1, Math.round(approachCap(7, 70, wave, 0.07)));
+    if (wave % FLAGS.bossEvery === 0)       out.push('boss');
+    if (wave % FLAGS.kingsguardEvery === 0) out.push('kingsguard');
+    if (wave >= 10 && wave % 4 === 0)       out.push('hero');
+    if (wave >= 20 && wave % 3 === 0)       out.push('engineer');
+    while (out.length < n) {
+      if (wave < 4) out.push('villager');
+      else if (wave < 8) out.push(out.length % 3 === 0 ? 'squire' : 'villager');
+      else out.push(out.length % 2 === 0 ? 'knight' : 'squire');
+    }
+    return out;
+  })();
+
+  return {
+    startedAt: now,
+    groups: [{
+      type: '__mixed__',            // marker: we’ll draw from __types sequence
+      remaining: list.length,
+      interval: intervalMs,
+      nextAt: now,
+      groupId: 0,
+      __types: list
+    }]
+  };
+}
+
 
 function clampInt(v, lo, hi) {
   v = (v|0);
@@ -845,26 +875,10 @@ const MAX_DELAY_MS    = 120000; // 2m
 const MIN_COUNT       = 1;
 const MAX_COUNT       = 1000;
 
-_jsonPlan = {
-  startedAt: now,
-  groups: cfgWaves[waveIdx0].groups.map(g => ({
-    type: String(g.type || 'villager'),
-    remaining: clampInt(g.count ?? 0, MIN_COUNT, MAX_COUNT),
-    interval: clampMs((g.interval_ms ?? 0), MIN_INTERVAL_MS, MAX_INTERVAL_MS),
-    nextAt: now + clampMs((g.delay_ms ?? 0), MIN_DELAY_MS, MAX_DELAY_MS),
-    groupId: 0
-  }))
 };
-
-  // No sentinel; let JSON plan presence control completion gate
-  R.queue = [];
-} else {
-  R.queue = buildWaveQueue(gs); // legacy path
-}
 
 R.spawning = true;
 R.waveActive = true;
-R.spawnTimer = 0; // spawn immediately on next update tick
 R.groupId = 0;
 R.groupRemaining = 0;
 R.groupLeaderId = null;
@@ -874,36 +888,28 @@ return true;
 }
 
 export function previewWaveList(arg) {
-  const wave =
-    (typeof arg === 'number') ? (arg | 0) :
-    (arg && typeof arg.wave === 'number') ? (arg.wave | 0) :
-    ((state.GameState.wave | 0) || 1);
+  const gsArg  = (arg && arg.gs) ? arg.gs : state.GameState;
+  const cfgArg = arg && arg.cfg ? arg.cfg : state.getCfg?.(gsArg);
+  const wave   = (typeof arg === 'number') ? (arg|0)
+                : (arg && typeof arg.wave === 'number') ? (arg.wave|0)
+                : ((gsArg.wave | 0) || 1);
 
-  // Prefer explicit gs/cfg on arg, else fall back to global state
-  const gsArg  = (arg && arg.gs)  ? arg.gs  : state.GameState;
-  const cfgArg = (arg && arg.cfg) ? arg.cfg : state.getCfg?.(gsArg);
-  const cfgWaves = cfgArg?.waves;
-
-  // If someone re-adds waves.json, keep supporting it:
   const waveIdx0 = Math.max(0, wave - 1);
-  if (Array.isArray(cfgWaves) && cfgWaves[waveIdx0] && Array.isArray(cfgWaves[waveIdx0].groups)) {
-    const groups = cfgWaves[waveIdx0].groups;
-    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, (v | 0) || 0));
-    const MIN_COUNT = 1, MAX_COUNT = 1000;
+  const waveRec = Array.isArray(cfgArg?.waves) ? cfgArg.waves[waveIdx0] : null;
 
-    const list = [];
-    for (const g of groups) {
-      const type = String(g.type || 'villager');
-      const count = clamp(g.count ?? 0, MIN_COUNT, MAX_COUNT);
-      for (let i = 0; i < count; i++) list.push(type);
+  if (waveRec && Array.isArray(waveRec.groups)) {
+    const out = [];
+    for (const g of waveRec.groups) {
+      const t = String(g.type || 'villager');
+      const c = Math.max(1, (g.count | 0) || 1);
+      for (let i = 0; i < c; i++) out.push(t);
     }
-    return list;
+    return out;
   }
 
-  // Procedural path (uses tuning.json)
-  return buildWaveQueueFromWave(wave, { preview: true, gs: gsArg }).slice();
+  // derive (matches makePlanDerived)
+  return makePlanDerived(gsArg).groups[0].__types.slice();
 }
-
 
 export function previewWaveCounts(arg) {
   const list = previewWaveList(arg);
@@ -922,7 +928,6 @@ export const spawnWave = startWave;
 /* =========================
  * Update loop
  * ========================= */
-
  export function update(gs = state.GameState, dt) {
   const enemies = gs.enemies || (gs.enemies = []);
   gs.effects = gs.effects || []; // bombs
@@ -949,97 +954,56 @@ if (T) {
   }
 }
 
-if (R.spawning && !_jsonPlan && R.queue.length > 0) {
-  R.spawnTimer -= dt;
-  const gaps = tunedSpawnParams(gs);
 
-  if (R.groupRemaining <= 0) {
-    if (R.spawnTimer <= 0) {
+ // --- JSON-configured spawning (only path) ---
+if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+  for (let i = 0; i < _jsonPlan.groups.length; i++) {
+    const G = _jsonPlan.groups[i];
+    if (G.remaining <= 0) continue;
+    if (now < G.nextAt) continue;
+
+    // First spawn in this JSON group → assign a groupId and reset leader
+    if (!G.groupId) {
       R.groupId++;
-      R.groupRemaining = Math.min(nextGroupSize(gs), R.queue.length);
+      G.groupId = R.groupId;
       R.groupLeaderId = null;
-      R.spawnTimer = 0;
-    } else {
-      // waiting for groupGap; do nothing (but continue update)
-    }
-  }
 
-  if (R.spawnTimer <= 0 && R.groupRemaining > 0) {
-    // Schedule next member or next group
-    if (R.groupRemaining > 0) {
-      R.spawnTimer = gaps.spawnGap;
-    } else {
-      R.spawnTimer = gaps.groupGap;
-    }
-  }
-}
-
-
-
-      const type = G.type;
-      const e = spawnOneIntoGroup(gs, type, G.groupId, R.groupLeaderId);
-      if (R.groupLeaderId == null) {
-        R.groupLeaderId = e.id;
-        e.leader = true;
-        e.behavior.sense = (e.behavior.sense || 0.5) * 1.15;
-        e.trailStrength = Math.max(e.trailStrength || 0.5, 1.5);
+      // Optional: warn once if type missing in cfg
+      const hasCfg = !!(state.getCfg?.(gs)?.enemies?.[G.type]);
+      if (!hasCfg && !_warnedTypesThisWave.has(G.type)) {
+        console.warn('[waves.json] Unknown enemy type in wave', (gs.wave|0), '→', G.type);
+        _warnedTypesThisWave.add(G.type);
       }
-      e.followLeaderId = R.groupLeaderId;
-
-      G.remaining -= 1;
-      G.nextAt = (G.interval > 0) ? (now + G.interval) : (now + 1e9); // no interval => effectively "only once"
-    
-
-  // When all JSON groups are depleted, drop the sentinel R.queue so wave-complete can trigger.
-  const anyLeft = _jsonPlan.groups.some(g => g.remaining > 0);
-  if (!anyLeft) {
-    _jsonPlan = null;
-    R.queue = []; // release sentinel
-  }
-
-
-  // 1) Spawning (group-based)
-if (R.spawning && !_jsonPlan && R.queue.length > 0) {
-  R.spawnTimer -= dt;
-
-  if (R.groupRemaining <= 0) {
-    // Start a new group when timer expires
-    if (R.spawnTimer <= 0) {
-      R.groupId++;
-      R.groupRemaining = Math.min(nextGroupSize(), R.queue.length);
-      R.groupLeaderId = null;                 // will be set by first member
-      R.spawnTimer = 0;                       // spawn leader immediately
-    } else {
-      // waiting for groupGap; do nothing (but continue update)
     }
-  }
 
-  if (R.spawnTimer <= 0 && R.groupRemaining > 0) {
-    // Pop the next type for this group
-    const type = R.queue.shift();
-    const e = spawnOneIntoGroup(gs, type, R.groupId, R.groupLeaderId);
+    // Choose type (derived plans use a per-spawn sequence)
+    const nextType =
+      Array.isArray(G.__types) && G.__types.length ? G.__types.shift() : G.type;
 
-    // First member becomes leader if none yet. Also force torch for hero/kingsguard/boss.
+    // Spawn one member of this JSON group
+    const e = spawnOneIntoGroup(gs, nextType, G.groupId, R.groupLeaderId);
     if (R.groupLeaderId == null) {
       R.groupLeaderId = e.id;
       e.leader = true;
       e.behavior.sense = (e.behavior.sense || 0.5) * 1.15;
       e.trailStrength = Math.max(e.trailStrength || 0.5, 1.5);
     }
-
-    // Followers bias toward this group’s leader
     e.followLeaderId = R.groupLeaderId;
 
-    R.groupRemaining--;
+    G.remaining -= 1;
+    G.nextAt = (G.interval > 0) ? (now + G.interval) : (now + 1e9); // one-shot if no interval
+  }
 
-    // Schedule next member or next group
-    if (R.groupRemaining > 0) {
-      R.spawnTimer = FLAGS.spawnGap;       // within-group spacing
-    } else {
-      R.spawnTimer = FLAGS.groupGap;       // between-group spacing
-    }
+  // When all JSON groups are depleted, stop spawning
+  const anyLeft = _jsonPlan.groups.some(g => g.remaining > 0);
+  if (!anyLeft) {
+    _jsonPlan = null;
+    R.spawning = false;
   }
 }
+
 
 // --- Bomb timers (tick at 1 Hz, real time; outside enemy loop) ---
 bombAccum += dt;
@@ -1247,11 +1211,11 @@ if (enemies.length > 0) {
 }
 
 
-  // 5) Wave completion
-  if (R.waveActive && !_jsonPlan && R.queue.length === 0 && enemies.length === 0) {
-    globalThis.Telemetry?.log('wave:end', { wave: gs.wave | 0 });
-    R.waveActive = false;
-    R.spawning = false;
-    gs.wave = (gs.wave | 0) + 1;
-  }
+ // 5) Wave completion
+if (R.waveActive && !_jsonPlan && enemies.length === 0) {
+  globalThis.Telemetry?.log('wave:end', { wave: gs.wave | 0 });
+  R.waveActive = false;
+  R.spawning   = false;
+  gs.wave = (gs.wave | 0) + 1;
+}
 }
