@@ -1,33 +1,28 @@
-import { CFG } from './config.js';
+// ai/perception.js
+import * as state from '../state.js';
+import { neighbors4 } from './topology.js';
 
-export function isJunction(grid, x, y) {
-  // 4-neighbors count of walkables (excluding the tile we came from is handled in scoring)
-  let n = 0;
-  if (grid.isWalkable(x+1,y)) n++;
-  if (grid.isWalkable(x-1,y)) n++;
-  if (grid.isWalkable(x,y+1)) n++;
-  if (grid.isWalkable(x,y-1)) n++;
-  // Junction or dead-end both trigger Decision, but dead-end enforces U-turn
-  return n !== 2; // corridor has exactly 2; else we decide
+// “Visible” neighbors respecting edge walls
+export function visibleNeighbors(gs, cx, cy) {
+  if (!state.inBounds(cx, cy)) return [];
+  return neighbors4(gs, cx, cy);
 }
 
-export function canSeeDragon(grid, e, dragon) {
-  // Cheap Bresenham LOS with cap
-  const dx = dragon.tileX - e.tileX, dy = dragon.tileY - e.tileY;
-  if (Math.abs(dx) + Math.abs(dy) > CFG.LOS_MAX_TILES) return false;
-  // Raycast — stop on wall
-  let x = e.tileX, y = e.tileY;
-  const steps = Math.max(Math.abs(dx), Math.abs(dy));
-  for (let i=0;i<steps;i++) {
-    x += Math.sign(dx);
-    y += Math.sign(dy);
-    if (!grid.isWalkable(x,y)) return false;
-    if (x === dragon.tileX && y === dragon.tileY) return true;
+// Simple BFS list of reachable cells from EXIT (useful for previews, etc.)
+export function reachableFromExit(gs) {
+  const key = (x,y) => `${x},${y}`;
+  const seen = new Set();
+  const out = [];
+  const q = [{ x: state.EXIT.x, y: state.EXIT.y }];
+  seen.add(key(q[0].x, q[0].y));
+
+  while (q.length) {
+    const p = q.shift();
+    out.push(p);
+    for (const n of neighbors4(gs, p.x, p.y)) {
+      const k = key(n.x, n.y);
+      if (!seen.has(k)) { seen.add(k); q.push(n); }
+    }
   }
-  return false;
-}
-
-export function dragonScentHeuristic(grid, node, dragon) {
-  const d = Math.abs(node.x - dragon.tileX) + Math.abs(node.y - dragon.tileY);
-  return -CFG.DRAGON_SCENT * Math.max(0, (CFG.SCENT_RADIUS - d)); // closer to dragon => better (more negative)
+  return out;
 }
