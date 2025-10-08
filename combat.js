@@ -919,8 +919,8 @@ function buildWaveListFromCurves(gs, wave, W, FLAGS) {
   return list;
 }
 
-progressWave = max(0, w - minWave + 1)
-share_raw(w) = cap - (cap - base) * e^(-k * progressWave)
+// progressWave = max(0, w - minWave + 1)
+// share_raw(w) = cap - (cap - base) * e^(-k * progressWave)
 
 // Derive a JSON-shaped plan so the game runs even without waves.json
 function makePlanDerived(gs) {
