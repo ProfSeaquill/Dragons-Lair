@@ -342,6 +342,18 @@ function startWave() {
 function update(dt) {
   const gs = state.GameState;
 
+    // ---- FSM time shim ----
+  const __now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if (!gs.time) gs.time = { now: __now, dt, since: (t) => __now - t };
+  else {
+    gs.time.now = __now;
+    gs.time.dt = dt;
+    if (typeof gs.time.since !== 'function') gs.time.since = (t) => __now - t;
+  }
+  // (nice-to-have:) expose tile size for AI that relies on it
+  if (gs.tileSize == null) gs.tileSize = state.GRID.tile;
+
+
   // --- Ensure containers exist early (prevents .filter / for-of crashes) ---
   if (!Array.isArray(gs.enemies)) gs.enemies = [];
   if (!Array.isArray(gs.effects)) gs.effects = [];
