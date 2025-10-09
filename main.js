@@ -12,7 +12,6 @@ import { buyUpgrade } from './upgrades.js';
 
 // ----- Combat (robust namespace import; tolerant of export name variants) -----
 import * as combat from './combat.js';
-globalThis.DL = { state, combat };
 
 // ===== Phase 7: autosave =====
 let __autosaveAccum = 0;
@@ -232,7 +231,7 @@ function frame(now) {
   // 3) build lights & present via WebGL
  // computeTorchLights already slices to 16; no need to slice again
 const lights = computeTorchLights(state.GameState);
-const ambient = 0.65;
+const ambient = 0.35;
 lighting.render(sceneCanvas, lights, ambient);
 
   requestAnimationFrame(frame);
