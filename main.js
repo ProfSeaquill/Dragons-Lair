@@ -12,7 +12,7 @@ import { buyUpgrade } from './upgrades.js';
 
 // ----- Combat (robust namespace import; tolerant of export name variants) -----
 import * as combat from './combat.js';
-
+globalThis.DL = { state, combat };
 
 // ===== Phase 7: autosave =====
 let __autosaveAccum = 0;
