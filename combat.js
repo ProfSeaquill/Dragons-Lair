@@ -27,6 +27,26 @@ function acquireEnemy(type, wave, initFn) {
   e.burnLeft = 0; e.burnDps = 0; e.stunLeft = 0; e.slowLeft = 0; e.roarBuffLeft = 0;
   e.pausedForAttack = false; e.isAttacking = false;
   e.hp = e.maxHp; e.lastHitAt = 0; e.showHpUntil = 0;
+
+  // --- reset positional / steering state (important for pooled enemies) ---
+e.x = undefined;
+e.y = undefined;
+e.cx = 0;
+e.cy = 0;
+e.tileX = undefined;
+e.tileY = undefined;
+e.prevCX = undefined;
+e.prevCY = undefined;
+e.vx = 0;
+e.vy = 0;
+e.dir = 'E';
+e.commitDir = null;
+e.commitSteps = 0;
+e.commitTilesLeft = 0;
+e.isAttacking = false;
+e.pausedForAttack = false;
+e.speedMul = 1;
+
   if (initFn) initFn(e);
   return e;
 }
@@ -249,6 +269,8 @@ function initializeSpawnPrevAndCommit(e) {
   e.commitDir = e.dir;
   // 2 steps is a conservative default; increase to 3 if you want stronger initial straight bias.
   e.commitSteps = Math.max(e.commitSteps || 0, 2);
+  e.commitTilesLeft = Math.max(e.commitTilesLeft || 0, e.commitSteps);
+
 }
 
 // Return nearest dragon cell (tile coords) to a given tile (ox, oy)
@@ -429,6 +451,8 @@ function makeEnemy(type, wave) {
     hp,
     maxHp: hp,
     speed: spd,             // tiles/sec
+    speedBase: spd,
+    speedMul: 1,
     damage: prof.dmg,
     range: prof.range,
     rate: prof.rate,
@@ -493,6 +517,14 @@ function spawnOne(gs, type) {
   e.cy = state.ENTRY.y;
   e.dir = 'E';
 
+  {
+  const t = state.GRID.tile;
+  e.x = (e.cx + 0.5) * t;
+  e.y = (e.cy + 0.5) * t;
+  e.tileX = e.cx;
+  e.tileY = e.cy;
+}
+
   // initialize prev/commit so freshly-spawned enemies head straight initially
   initializeSpawnPrevAndCommit(e);
 
@@ -516,6 +548,14 @@ function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
   e.cx = state.ENTRY.x;
   e.cy = state.ENTRY.y;
   e.dir = 'E';
+
+  {
+  const t = state.GRID.tile;
+  e.x = (e.cx + 0.5) * t;
+  e.y = (e.cy + 0.5) * t;
+  e.tileX = e.cx;
+  e.tileY = e.cy;
+}
 
   // force torch for special roles; they can overwrite leader visually, but we keep the first as leader
   if (e.type === 'hero' || e.type === 'kingsguard' || e.type === 'boss') {
@@ -546,6 +586,13 @@ export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
     e.cx = state.ENTRY.x;
     e.cy = state.ENTRY.y;
     e.dir = 'E';
+    {
+  const t = state.GRID.tile;
+  e.x = (e.cx + 0.5) * t;
+  e.y = (e.cy + 0.5) * t;
+  e.tileX = e.cx;
+  e.tileY = e.cy;
+}
     initializeSpawnPrevAndCommit(e);
     gs.enemies.push(e);
   if (typeof e.trailStrength === 'number') {
