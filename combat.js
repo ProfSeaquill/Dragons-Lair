@@ -787,6 +787,17 @@ export function startWave(gs = state.GameState) {
     ? makePlanFromConfig(gs, cfgWaves[waveIdx0])
     : makePlanDerived(gs);
 
+    // add this:
+  console.debug('wave plan', {
+    wave: gs.wave|0,
+    groups: _jsonPlan?.groups?.map(g => ({
+      type: g.type,
+      remaining: g.remaining,
+      interval: g.interval,
+      hasTypesSeq: Array.isArray(g.__types)
+    }))
+  });
+  
   R.groupId = 0;
   R.groupLeaderId = null;
   R.spawning = true;
