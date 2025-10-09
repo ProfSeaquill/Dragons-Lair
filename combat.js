@@ -926,7 +926,7 @@ function buildWaveListFromCurves(gs, wave, W, FLAGS) {
 function makePlanDerived(gs) {
   const now  = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   const wave = (gs.wave | 0) || 1;
-  const W    = (state.getCfg?.(gs)?.waves) || {};
+  const W    = state.getCfg(gs)?.tuning?.waves || state.DEFAULT_CFG.tuning.waves;
 
   // Your existing tunable gaps → spawn interval
   const gaps = (typeof tunedSpawnParams === 'function') ? tunedSpawnParams(gs) : null;
