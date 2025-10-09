@@ -1,54 +1,48 @@
 {
-  "dragon": { "maxHP": 100, "healCostBone": 1 },
-  "economy": { "wallCostBones": 1, "goldBase": 15 },
-  "abilities": { "gust": 5, "roar": 5, "stomp": 5 },
-  "saves": { "autosaveSec": 0 },
-  "telemetry": { "enabled": false }
-}
+  "tuning": {
+    "dragon":   { "maxHP": 100, "healCostBone": 1 },
+    "economy":  { "wallCostBones": 1, "goldBase": 15 },
+    "abilities":{ "gust": 5, "roar": 5, "stomp": 5 },
+    "saves":    { "autosaveSec": 0 },
+    "telemetry":{ "enabled": false },
 
-{
-  "flame": {
-    "baseRangeTiles": 8,
-    "rangePerLevelTiles": 2,
-    "dmgPerHit": 14,
-    "burnDps": 1,
-    "fireRate": 0.50
-  },
-  "claw": {
-    "baseDamage": 100,
-    "damagePerLevel": 10,
-    "baseCooldownSec": 5,
-    "cooldownMultPerLevel": 0.9
-  },
-  "crowd": {
-    "gust": { "pushTiles": 3 },
-    "roar": { "stunSec": 2 },
-    "stomp": { "slowMult": 0.5, "slowSec": 3.0 }
-  }
-}
-
-// Waves tuning
-{
-  "waves": {
-    "count": { "base": 5, "cap": 200, "k": 0.07 },
-
-    "mixCurves": {
-      "villager":   { "minWave": 1,  "base": 1.00, "cap": 0.55, "k": 0.08 },
-      "squire":     { "minWave": 3,  "base": 0.10, "cap": 0.20, "k": 0.05 },
-      "knight":     { "minWave": 4,  "base": 0.05, "cap": 0.13, "k": 0.03 },
-      "hero":       { "minWave": 11, "base": 0.03, "cap": 0.12, "k": 0.04 },
-      "engineer":   { "minWave": 21, "base": 0.01, "cap": 0.05, "k": 0.04 }
+    "flame": {
+      "baseRangeTiles": 8,
+      "rangePerLevelTiles": 2,
+      "dmgPerHit": 14,
+      "burnDps": 1,
+      "fireRate": 0.50
+    },
+    "claw": {
+      "baseDamage": 100,
+      "damagePerLevel": 10,
+      "baseCooldownSec": 5,
+      "cooldownMultPerLevel": 0.9
+    },
+    "crowd": {
+      "gust":  { "pushTiles": 3 },
+      "roar":  { "stunSec": 2 },
+      "stomp": { "slowMult": 0.5, "slowSec": 3.0 }
     },
 
-    "mixOptions": {
-      "floor": 0.0,       // clamp shares >= this after normalization
-      "ceil":  0.8,       // clamp shares <= this after normalization
-      "unlockFill": "renorm" // how to redistribute locked-out or clamped mass: "renorm" or "leave"
-    },
-
-    "cadence": {
-      "bossEvery": 10,
-      "kingsguardEvery": 5
+    "waves": {
+      "count": { "base": 5, "cap": 200, "k": 0.07 },
+      "mixCurves": {
+        "villager": { "minWave": 1,  "base": 1.00, "cap": 0.55, "k": 0.08 },
+        "squire":   { "minWave": 3,  "base": 0.10, "cap": 0.20, "k": 0.05 },
+        "knight":   { "minWave": 4,  "base": 0.05, "cap": 0.13, "k": 0.03 },
+        "hero":     { "minWave": 11, "base": 0.03, "cap": 0.12, "k": 0.04 },
+        "engineer": { "minWave": 21, "base": 0.01, "cap": 0.05, "k": 0.04 }
+      },
+      "mixOptions": {
+        "floor": 0.0,
+        "ceil":  0.8,
+        "unlockFill": "renorm"
+      },
+      "cadence": {
+        "bossEvery": 10,
+        "kingsguardEvery": 5
+      }
     }
   }
 }
