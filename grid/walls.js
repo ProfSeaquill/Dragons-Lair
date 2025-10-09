@@ -23,17 +23,13 @@ export function toggleEdge(gs, x, y, side, forcePlace /* optional boolean */) {
     state.setEdgeWall(gs, x, y, side, curr);
     return { ok: false, changed: false, reason: 'disconnect' };
   }
-
+gs.topologyVersion = (gs.topologyVersion | 0) + 1;
   return { ok: true, changed: true };
 }
 
 export function edgeHasWall(gs, x, y, side) {
   const c = state.ensureCell(gs, x, y);
   return !!c[side];
-  // after you’ve updated the edge(s) successfully:
-gs.topologyVersion = (gs.topologyVersion || 0) + 1;
-return true; // (or your existing return)
-
 }
 
 
