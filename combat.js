@@ -1006,6 +1006,17 @@ export const spawnWave = startWave;
   const enemies = gs.enemies || (gs.enemies = []);
   gs.effects = gs.effects || []; // bombs
 
+     // ---- FSM time shim ----
+  const __now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if (!gs.time) gs.time = { now: __now, dt, since: (t) => __now - t };
+  else {
+    gs.time.now = __now;
+    gs.time.dt = dt;
+    if (typeof gs.time.since !== 'function') gs.time.since = (t) => __now - t;
+  }
+  if (gs.tileSize == null) gs.tileSize = state.GRID.tile;
+
+
   // ---- Success-trail global decay (apply at 5 Hz to reduce work) ----
 const T = gs.successTrail;
 if (T) {
