@@ -206,6 +206,15 @@ function frame(now) {
   const dt = Math.max(0, (now - lastT)) / 1000;
   lastT = now;
 
+  // --- FSM time sync (ai/states/* reads gs.time.now/dt/t) ---
+{
+  const gs = state.GameState;
+  if (!gs.time) gs.time = { now: now / 1000, dt: dt, t: 0 };
+  gs.time.now = now / 1000;     // seconds
+  gs.time.dt  = dt;             // seconds since last frame
+  gs.time.t   = (gs.time.t || 0) + dt; // running seconds
+}
+
   // 1) update game state
   update(dt);
 
@@ -239,7 +248,15 @@ function boot() {
 
   // Bind all CustomEvent listeners before UI wiring
   window.addEventListener('dl-start-wave', () => { startWave(); });
-    
+
+  // --- FSM time bootstrap (exists even before the first frame) ---
+{
+  const gs = state.GameState;
+  if (!gs.time) gs.time = { now: performance.now() / 1000, dt: 0, t: 0 };
+  // helpful for ai/* that read tile size
+  gs.tileSize = state.GRID.tile;
+}
+
   lastT = performance.now();
   requestAnimationFrame(frame);     // <- use frame, not tick
 
