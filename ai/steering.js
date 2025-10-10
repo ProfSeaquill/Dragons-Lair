@@ -1,8 +1,10 @@
 export function tileId(x,y){ return (y<<16) | x; }
 
-export function stepAlongDirection(e, dt, tileSize, speed) {
-  const vx = e.dirX * speed, vy = e.dirY * speed;
-  e.x += vx * dt; e.y += vy * dt;
+export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
+  const pxPerSecX = e.dirX * speedTilesPerSec * tileSize;
+  const pxPerSecY = e.dirY * speedTilesPerSec * tileSize;
+  e.x += pxPerSecX * dt;
+  e.y += pxPerSecY * dt;
   e.tileX = Math.floor(e.x / tileSize);
   e.tileY = Math.floor(e.y / tileSize);
 }
