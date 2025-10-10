@@ -6,6 +6,7 @@ import * as S_fear from './states/fear.js';
 import { initMemory, markVisited } from './memory.js';
 import { tileId } from './steering.js';
 import { isJunction } from './perception.js';
+import * as state from '../state.js';
 
 // --- Safety helpers ---
 const hasState = (s) => !!STATES[s];
@@ -24,7 +25,40 @@ export function initEnemyForFSM(e) {
   e.speedMul = 1;
   initMemory(e);
 }
+// --- Normalize movement fields once ---
+  // Speed: store pixels/sec in e.speedBase (source may be tiles/sec or px/sec)
+  if (typeof e.speedBase !== 'number') {
+    const tile = state.GRID.tile;
+    if (typeof e.pxPerSec === 'number') {
+      e.speedBase = e.pxPerSec;
+    } else if (typeof e.speed === 'number') {
+      // your makeEnemy() assigns e.speed in *tiles/sec*
+      e.speedBase = e.speed * tile;
+    } else {
+      e.speedBase = 80; // safe fallback (~2.5 tiles/sec at 32px tiles)
+    }
+  }
 
+  // Dir vectors for stepAlongDirection()
+  if (typeof e.dirX !== 'number' || typeof e.dirY !== 'number') {
+    const d = e.dir || 'E';
+    e.dirX = (d === 'E') ? 1 : (d === 'W') ? -1 : 0;
+    e.dirY = (d === 'S') ? 1 : (d === 'N') ? -1 : 0;
+  }
+
+  // Tile / pixel coords (don’t overwrite if already present)
+  if (!Number.isInteger(e.tileX) || !Number.isInteger(e.tileY)) {
+    if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
+      e.tileX = e.cx; e.tileY = e.cy;
+    }
+  }
+  if (typeof e.x !== 'number' || typeof e.y !== 'number') {
+    const t = state.GRID.tile;
+    const cx = Number.isInteger(e.tileX) ? e.tileX : (e.cx | 0);
+    const cy = Number.isInteger(e.tileY) ? e.tileY : (e.cy | 0);
+    e.x = (cx + 0.5) * t;
+    e.y = (cy + 0.5) * t;
+}
 // Bridge enemy objects from combat → FSM movement model (run once per enemy)
 function ensureKinematics(e, gs) {
   if (e._kinOk) return;
