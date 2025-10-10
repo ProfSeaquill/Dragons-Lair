@@ -328,7 +328,11 @@ export const GameState = {
 };
 
 // ===== Per-Cell Edge Accessors =====
+// If callers forget to pass gs, fall back to the singleton GameState.
+function __useGS(g) { return g || GameState; }
+
 export function ensureCell(gs, x, y) {
+  gs = __useGS(gs);
   const k = tileKey(x, y);
   let rec = gs.cellWalls.get(k);
   if (!rec) { rec = { N: false, E: false, S: false, W: false }; gs.cellWalls.set(k, rec); }
@@ -336,6 +340,7 @@ export function ensureCell(gs, x, y) {
 }
 
 export function isOpen(gs, x, y, side) {
+  gs = __useGS(gs);
   if (!inBounds(x, y)) return false;
   const here = ensureCell(gs, x, y);
   if (here[side] === true) return false;
@@ -354,6 +359,7 @@ export function isOpen(gs, x, y, side) {
 }
 
 export function neighborsByEdges(gs, cx, cy) {
+  gs = __useGS(gs);
   const out = [];
   if (isOpen(gs, cx, cy, 'N')) out.push({ x: cx,     y: cy - 1, side: 'N' });
   if (isOpen(gs, cx, cy, 'E')) out.push({ x: cx + 1, y: cy,     side: 'E' });
@@ -363,6 +369,7 @@ export function neighborsByEdges(gs, cx, cy) {
 }
 
 export function setEdgeWall(gs, x, y, side, hasWall) {
+  gs = __useGS(gs);
   if (!inBounds(x, y)) return false;
   const here = ensureCell(gs, x, y);
   let nx = x, ny = y, opp;
