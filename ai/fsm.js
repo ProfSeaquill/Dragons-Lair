@@ -20,22 +20,21 @@ const STATES = {
 };
 
 export function initEnemyForFSM(e) {
-  e.state ??= 'search';
+    e.state ??= 'search';
   e.stateT = 0;
   e.speedMul = 1;
   initMemory(e);
-}
-// --- Normalize movement fields once ---
-  // Speed: store pixels/sec in e.speedBase (source may be tiles/sec or px/sec)
+
+  // --- Normalize movement fields once (pixels/sec, not tiles/sec) ---
+  // Speed → e.speedBase (px/sec). If you have e.speed as tiles/sec, convert.
   if (typeof e.speedBase !== 'number') {
     const tile = state.GRID.tile;
     if (typeof e.pxPerSec === 'number') {
-      e.speedBase = e.pxPerSec;
+      e.speedBase = e.pxPerSec;              // already px/sec
     } else if (typeof e.speed === 'number') {
-      // your makeEnemy() assigns e.speed in *tiles/sec*
-      e.speedBase = e.speed * tile;
+      e.speedBase = e.speed * tile;          // tiles/sec → px/sec
     } else {
-      e.speedBase = 80; // safe fallback (~2.5 tiles/sec at 32px tiles)
+      e.speedBase = 80;                      // ~2.5 tiles/sec @ 32px
     }
   }
 
@@ -46,7 +45,7 @@ export function initEnemyForFSM(e) {
     e.dirY = (d === 'S') ? 1 : (d === 'N') ? -1 : 0;
   }
 
-  // Tile / pixel coords (don’t overwrite if already present)
+  // Seed tile/pixel coords from grid coords
   if (!Number.isInteger(e.tileX) || !Number.isInteger(e.tileY)) {
     if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
       e.tileX = e.cx; e.tileY = e.cy;
@@ -58,32 +57,37 @@ export function initEnemyForFSM(e) {
     const cy = Number.isInteger(e.tileY) ? e.tileY : (e.cy | 0);
     e.x = (cx + 0.5) * t;
     e.y = (cy + 0.5) * t;
-}
+  }
+
 // Bridge enemy objects from combat → FSM movement model (run once per enemy)
 function ensureKinematics(e, gs) {
   if (e._kinOk) return;
-  const t = gs.tileSize || 32;
+  const t = gs.tileSize || state.GRID.tile || 32;
 
   // seed pixel + tile coords from cx/cy if needed
   if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
-    e.tileX = e.tileX ?? e.cx;
-    e.tileY = e.tileY ?? e.cy;
+    e.tileX ??= e.cx;
+    e.tileY ??= e.cy;
     if (typeof e.x !== 'number') e.x = (e.cx + 0.5) * t;
     if (typeof e.y !== 'number') e.y = (e.cy + 0.5) * t;
   }
 
   // map 'E/W/N/S' → (dirX,dirY)
-  const map = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
-  const d = map[e.dir] || [1,0];
-  if (typeof e.dirX !== 'number') e.dirX = d[0];
-  if (typeof e.dirY !== 'number') e.dirY = d[1];
+  if (typeof e.dirX !== 'number' || typeof e.dirY !== 'number') {
+    const map = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
+    const d = map[e.dir] || [1,0];
+    e.dirX = d[0]; e.dirY = d[1];
+  }
 
-  // speed + commit counters expected by search state
-  if (typeof e.speedBase !== 'number') e.speedBase = (typeof e.speed === 'number' ? e.speed : 1);
-  if (typeof e.commitTilesLeft !== 'number') e.commitTilesLeft = (e.commitSteps | 0) || 0;
+  // commit counter expected by search state
+  if (typeof e.commitTilesLeft !== 'number') {
+    e.commitTilesLeft = (e.commitSteps | 0) || 0;
+  }
 
+  // IMPORTANT: do NOT touch e.speedBase here; it’s set (px/sec) in initEnemyForFSM
   e._kinOk = true;
 }
+
 
 export function stepEnemyFSM(gs, e, dt) {
   // ——— Priority arbitration (global) ———
