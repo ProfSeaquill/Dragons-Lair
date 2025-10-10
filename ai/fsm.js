@@ -64,7 +64,6 @@ function ensureKinematics(e, gs) {
   if (e._kinOk) return;
   const t = gs.tileSize || state.GRID.tile || 32;
 
-  // seed pixel + tile coords from cx/cy if needed
   if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
     e.tileX ??= e.cx;
     e.tileY ??= e.cy;
@@ -72,31 +71,29 @@ function ensureKinematics(e, gs) {
     if (typeof e.y !== 'number') e.y = (e.cy + 0.5) * t;
   }
 
-  // map 'E/W/N/S' → (dirX,dirY)
   if (typeof e.dirX !== 'number' || typeof e.dirY !== 'number') {
     const map = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
     const d = map[e.dir] || [1,0];
     e.dirX = d[0]; e.dirY = d[1];
   }
 
-  // commit counter expected by search state
   if (typeof e.commitTilesLeft !== 'number') {
     e.commitTilesLeft = (e.commitSteps | 0) || 0;
   }
 
-  // IMPORTANT: do NOT touch e.speedBase here; it’s set (px/sec) in initEnemyForFSM
+  // DO NOT set e.speedBase here; it’s already px/sec from initEnemyForFSM.
   e._kinOk = true;
 }
 
 
-export function stepEnemyFSM(gs, e, dt) {
-  // ——— Priority arbitration (global) ———
+ // ——— Priority arbitration (global) ———
   // 1) Charge if dragon in sight
   // 2) Decision if at a junction and no commit left
   // 3) Fear if under effect
   // 4) Otherwise Search
   // But execution runs through current state's update to keep continuity.
     // Ensure we always have a valid state (guards against uninitialized enemies)
+export function stepEnemyFSM(gs, e, dt) {
     ensureKinematics(e, gs);
   if (!hasState(e.state)) {
     initEnemyForFSM(e);           // sets e.state='search', e.stateT=0, speedMul, memory
