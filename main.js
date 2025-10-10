@@ -231,7 +231,7 @@ function frame(now) {
   // 3) build lights & present via WebGL
  // computeTorchLights already slices to 16; no need to slice again
 const lights = computeTorchLights(state.GameState);
-const ambient = 0.95; // lower values = darker map
+const ambient = 0.15; // lower values = darker map
 lighting.render(sceneCanvas, lights, ambient);
 
   requestAnimationFrame(frame);
