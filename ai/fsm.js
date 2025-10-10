@@ -75,6 +75,17 @@ function ensureKinematics(e, gs) {
     e.commitTilesLeft = (e.commitSteps | 0) || 0;
   }
 
+  // ✅ Correct speed normalization
+  if (typeof e.speedBase !== 'number') {
+    if (typeof e.pxPerSec === 'number') {
+      e.speedBase = e.pxPerSec;          // already in px/sec
+    } else if (typeof e.speed === 'number') {
+      e.speedBase = e.speed * t;         // tiles/sec → px/sec
+    } else {
+      e.speedBase = 80;                  // safe fallback (~2.5 tiles/sec at 32px)
+    }
+  }
+
   // IMPORTANT: do NOT set e.speedBase here (it’s already px/sec from init).
   e._kinOk = true;
 }
