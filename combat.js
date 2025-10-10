@@ -579,28 +579,56 @@ if (typeof e.trailStrength === 'number') {
 
 
 /* --- Dev / Playtest helpers --- */
+/* --- Dev / Playtest helpers --- */
 export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
   n = Math.max(1, n | 0);
+  const t = state.GRID.tile;
+
   for (let i = 0; i < n; i++) {
     const e = acquireEnemy(type, gs.wave | 0);
+
+    // spawn at entry, facing east
     e.cx = state.ENTRY.x;
     e.cy = state.ENTRY.y;
     e.dir = 'E';
-    {
-  const t = state.GRID.tile;
-  e.x = (e.cx + 0.5) * t;
-  e.y = (e.cy + 0.5) * t;
-  e.tileX = e.cx;
-  e.tileY = e.cy;
-}
-    initializeSpawnPrevAndCommit(e);
-    gs.enemies.push(e);
-  if (typeof e.trailStrength === 'number') {
-  bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
-}
 
+    // pixel + tile coords
+    e.x = (e.cx + 0.5) * t;
+    e.y = (e.cy + 0.5) * t;
+    e.tileX = e.cx;
+    e.tileY = e.cy;
+
+    // ✅ make speed be *pixels per second*
+    // your makeEnemy() puts e.speed in tiles/sec → convert:
+    if (typeof e.pxPerSec !== 'number') {
+      if (typeof e.speed === 'number') {
+        e.pxPerSec = e.speed * t;      // tiles/sec → px/sec
+      } else {
+        e.pxPerSec = 80;               // safe fallback (~2.5 tiles/s at 32px)
+      }
+    }
+    e.speedBase = e.pxPerSec;          // what search/charge use
+
+    // ✅ give direction vectors expected by stepAlongDirection()
+    const dirMap = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
+    const v = dirMap[e.dir] || [1,0];
+    e.dirX = v[0];
+    e.dirY = v[1];
+
+    // normal spawn helpers
+    initializeSpawnPrevAndCommit(e);
+
+    // ✅ initialize FSM bits (same as your normal spawner)
+    import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
+
+    (gs.enemies || (gs.enemies = [])).push(e);
+
+    if (typeof e.trailStrength === 'number') {
+      bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
+    }
   }
 }
+
 
 export function devClearEnemies(gs = state.GameState) {
   gs.enemies = [];
