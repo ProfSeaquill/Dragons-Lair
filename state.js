@@ -497,6 +497,14 @@ export function loadState() {
     if (!loaded || typeof loaded !== 'object') return false;
 
     Object.assign(GameState, loaded);
+    
+    // Rehydrate cellWalls as a Map if needed
+if (Array.isArray(loaded.cellWalls)) {
+  GameState.cellWalls = new Map(loaded.cellWalls);
+} else if (!(GameState.cellWalls instanceof Map)) {
+  GameState.cellWalls = new Map();
+}
+
     return true;
   } catch (err) {
     console.warn('Load failed:', err);
