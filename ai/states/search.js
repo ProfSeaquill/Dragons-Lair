@@ -8,16 +8,16 @@ export function enter(e, gs) {
 
 export function update(e, gs, dt) {
   // Promotion to Charge if dragon is seen
-  if (canSeeDragon(gs.grid, e, gs.dragon)) return 'charge';
+    if (canSeeDragon(gs, e.cx | 0, e.cy | 0)) return 'charge';
 
   // Keep moving forward unless at junction or commit expires
   if (e.commitTilesLeft > 0) {
     e.commitTilesLeft -= reachedTileCenterThisFrame(e, gs) ? 1 : 0;
   }
-  const atJunction = isJunction(gs.grid, e.tileX, e.tileY);
+    const atJunction = isJunction(gs, e.tileX | 0, e.tileY | 0);
   if (atJunction && e.commitTilesLeft <= 0) return 'decision';
 
-  const speed = e.speedBase * e.speedMul;
+    const speed = (e.speedBase ?? e.speed ?? 1) * e.speedMul;
   stepAlongDirection(e, gs.time.dt, gs.tileSize, speed);
   return null;
 }
