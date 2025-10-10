@@ -20,32 +20,25 @@ const STATES = {
 };
 
 export function initEnemyForFSM(e) {
-    e.state ??= 'search';
+  e.state ??= 'search';
   e.stateT = 0;
   e.speedMul = 1;
   initMemory(e);
 
-  // --- Normalize movement fields once (pixels/sec, not tiles/sec) ---
-  // Speed → e.speedBase (px/sec). If you have e.speed as tiles/sec, convert.
+  // normalize once (pixels/sec)
   if (typeof e.speedBase !== 'number') {
     const tile = state.GRID.tile;
-    if (typeof e.pxPerSec === 'number') {
-      e.speedBase = e.pxPerSec;              // already px/sec
-    } else if (typeof e.speed === 'number') {
-      e.speedBase = e.speed * tile;          // tiles/sec → px/sec
-    } else {
-      e.speedBase = 80;                      // ~2.5 tiles/sec @ 32px
-    }
+    if (typeof e.pxPerSec === 'number')      e.speedBase = e.pxPerSec;
+    else if (typeof e.speed === 'number')    e.speedBase = e.speed * tile; // tiles/sec → px/sec
+    else                                     e.speedBase = 80;             // fallback
   }
 
-  // Dir vectors for stepAlongDirection()
   if (typeof e.dirX !== 'number' || typeof e.dirY !== 'number') {
     const d = e.dir || 'E';
     e.dirX = (d === 'E') ? 1 : (d === 'W') ? -1 : 0;
-    e.dirY = (d === 'S') ? 1 : (d === 'N') ? -1 : 0;
+    e.dirY = (d === 'S') ? 0 + 1 : (d === 'N') ? -1 : 0; // 4-way
   }
 
-  // Seed tile/pixel coords from grid coords
   if (!Number.isInteger(e.tileX) || !Number.isInteger(e.tileY)) {
     if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
       e.tileX = e.cx; e.tileY = e.cy;
@@ -58,6 +51,7 @@ export function initEnemyForFSM(e) {
     e.x = (cx + 0.5) * t;
     e.y = (cy + 0.5) * t;
   }
+}
 
 // Bridge enemy objects from combat → FSM movement model (run once per enemy)
 function ensureKinematics(e, gs) {
@@ -81,9 +75,10 @@ function ensureKinematics(e, gs) {
     e.commitTilesLeft = (e.commitSteps | 0) || 0;
   }
 
-  // DO NOT set e.speedBase here; it’s already px/sec from initEnemyForFSM.
+  // IMPORTANT: do NOT set e.speedBase here (it’s already px/sec from init).
   e._kinOk = true;
 }
+
 
 
  // ——— Priority arbitration (global) ———
