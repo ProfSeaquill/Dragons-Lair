@@ -25,6 +25,32 @@ export function initEnemyForFSM(e) {
   initMemory(e);
 }
 
+// Bridge enemy objects from combat → FSM movement model (run once per enemy)
+function ensureKinematics(e, gs) {
+  if (e._kinOk) return;
+  const t = gs.tileSize || 32;
+
+  // seed pixel + tile coords from cx/cy if needed
+  if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
+    e.tileX = e.tileX ?? e.cx;
+    e.tileY = e.tileY ?? e.cy;
+    if (typeof e.x !== 'number') e.x = (e.cx + 0.5) * t;
+    if (typeof e.y !== 'number') e.y = (e.cy + 0.5) * t;
+  }
+
+  // map 'E/W/N/S' → (dirX,dirY)
+  const map = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
+  const d = map[e.dir] || [1,0];
+  if (typeof e.dirX !== 'number') e.dirX = d[0];
+  if (typeof e.dirY !== 'number') e.dirY = d[1];
+
+  // speed + commit counters expected by search state
+  if (typeof e.speedBase !== 'number') e.speedBase = (typeof e.speed === 'number' ? e.speed : 1);
+  if (typeof e.commitTilesLeft !== 'number') e.commitTilesLeft = (e.commitSteps | 0) || 0;
+
+  e._kinOk = true;
+}
+
 export function stepEnemyFSM(gs, e, dt) {
   // ——— Priority arbitration (global) ———
   // 1) Charge if dragon in sight
@@ -33,6 +59,7 @@ export function stepEnemyFSM(gs, e, dt) {
   // 4) Otherwise Search
   // But execution runs through current state's update to keep continuity.
     // Ensure we always have a valid state (guards against uninitialized enemies)
+    ensureKinematics(e, gs);
   if (!hasState(e.state)) {
     initEnemyForFSM(e);           // sets e.state='search', e.stateT=0, speedMul, memory
   }
@@ -42,7 +69,7 @@ export function stepEnemyFSM(gs, e, dt) {
   // Compute “candidates”
   const candidates = [];
   if (e.fearT > 0) candidates.push('fear');
-  if (isJunction(gs.grid, e.tileX, e.tileY) && e.commitTilesLeft <= 0) candidates.push('decision');
+  if (isJunction(gs, e.tileX | 0, e.tileY | 0) && e.commitTilesLeft <= 0) candidates.push('decision');
   if (/* lightweight check here; heavy LOS lives in search state update too */ false) candidates.push('charge');
 
   // Force Decision > Fear
