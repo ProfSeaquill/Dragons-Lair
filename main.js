@@ -7,6 +7,7 @@ import { bindUI, UI } from './ui.js';
 import * as render from './render.js';
 import { stepEnemyFSM } from './ai/fsm.js';
 import { updateEnemyDistance } from './ai/metrics.js';
+import { buildJunctionGraph } from './ai/topology.js';
 import { initLighting } from './lighting-webgl.js';
 import { buyUpgrade } from './upgrades.js';
 
@@ -320,7 +321,6 @@ bindUI();
 
 __lastWaveSaved = (state.GameState.wave | 0) || 0;
 
-  
   loadConfigFiles()
   .then(cfg => {
     state.applyConfig(state.GameState, cfg);
@@ -340,6 +340,16 @@ function startWave() {
   const gs = state.GameState;
   gs.__torchWaveId = (gs.__torchWaveId || 0) + 1;
   gs.__firstTorchGiven = false;
+  // --- NEW: if someone calls main.startWave directly, ensure topology & trail exist.
+  // If combat.startWave runs next, its calls are idempotent.
+  if (!gs.topology || !gs.topology.jxns) {
+    buildJunctionGraph(gs);
+  }
+  if (!gs.successTrail) {
+    const W = state.GRID.cols, H = state.GRID.rows;
+    gs.successTrail = state.makeScalarField(W, H, 0);
+  }
+  gs._straysActive = 0;
   if (typeof combatStartWave === 'function') {
     combatStartWave(state.GameState);
   } else if (typeof combatSpawnWave === 'function') {
