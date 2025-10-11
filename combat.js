@@ -624,7 +624,7 @@ export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
         e.pxPerSec = 80;               // safe fallback (~2.5 tiles/s at 32px)
       }
     }
-    e.speedBase = e.pxPerSec;          // what search/charge use
+    e.speedBase = e.speed;
 
     // ✅ give direction vectors expected by stepAlongDirection()
     const dirMap = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
