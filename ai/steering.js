@@ -1,10 +1,15 @@
+// steering.js (or wherever stepAlongDirection is defined)
+
 export function tileId(x,y){ return (y<<16) | x; }
 
 export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
-  const pxPerSecX = e.dirX * speedTilesPerSec * tileSize;
-  const pxPerSecY = e.dirY * speedTilesPerSec * tileSize;
-  e.x += pxPerSecX * dt;
-  e.y += pxPerSecY * dt;
+  // Convert tiles/sec -> pixels/sec once here
+  const vx = e.dirX * speedTilesPerSec * tileSize;
+  const vy = e.dirY * speedTilesPerSec * tileSize;
+
+  e.x += vx * dt;
+  e.y += vy * dt;
+
   e.tileX = Math.floor(e.x / tileSize);
   e.tileY = Math.floor(e.y / tileSize);
 }
