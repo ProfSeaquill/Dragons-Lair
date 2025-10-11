@@ -21,7 +21,7 @@ export function setDirToward(e, fromX, fromY, toX, toY) {
 
 export function followPath(e, dt, tileSize, speed) {
   if (!e.path || e.path.length === 0) return;
-  const [nx, ny] = e.path[0];
+  const { x: nx, y: ny } = e.path[0];
   if (e.tileX === nx && e.tileY === ny) { e.path.shift(); return; }
   setDirToward(e, e.tileX, e.tileY, nx, ny);
   stepAlongDirection(e, dt, tileSize, speed);
