@@ -3,7 +3,7 @@ import * as S_search from './states/search.js';
 import * as S_decision from './states/decision.js';
 import * as S_charge from './states/charge.js';
 import * as S_fear from './states/fear.js';
-import { initMemory, markVisited } from './memory.js';
+import { initMemory } from './memory.js';
 import { tileId } from './steering.js';
 import { isJunction } from './perception.js';
 import * as state from '../state.js';
@@ -24,6 +24,12 @@ export function initEnemyForFSM(e) {
   e.stateT = 0;
   e.speedMul = 1;
   initMemory(e);
+  e.jxnStack ??= [];
+  e.backtrackPath ??= null;
+  e.isStray ??= false;
+  e.strayUntil ??= 0;
+  e.pendingOutcome ??= null;
+
 
   // normalize once (pixels/sec)
   if (typeof e.speedBase !== 'number') {
@@ -110,7 +116,11 @@ export function stepEnemyFSM(gs, e, dt) {
   // Compute “candidates”
   const candidates = [];
   if (e.fearT > 0) candidates.push('fear');
-  if (isJunction(gs, e.tileX | 0, e.tileY | 0) && e.commitTilesLeft <= 0) candidates.push('decision');
+  import { isDecisionNode } from './perception.js'; // (top of file)
+...
+if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && e.commitTilesLeft <= 0 && !(e.backtrackPath && e.backtrackPath.length)) {
+  candidates.push('decision');
+}
   if (/* lightweight check here; heavy LOS lives in search state update too */ false) candidates.push('charge');
 
   // Force Decision > Fear
@@ -120,11 +130,6 @@ export function stepEnemyFSM(gs, e, dt) {
 
   // State transition if priority demands (except allow current state if same or higher)
   if (priOf(pri, top) > priOf(pri, e.state)) changeState(e, gs, top);
-
-  // Mark visited tiles at centers
-  if ((e.x % gs.tileSize === 0) && (e.y % gs.tileSize === 0)) {
-    markVisited(e, tileId(e.tileX, e.tileY), gs.time.now);
-  }
 
   // Run state logic
     const impl = STATES[e.state] || STATES.search;
