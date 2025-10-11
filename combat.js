@@ -1154,6 +1154,7 @@ if (T) {
  // --- JSON-configured spawning (only path) ---
 if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  console.debug('spawn loop gate', { spawning: R.spawning, hasPlan: !!_jsonPlan, groups: _jsonPlan?.groups?.length, now });
 
   for (let i = 0; i < _jsonPlan.groups.length; i++) {
     const G = _jsonPlan.groups[i];
