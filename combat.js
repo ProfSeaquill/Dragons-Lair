@@ -1174,7 +1174,6 @@ if (T) {
 if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   console.debug('spawn loop gate', { spawning: R.spawning, hasPlan: !!_jsonPlan, groups: _jsonPlan?.groups?.length, now });
-  console.debug('spawning', { groupId: G.groupId, type: nextType, remainingBefore: G.remaining });
 
 // Spawn Loop
   for (let i = 0; i < _jsonPlan.groups.length; i++) {
