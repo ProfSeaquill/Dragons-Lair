@@ -4,9 +4,9 @@ import * as S_decision from './states/decision.js';
 import * as S_charge from './states/charge.js';
 import * as S_fear from './states/fear.js';
 import { initMemory } from './memory.js';
-import { tileId } from './steering.js';
-import { isJunction } from './perception.js';
 import * as state from '../state.js';
+import { isDecisionNode } from './perception.js';
+
 
 // --- Safety helpers ---
 const hasState = (s) => !!STATES[s];
@@ -31,13 +31,14 @@ export function initEnemyForFSM(e) {
   e.pendingOutcome ??= null;
 
 
-  // normalize once (pixels/sec)
+   // normalize once (tiles/sec)
   if (typeof e.speedBase !== 'number') {
     const tile = state.GRID.tile;
-    if (typeof e.pxPerSec === 'number')      e.speedBase = e.pxPerSec;
-    else if (typeof e.speed === 'number')    e.speedBase = e.speed * tile; // tiles/sec → px/sec
-    else                                     e.speedBase = 80;             // fallback
+    if (typeof e.speed === 'number')        e.speedBase = e.speed;                 // tiles/sec
+    else if (typeof e.pxPerSec === 'number') e.speedBase = e.pxPerSec / tile;      // px/sec -> tiles/sec
+    else                                      e.speedBase = 2.5;                    // fallback tiles/sec
   }
+
 
   if (typeof e.dirX !== 'number' || typeof e.dirY !== 'number') {
     const d = e.dir || 'E';
@@ -92,7 +93,7 @@ function ensureKinematics(e, gs) {
   }
 }
 
-  // IMPORTANT: do NOT set e.speedBase here (it’s already px/sec from init).
+  // IMPORTANT: we keep e.speedBase in tiles/sec. Only compute it here if missing.
   e._kinOk = true;
 }
 
@@ -116,8 +117,6 @@ export function stepEnemyFSM(gs, e, dt) {
   // Compute “candidates”
   const candidates = [];
   if (e.fearT > 0) candidates.push('fear');
-  import { isDecisionNode } from './perception.js'; // (top of file)
-...
 if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && e.commitTilesLeft <= 0 && !(e.backtrackPath && e.backtrackPath.length)) {
   candidates.push('decision');
 }
