@@ -94,3 +94,64 @@ export function computeShortestPath(
   }
   return path;
 }
+
+// --- Junction graph (nodes: degree!=2 tiles; edges: corridor runs) ---
+export function junctionId(x,y){ return `${x},${y}`; }
+
+export function buildJunctionGraph(gs) {
+  const w = state.GRID.cols, h = state.GRID.rows;
+  const isNode = (x,y) => {
+    if (!state.inBounds(x,y)) return false;
+    const deg = cellDegree(gs, x, y);
+    return deg !== 2; // junctions and dead-ends both count as "nodes"
+  };
+
+  const jxns = new Map();
+
+  // Discover nodes
+  for (let y=0; y<h; y++) for (let x=0; x<w; x++) {
+    if (isNode(x,y)) {
+      const id = junctionId(x,y);
+      if (!jxns.has(id)) jxns.set(id, { id, x, y, exits: [], version: (gs.topologyVersion|0) });
+    }
+  }
+
+  // For each node, follow each open direction until next node or stop
+  const dirs = [{d:'N',dx:0,dy:-1},{d:'E',dx:1,dy:0},{d:'S',dx:0,dy:1},{d:'W',dx:-1,dy:0}];
+  for (const node of jxns.values()) {
+    for (const {d,dx,dy} of dirs) {
+      if (!state.isOpen(gs, node.x, node.y, d)) continue;
+      // step out
+      let x = node.x + dx, y = node.y + dy;
+      const run = [];
+      let guard = w*h + 5;
+
+      while (guard-- > 0) {
+        if (!state.inBounds(x,y)) break;
+        run.push({ x, y });
+        if (isNode(x,y)) {
+          const toId = junctionId(x,y);
+          node.exits.push({ dir:d, to: toId, path: run.slice() });
+          break;
+        }
+        // continue corridor
+        // choose the next step that is not the backward direction
+        const options = [];
+        if (state.isOpen(gs, x, y, 'N')) options.push({dx:0,dy:-1,s:'N'});
+        if (state.isOpen(gs, x, y, 'E')) options.push({dx:1,dy:0,s:'E'});
+        if (state.isOpen(gs, x, y, 'S')) options.push({dx:0,dy:1,s:'S'});
+        if (state.isOpen(gs, x, y, 'W')) options.push({dx:-1,dy:0,s:'W'});
+        // turn around?
+        const bx = -dx, by = -dy;
+        const next = options.find(o => !(o.dx===bx && o.dy===by));
+        if (!next) break;
+        x += next.dx; y += next.dy; dx = next.dx; dy = next.dy;
+      }
+    }
+  }
+
+  const topo = { version:(gs.topologyVersion|0), jxns };
+  gs.topology = topo;
+  gs.topologyVersion = (gs.topologyVersion|0) + 1;
+  return topo;
+}
