@@ -22,8 +22,8 @@ export function enter(e, gs) {
   const sy = Number.isInteger(e.cy) ? e.cy : (e.tileY | 0);
 
   const pathObjs = computeShortestPath(gs, sx, sy, state.dragonCells(gs));
-  // followPath expects [x,y] pairs; normalize
-  e.path = Array.isArray(pathObjs) ? pathObjs.map(p => [p.x, p.y]) : null;
+e.path = Array.isArray(pathObjs) ? pathObjs : null;
+
 
   e._topoOnPath = (gs.topologyVersion | 0);
 }
