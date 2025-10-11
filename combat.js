@@ -1,6 +1,7 @@
 // combat.js (top)
 import * as state from './state.js';
 import { updateEnemyDistance } from './ai/metrics.js';
+import { buildJunctionGraph } from './ai/topology.js';
 
 
 // === Ability cooldown timers (module-local) ===
@@ -84,6 +85,22 @@ function bumpSuccess(gs, x, y, amt = 1) {
   if (!state.inBounds(x, y)) return;
   const v = (T[y][x] || 0) + amt;
   T[y][x] = v;
+}
+
+// Ensure success-trail field exists and is zeroed for the current grid
+function ensureSuccessTrail(gs) {
+  const W = state.GRID.cols, H = state.GRID.rows;
+  if (!gs.successTrail ||
+      gs.successTrail.length !== H ||
+      gs.successTrail[0]?.length !== W) {
+    gs.successTrail = state.makeScalarField(W, H, 0);
+  } else {
+    // zero existing field (cheaper than realloc)
+    for (let y = 0; y < H; y++) {
+      const row = gs.successTrail[y];
+      for (let x = 0; x < W; x++) row[x] = 0;
+    }
+  }
 }
 
 // expose cooldowns for UI
@@ -877,6 +894,14 @@ export function startWave(gs = state.GameState) {
   R.groupLeaderId = null;
   R.spawning = true;
   R.waveActive = true;
+
+  // --- NEW: reset wave-scoped systems (junction graph, herding trail, strays) ---
+  // Rebuild (or build) the junction graph for this wave; also bumps gs.topologyVersion.
+  buildJunctionGraph(gs);
+  // Fresh success-trail so herding consolidates on current wave’s choices.
+  ensureSuccessTrail(gs);
+  // Reset the global stray counter used by the curiosity limiter.
+  gs._straysActive = 0;
 
   return true;
 }
