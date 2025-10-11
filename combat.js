@@ -1174,7 +1174,9 @@ if (T) {
 if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   console.debug('spawn loop gate', { spawning: R.spawning, hasPlan: !!_jsonPlan, groups: _jsonPlan?.groups?.length, now });
+  console.debug('spawning', { groupId: G.groupId, type: nextType, remainingBefore: G.remaining });
 
+// Spawn Loop
   for (let i = 0; i < _jsonPlan.groups.length; i++) {
     const G = _jsonPlan.groups[i];
     if (G.remaining <= 0) continue;
@@ -1198,8 +1200,25 @@ if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
     const nextType =
       Array.isArray(G.__types) && G.__types.length ? G.__types.shift() : G.type;
 
+    console.debug('spawning: before', {
+     wave: gs.wave|0,
+     groupIdx: i,
+     groupId: G.groupId,
+     nextType,
+     remainingBefore: G.remaining,
+     now,
+     nextAt: G.nextAt,
+   });
+
     // Spawn one member of this JSON group
     const e = spawnOneIntoGroup(gs, nextType, G.groupId, R.groupLeaderId);
+
+    console.debug('spawning: after', {
+     enemyId: e?.id,
+     type: e?.type,
+     pushedToEnemies: Array.isArray(gs.enemies) && gs.enemies.includes(e),
+   });
+    
     if (R.groupLeaderId == null) {
       R.groupLeaderId = e.id;
       e.leader = true;
