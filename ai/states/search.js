@@ -7,7 +7,7 @@ export function enter(e, gs) { e.speedMul = 1; }
 
 export function update(e, gs, dt) {
   // Charge if dragon is seen
-  if (canSeeDragon(gs, e.cx | 0, e.cy | 0)) return 'charge';
+  if (canSeeDragon(gs, e.tileX | 0, e.tileY | 0)) return 'charge';
 
   const speed = (e.speedBase ?? e.speed ?? 1) * e.speedMul;
   const tile = gs.tileSize || state.GRID.tile;
