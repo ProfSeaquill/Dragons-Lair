@@ -889,7 +889,15 @@ export function startWave(gs = state.GameState) {
       hasTypesSeq: Array.isArray(g.__types)
     }))
   });
-  
+
+  console.debug('wave plan detail', _jsonPlan?.groups?.map(g => ({
+  type: g.type,
+  remaining: g.remaining,
+  nextAt: g.nextAt,
+  interval: g.interval,
+  hasSeq: Array.isArray(g.__types) && g.__types.length
+})));
+
   R.groupId = 0;
   R.groupLeaderId = null;
   R.spawning = true;
@@ -1044,7 +1052,18 @@ function makePlanDerived(gs) {
   const intervalMs = Math.max(16, Math.round(((gaps?.spawnGap ?? FLAGS.spawnGap) || 0.45) * 1000));
 
   // Build the concrete type list for this wave using JSON tunables
-  const list = buildWaveListFromCurves(gs, wave, W, FLAGS);
+   let list = buildWaveListFromCurves(gs, wave, W, FLAGS);
+
+  // Fallback when no JSON mixCurves are present (or yields empty):
+  if (!Array.isArray(list) || list.length === 0) {
+    const count   = waveCountFor(wave, gs);
+    const weights = selectWeightsForWave(wave, gs);
+    const fb      = expandByWeights(weights, count);
+    list = (Array.isArray(fb) && fb.length > 0)
+      ? fb
+      : new Array(Math.max(1, count)).fill('villager');
+    console.debug('[waves] fallback mix used', { wave, count, weights, len: list.length });
+  }
 
   return {
     startedAt: now,
