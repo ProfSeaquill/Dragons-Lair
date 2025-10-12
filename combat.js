@@ -772,6 +772,14 @@ function dragonBreathTick(gs, dt, ds) {
   // If no target in range, we still put the breath on cooldown (small penalty)
   if (!isFinite(nearestIdx)) {
     fireCooldown = firePeriod * 0.5;
+    // inside dragonBreathTick, right before returning when no target:
+if (!isFinite(nearestIdx)) {
+  // No reachable enemy within ds.breathRange tiles
+  // console.debug('[breath] no target in path/range', { pathLen: path.length, rangeTiles: maxTiles });
+  fireCooldown = firePeriod * 0.5;
+  return;
+}
+
     return;
   }
 
