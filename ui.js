@@ -613,5 +613,91 @@ async function ensureDevPanel() {
 
   panel.appendChild(utilRow);
 
+    // === Maze Presets (A/B/C) ===
+  const presetTitle = document.createElement('div');
+  presetTitle.className = 'pTitle';
+  presetTitle.textContent = 'Maze Presets';
+  panel.appendChild(presetTitle);
+
+  const PRESET_KEY = 'dl.mazePresets';
+  function getPresetMap() {
+    try { return JSON.parse(localStorage.getItem(PRESET_KEY) || '{}'); }
+    catch { return {}; }
+  }
+  function setPresetMap(map) {
+    localStorage.setItem(PRESET_KEY, JSON.stringify(map));
+  }
+  function labelFor(edges) {
+    return Array.isArray(edges) ? `${edges.length} edges` : 'empty';
+  }
+
+  function makePresetRow(slot) {
+    const wrap = document.createElement('div');
+    wrap.style.display = 'grid';
+    wrap.style.gridTemplateColumns = 'auto 1fr auto auto auto';
+    wrap.style.gap = '6px';
+    wrap.style.alignItems = 'center';
+    wrap.style.margin = '6px 0';
+
+    const tag = document.createElement('div');
+    tag.textContent = `Preset ${slot}`;
+    tag.style.opacity = '.8';
+
+    const info = document.createElement('div');
+    info.style.fontSize = '12px';
+    info.style.opacity = '.75';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', () => {
+      const map = getPresetMap();
+      map[slot] = state.serializeMaze(state.GameState);
+      setPresetMap(map);
+      info.textContent = labelFor(map[slot]);
+      tell?.(`Saved maze → Preset ${slot}`);
+    });
+
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'btn';
+    loadBtn.textContent = 'Load';
+    loadBtn.addEventListener('click', () => {
+      const map = getPresetMap();
+      const edges = map[slot];
+      if (!edges) { tell?.(`Preset ${slot} is empty`, '#f88'); return; }
+      state.applyMaze(state.GameState, edges);
+      refreshHUD?.(); // optional; draw will pick it up next tick
+      tell?.(`Loaded Preset ${slot} (${labelFor(edges)})`);
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn';
+    delBtn.textContent = 'Delete';
+    delBtn.addEventListener('click', () => {
+      const map = getPresetMap();
+      if (map[slot]) {
+        delete map[slot];
+        setPresetMap(map);
+      }
+      info.textContent = 'empty';
+      tell?.(`Deleted Preset ${slot}`);
+    });
+
+    // initialize label
+    const initMap = getPresetMap();
+    info.textContent = labelFor(initMap[slot]);
+
+    wrap.appendChild(tag);
+    wrap.appendChild(info);
+    wrap.appendChild(saveBtn);
+    wrap.appendChild(loadBtn);
+    wrap.appendChild(delBtn);
+    return wrap;
+  }
+
+  row(makePresetRow('A'));
+  row(makePresetRow('B'));
+  row(makePresetRow('C'));
+
   rightCol.appendChild(panel);
 }
