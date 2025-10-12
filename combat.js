@@ -872,12 +872,8 @@ export function startWave(gs = state.GameState) {
   const waveIdx0 = Math.max(0, ((gs.wave | 0) - 1));
   const cfgWaves = state.getCfg?.(gs)?.waves;
 
-  // Build _jsonPlan either from config or derive a minimal plan
-  _jsonPlan = (Array.isArray(cfgWaves) &&
-               cfgWaves[waveIdx0] &&
-               Array.isArray(cfgWaves[waveIdx0].groups))
-    ? makePlanFromConfig(gs, cfgWaves[waveIdx0])
-    : makePlanDerived(gs);
+  // Always derive from tuning.json → tuning.waves
+_jsonPlan = makePlanDerived(gs);
 
     // add this:
   console.debug('wave plan', {
