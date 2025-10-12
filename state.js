@@ -17,15 +17,17 @@ export function getCfg(gs) {
   return (gs && gs.cfg) ? gs.cfg : DEFAULT_CFG;
 }
 
-// Merge configuration safely (shallow top-level merge is sufficient here)
 export function applyConfig(gs, cfg) {
+  const rawTuning = cfg?.tuning || {};
+  const tuningObj = rawTuning && rawTuning.tuning ? rawTuning.tuning : rawTuning;
+
   gs.cfg = {
-    tuning:  { ...DEFAULT_CFG.tuning,  ...(cfg?.tuning  || {}) },
+    tuning:  { ...DEFAULT_CFG.tuning,  ...tuningObj },
     enemies: { ...DEFAULT_CFG.enemies, ...(cfg?.enemies || {}) },
     waves:   Array.isArray(cfg?.waves) ? cfg.waves : DEFAULT_CFG.waves,
     upgrades:{ ...DEFAULT_CFG.upgrades, ...(cfg?.upgrades || {}) },
   };
-  // Keep an explicit max for dragon HP in state for easy reads
+
   gs.dragonHPMax = (gs.cfg.tuning.dragon.maxHP | 0) || 100;
 }
 
