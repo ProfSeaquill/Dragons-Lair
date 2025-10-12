@@ -110,6 +110,29 @@ function ensureKinematics(e, gs) {
     // Ensure we always have a valid state (guards against uninitialized enemies)
 export function stepEnemyFSM(gs, e, dt) {
     ensureKinematics(e, gs);
+
+    // --- apply slow to the effective speed ---
+  // Keep e.speedBase as tiles/sec canonical; derive e.speed every frame.
+{
+  const hasSlow = (e.slowLeft > 0) && (typeof e.slowMult === 'number') && isFinite(e.slowMult);
+  const slowMul = hasSlow ? Math.max(0, Math.min(1, e.slowMult)) : 1;
+
+  // If other systems set speedMul (fear, etc.), multiply them in; default 1.
+  const otherMul = (typeof e.speedMul === 'number' && e.speedMul > 0) ? e.speedMul : 1;
+
+  // Effective scalar used by states that read e.speed:
+  e.speed = (typeof e.speedBase === 'number' ? e.speedBase : 2.5) * slowMul * otherMul;
+
+  // --- hard stun: freeze movement/attacks this tick and skip state logic ---
+  if ((e.stunLeft || 0) > 0) {
+    // Zero out any velocity fields some states might use
+    e.vx = 0; e.vy = 0;
+    e.pausedForAttack = true;   // suppress melee timers/advance in attack state
+    e.stateT += dt;             // still advance local timers if you care
+    return;                     // <<< IMPORTANT: do NOT run state logic this frame
+  }
+}
+
   if (!hasState(e.state)) {
     initEnemyForFSM(e);           // sets e.state='search', e.stateT=0, speedMul, memory
   }
