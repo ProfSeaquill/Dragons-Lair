@@ -1,5 +1,5 @@
 import { CFG } from '../config.js';
-import { isDecisionNode, canSeeDragon } from '../perception.js';
+import { isDecisionNode, canAttackDragon, canSeeDragon } from '../perception.js';
 import { stepAlongDirection, followPath } from '../steering.js';
 import * as state from '../../state.js';
 
@@ -7,7 +7,8 @@ export function enter(e, gs) { e.speedMul = 1; }
 
 export function update(e, gs, dt) {
   // Charge if dragon is seen
-  if (canSeeDragon(gs, e.tileX | 0, e.tileY | 0)) return 'charge';
+const tx = (e.tileX|0), ty = (e.tileY|0);
+if (canSeeDragon(gs, tx, ty) && !canAttackDragon(gs, e)) return 'charge';
 
   const speed = (e.speedBase ?? e.speed ?? 1) * e.speedMul;
   const tile = gs.tileSize || state.GRID.tile;
