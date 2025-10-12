@@ -7,7 +7,7 @@
     "telemetry":{ "enabled": false },
 
     "flame": {
-      "baseRangeTiles": 8,
+      "baseRangeTiles": 15,
       "rangePerLevelTiles": 2,
       "dmgPerHit": 14,
       "burnDps": 1,
