@@ -61,6 +61,24 @@ export function raycastLineClear(gs, x0, y0, x1, y1) {
   return true;
 }
 
+export function nearestDragonCellTile(gs, tx, ty) {
+  let best = null, bestD = Infinity;
+  for (const c of state.dragonCells(gs)) {
+    const d = Math.abs(c.x - tx) + Math.abs(c.y - ty);
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  return { target: best, manhattan: bestD };
+}
+
+export function canAttackDragon(gs, e) {
+  const tx = Number.isInteger(e.tileX) ? e.tileX : (e.cx|0);
+  const ty = Number.isInteger(e.tileY) ? e.tileY : (e.cy|0);
+  if (!Number.isInteger(tx) || !Number.isInteger(ty)) return false;
+  const { target, manhattan } = nearestDragonCellTile(gs, tx, ty);
+  const range = (typeof e.range === 'number') ? e.range : 1;
+  return !!target && manhattan <= range;
+}
+
 // True if the unit at (cx,cy) has straight line-of-sight to ANY dragon cell (same row/col), respecting walls.
 export function canSeeDragon(gs, cx, cy, { maxTiles = state.GRID.cols + state.GRID.rows } = {}) {
   if (!Number.isInteger(cx) || !Number.isInteger(cy)) return false;
