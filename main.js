@@ -427,6 +427,11 @@ for (const enemy of gs.enemies) {
       enemy.speed = enemy.speed || 2.5;
     }
     stepEnemyFSM(gs, enemy, dt);
+    if (Number.isInteger(enemy.tileX) && Number.isInteger(enemy.tileY)) {
+  enemy.cx = enemy.tileX;
+  enemy.cy = enemy.tileY;
+}
+
     updateEnemyDistance(enemy, gs);
   }
 }
