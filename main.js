@@ -332,6 +332,11 @@ __lastWaveSaved = (state.GameState.wave | 0) || 0;
     console.debug('tuning.waves present?', !!state.getCfg(state.GameState)?.tuning?.waves,
               state.getCfg(state.GameState)?.tuning?.waves);
     state.applyConfig(state.GameState, cfg);
+    // Console debug for tuning
+const tcfg = state.getCfg(state.GameState)?.tuning;
+console.debug('[cfg] tuning keys =', tcfg ? Object.keys(tcfg) : '(none)');
+console.debug('[cfg] tuning.waves =', tcfg?.waves);
+    
     UI.renderUpgradesPanel?.();
     state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
     UI.refreshHUD?.();
