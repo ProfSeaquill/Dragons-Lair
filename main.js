@@ -329,6 +329,8 @@ __lastWaveSaved = (state.GameState.wave | 0) || 0;
 
   loadConfigFiles()
   .then(cfg => {
+    console.debug('tuning.waves present?', !!state.getCfg(state.GameState)?.tuning?.waves,
+              state.getCfg(state.GameState)?.tuning?.waves);
     state.applyConfig(state.GameState, cfg);
     UI.renderUpgradesPanel?.();
     state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
