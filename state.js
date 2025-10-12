@@ -14,6 +14,7 @@ export const DEFAULT_CFG = {
      mixOptions: { floor: 0.0, ceil: 1.0, unlockFill: 'renorm' },
      cadence: { bossEvery: 10, kingsguardEvery: 5 }
    }
+},
   enemies: {},     // no assumptions; fill via enemies.json
   waves: null,     // not used; real tuning lives in tuning.waves
   upgrades: {}     // fill via upgrades.json
