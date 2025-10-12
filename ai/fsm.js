@@ -122,7 +122,7 @@ export function stepEnemyFSM(gs, e, dt) {
 if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && e.commitTilesLeft <= 0 && !(e.backtrackPath && e.backtrackPath.length)) {
   candidates.push('decision');
 }
-  if (/* lightweight check here; heavy LOS lives in search state update too */ false) candidates.push('charge');
+ 
   if (canAttackDragon(gs, e)) candidates.push('attack');
 // Only consider Charge if we have LOS AND we're not already in melee range.
 if (canSeeDragon(gs, e.tileX|0, e.tileY|0) && !canAttackDragon(gs, e)) {
