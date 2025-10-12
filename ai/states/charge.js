@@ -38,7 +38,7 @@ export function update(e, gs, dt) {
     e._topoOnPath = (gs.topologyVersion | 0);
   }
 
-  const speed = e.speedBase * e.speedMul;
+  const speed = (typeof e.speed === 'number' ? e.speed : e.speedBase);
   followPath(e, dt, gs.tileSize || state.GRID.tile, speed);
 
   // If path ran out, fall back to a decision point
