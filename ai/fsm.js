@@ -113,25 +113,41 @@ export function stepEnemyFSM(gs, e, dt) {
 
     // --- apply slow to the effective speed ---
   // Keep e.speedBase as tiles/sec canonical; derive e.speed every frame.
+// fsm.js — inside stepEnemyFSM, right after ensureKinematics(...)
 {
-  const hasSlow = (e.slowLeft > 0) && (typeof e.slowMult === 'number') && isFinite(e.slowMult);
+  const hasSlow = (e.slowLeft > 0) && Number.isFinite(e.slowMult);
   const slowMul = hasSlow ? Math.max(0, Math.min(1, e.slowMult)) : 1;
-
-  // If other systems set speedMul (fear, etc.), multiply them in; default 1.
   const otherMul = (typeof e.speedMul === 'number' && e.speedMul > 0) ? e.speedMul : 1;
 
-  // Effective scalar used by states that read e.speed:
-  e.speed = (typeof e.speedBase === 'number' ? e.speedBase : 2.5) * slowMul * otherMul;
+  // effective tiles/sec for this frame
+  const baseTilesPerSec = (typeof e.speedBase === 'number') ? e.speedBase : 2.5;
+  const effTilesPerSec  = baseTilesPerSec * slowMul * otherMul;
+  e.speed = effTilesPerSec;
 
-  // --- hard stun: freeze movement/attacks this tick and skip state logic ---
+  // also provide a px/sec for any states using pixel integrators
+  const tsize = gs.tileSize || state.GRID.tile || 32;
+  e.pxPerSec = effTilesPerSec * tsize;
+
+  // --- hard stun: freeze & decrement locally, then bail this frame ---
   if ((e.stunLeft || 0) > 0) {
-    // Zero out any velocity fields some states might use
     e.vx = 0; e.vy = 0;
-    e.pausedForAttack = true;   // suppress melee timers/advance in attack state
-    e.stateT += dt;             // still advance local timers if you care
-    return;                     // <<< IMPORTANT: do NOT run state logic this frame
+    e.pausedForAttack = true;
+
+    // ↓ ensure stun actually counts down even when we skip state logic
+    e.stunLeft = Math.max(0, (e.stunLeft || 0) - dt);
+
+    // optional: also tick slow timers here so durations feel consistent
+    if (e.slowLeft > 0) e.slowLeft = Math.max(0, e.slowLeft - dt);
+
+    return; // do not run state logic while stunned
+  }
+
+  // if slow expired, clean up multiplier
+  if (e.slowLeft <= 0 && typeof e.slowMult === 'number') {
+    e.slowMult = 1;
   }
 }
+
 
   if (!hasState(e.state)) {
     initEnemyForFSM(e);           // sets e.state='search', e.stateT=0, speedMul, memory
