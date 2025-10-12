@@ -19,8 +19,6 @@ export function getCfg(gs) {
 
 // Merge configuration safely (shallow top-level merge is sufficient here)
 export function applyConfig(gs, cfg) {
-  const rawTuning = cfg?.tuning || {};
-  const tuningObj = rawTuning.tuning ? rawTuning.tuning : rawTuning; // <-- unwrap if needed
   gs.cfg = {
     tuning:  { ...DEFAULT_CFG.tuning,  ...(cfg?.tuning  || {}) },
     enemies: { ...DEFAULT_CFG.enemies, ...(cfg?.enemies || {}) },
