@@ -350,9 +350,18 @@ const FLAGS = {
   groupMax: 10,
 };
 // -------- Wave tuning helpers (reads tuning.json) --------
+// -------- Wave tuning helpers (reads tuning.json) --------
 function TW(gs = state.GameState) {
-  return state.getCfg?.(gs)?.tuning?.waves || null;
+  const cfg = state.getCfg?.(gs) || {};
+  // Try typical shapes, in order:
+  return (
+    cfg.tuning?.waves ??            // normal: { cfg: { tuning: { waves: {...} } } }
+    cfg.tuning?.tuning?.waves ??    // defensive: { tuning: { tuning: { waves } } }
+    cfg.waves ??                    // last resort if someone placed it top-level
+    null
+  );
 }
+
 const _val = (v, d) => (v == null ? d : v);
 
 function tunedSpawnParams(gs = state.GameState) {
