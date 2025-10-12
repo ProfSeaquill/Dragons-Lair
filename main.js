@@ -332,6 +332,14 @@ __lastWaveSaved = (state.GameState.wave | 0) || 0;
     console.debug('tuning.waves present?', !!state.getCfg(state.GameState)?.tuning?.waves,
               state.getCfg(state.GameState)?.tuning?.waves);
     state.applyConfig(state.GameState, cfg);
+console.log('[A after applyConfig]', {
+  hasCfg: !!state.getCfg(state.GameState),
+  hasTuning: !!state.getCfg(state.GameState)?.tuning,
+  tuningKeys: Object.keys(state.getCfg(state.GameState)?.tuning || {}),
+  hasWaves: !!state.getCfg(state.GameState)?.tuning?.waves,
+  wavesKeys: state.getCfg(state.GameState)?.tuning?.waves && Object.keys(state.getCfg(state.GameState).tuning.waves)
+});
+
     // Console debug for tuning
 const tcfg = state.getCfg(state.GameState)?.tuning;
 console.debug('[cfg] tuning keys =', tcfg ? Object.keys(tcfg) : '(none)');
@@ -350,6 +358,7 @@ console.debug('[cfg] tuning.waves =', tcfg?.waves);
 }
 
 function startWave() {
+  console.log('[B startWave guard]', state.getCfg(state.GameState)?.tuning?.waves);
   const gs = state.GameState;
   gs.__torchWaveId = (gs.__torchWaveId || 0) + 1;
   gs.__firstTorchGiven = false;
