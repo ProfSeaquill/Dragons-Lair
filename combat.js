@@ -1014,34 +1014,36 @@ function _cadenceSpecials(wave, cadence, FLAGS) {
 // Main builder: reads getCfg(gs).waves { count, mixCurves, mixOptions, cadence }
 function buildWaveListFromCurves(gs, wave, W, FLAGS) {
   const C = W?.count || {};
-  // reuse your existing approachCap(base, cap, wave, k) if it exists; else inline the math
   const baseCount = Math.round(
     Math.max(1, typeof approachCap === 'function'
       ? approachCap(C.base ?? 7, C.cap ?? 300, wave, C.k ?? 0.07)
-      : ( // fallback math
-        (() => {
+      : (() => {
           const w = Math.max(0, (wave|0) - 1);
           const base = C.base ?? 7, cap = C.cap ?? 300, k = C.k ?? 0.07;
           return cap - (cap - base) * Math.exp(-k * w);
         })()
-      )
     )
   );
 
   const specials = _cadenceSpecials(wave, W?.cadence, FLAGS);
   const fillerN  = Math.max(0, baseCount - specials.length);
 
-  const shares = _computeSharesForWave(wave, W?.mixCurves || {}, W?.mixOptions || {});
+  // If there’s no filler this wave, return just specials (could be 0… that’s OK)
+  if (fillerN === 0) return specials.slice();
+
+  // Compute shares; if everything is zero, force a villager share
+  let shares = _computeSharesForWave(wave, W?.mixCurves || {}, W?.mixOptions || {});
+  if (!shares || shares.size === 0) {
+    shares = new Map([['villager', 1]]);
+  }
+
   const alloc  = _apportion(fillerN, shares);
-
-  const list = specials.slice();
+  const list   = specials.slice();
   for (const [type, n] of alloc.entries()) for (let i = 0; i < n; i++) list.push(type);
-
-  // (optional) shuffle indices >=1 to keep the leader slot deterministic
-  // for (let i = 1; i < list.length; i++) { const j = 1 + ((Math.random() * (list.length-1))|0); [list[i], list[j]] = [list[j], list[i]]; }
 
   return list;
 }
+
 
 // progressWave = max(0, w - minWave + 1)
 // share_raw(w) = cap - (cap - base) * e^(-k * progressWave)
