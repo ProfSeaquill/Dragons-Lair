@@ -25,9 +25,6 @@ async function loadConfigFiles() {
     fetch('./enemies.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
     fetch('./upgrades.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
   ]);
- 
-  // If the file is { "tuning": { ... } }, unwrap to the inner object
-  const tuning = tuningRaw?.tuning ?? tuningRaw ?? null;
   
   // Keep the same shape; just omit waves entirely
   return { tuning, enemies, waves: null, upgrades };
