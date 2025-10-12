@@ -5,7 +5,9 @@ import * as S_charge from './states/charge.js';
 import * as S_fear from './states/fear.js';
 import { initMemory } from './memory.js';
 import * as state from '../state.js';
-import { isDecisionNode } from './perception.js';
+import * as S_attack from './states/attack.js';
+import { isDecisionNode, canAttackDragon } from './perception.js';
+
 
 
 // --- Safety helpers ---
@@ -16,6 +18,7 @@ const STATES = {
   search: S_search,
   decision: S_decision,
   charge: S_charge,
+  attack: S_attack,
   fear: S_fear,
 };
 
@@ -121,6 +124,7 @@ if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && e.commitTilesLeft <= 0 && !(
   candidates.push('decision');
 }
   if (/* lightweight check here; heavy LOS lives in search state update too */ false) candidates.push('charge');
+  if (canAttackDragon(gs, e)) candidates.push('attack');
 
   // Force Decision > Fear
   candidates.sort((a, b) => priOf(pri, b) - priOf(pri, a));
