@@ -1050,16 +1050,28 @@ function buildWaveListFromCurves(gs, wave, W, FLAGS) {
 function makePlanDerived(gs) {
   const now  = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   const wave = (gs.wave | 0) || 1;
-  const W = state.getCfg?.(gs)?.tuning?.waves ?? {};
 
-  // Your existing tunable gaps → spawn interval
+  // IMPORTANT: use TW(gs) so we tolerate any config shape
+  const W = (typeof TW === 'function' ? TW(gs) : (state.getCfg?.(gs)?.tuning?.waves)) || {};
+
+  // spawn interval from tuning (or FLAGS)
   const gaps = (typeof tunedSpawnParams === 'function') ? tunedSpawnParams(gs) : null;
   const intervalMs = Math.max(16, Math.round(((gaps?.spawnGap ?? FLAGS.spawnGap) || 0.45) * 1000));
 
-  // Build the concrete type list for this wave using JSON tunables
-   let list = buildWaveListFromCurves(gs, wave, W, FLAGS);
+  // Build list from curves
+  let list = buildWaveListFromCurves(gs, wave, W, FLAGS);
 
-  // Fallback when no JSON mixCurves are present (or yields empty):
+  console.debug('[waves] derived raw', {
+    wave,
+    W_present: !!W,
+    count_cfg: W?.count,
+    mixCurves_keys: W?.mixCurves ? Object.keys(W.mixCurves) : '(none)',
+    mixOptions: W?.mixOptions,
+    cadence: W?.cadence,
+    list_len: Array.isArray(list) ? list.length : 'not-array'
+  });
+
+  // If the curve build failed or returned empty, fall back
   if (!Array.isArray(list) || list.length === 0) {
     const count   = waveCountFor(wave, gs);
     const weights = selectWeightsForWave(wave, gs);
@@ -1073,7 +1085,7 @@ function makePlanDerived(gs) {
   return {
     startedAt: now,
     groups: [{
-      type: '__mixed__',            // marker: draw each spawn from __types
+      type: '__mixed__',
       remaining: list.length,
       interval: intervalMs,
       nextAt: now,
@@ -1082,7 +1094,6 @@ function makePlanDerived(gs) {
     }]
   };
 }
-
 
 
 function clampInt(v, lo, hi) {
