@@ -1299,6 +1299,55 @@ if (bombAccum >= 1.0) {
   }
 }
 
+   // --- FX tick (fire mouth overlay + traveling flames + splash) ---
+{
+  // 1) Mouth fire overlay timer
+  const fx = gs.dragonFX;
+  if (fx && fx.attacking) {
+    fx.t = (fx.t || 0) + dt;
+    if (fx.t >= (fx.dur || 0.25)) {
+      fx.attacking = false;
+      fx.t = 0;
+    }
+  }
+
+  // 2) Effects array
+  for (let i = gs.effects.length - 1; i >= 0; i--) {
+    const efx = gs.effects[i];
+    efx.t = (efx.t || 0) + dt;
+
+    if (efx.type === 'flameWave') {
+      const p = efx.path || [];
+      const tsize = state.GRID.tile;
+
+      // Advance head along path by tilesPerSec
+      const tilesPerSec = Math.max(1, efx.tilesPerSec || 10);
+      const advance = tilesPerSec * dt;
+      // accumulate fractional progress in efx._acc
+      efx._acc = (efx._acc || 0) + advance;
+      while (efx._acc >= 1 && efx.headIdx < p.length - 1) {
+        efx.headIdx++;
+        efx._acc -= 1;
+
+        // Optional: annotate segment orientation for draw fallback
+        const prev = p[efx.headIdx - 1], cur = p[efx.headIdx];
+        efx._dir = (cur.x !== prev.x) ? 'h' : 'v';
+        if (prev) prev.dir = efx._dir; // so renderer can read seg.dir
+      }
+      if (efx.headIdx >= p.length - 1 || efx.t >= (efx.dur || 0.8)) {
+        gs.effects.splice(i, 1); // done
+        continue;
+      }
+    }
+
+    if (efx.type === 'fireSplash') {
+      if (efx.t >= (efx.dur || 0.35)) { gs.effects.splice(i, 1); continue; }
+    }
+
+    // bombs are handled elsewhere; ignore here
+  }
+}
+
   // 2) Enemy status (engineer tunneling, burn DoT, deaths, contact/attack)
   const exitCx = state.EXIT.x, exitCy = state.EXIT.y;
 
