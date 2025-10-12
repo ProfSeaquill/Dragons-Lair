@@ -10,7 +10,7 @@ export function update(e, gs, dt) {
 const tx = (e.tileX|0), ty = (e.tileY|0);
 if (canSeeDragon(gs, tx, ty) && !canAttackDragon(gs, e)) return 'charge';
 
-  const speed = (e.speedBase ?? e.speed ?? 1) * e.speedMul;
+  const speed = (typeof e.speed === 'number' ? e.speed : e.speedBase);
   const tile = gs.tileSize || state.GRID.tile;
 
   // 1) Consume any forward planned edge path (from decision)
