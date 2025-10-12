@@ -784,8 +784,9 @@ for (let i = 1; i < path.length; i++) {
   let nearestIdx = Infinity;
   for (const e of gs.enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
-    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    const k = key(e.cx, e.cy);
+    const et = enemyTile(e);
+ if (!Number.isInteger(et.x) || !Number.isInteger(et.y)) continue;
+ const k = key(et.x, et.y);
     if (!indexByKey.has(k)) continue;
     const idx = indexByKey.get(k);
     if (idx < nearestIdx) nearestIdx = idx;
@@ -807,8 +808,8 @@ for (let i = 1; i < path.length; i++) {
   let heroBlockIdx = Infinity;
   for (const e of gs.enemies) {
     if (e.type !== 'hero') continue;
-    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    const idx = indexByKey.get(key(e.cx, e.cy));
+ const ht = enemyTile(e);
+ const idx = indexByKey.get(key(ht.x, ht.y));
     if (idx !== undefined && idx < heroBlockIdx) heroBlockIdx = idx;
   }
 
