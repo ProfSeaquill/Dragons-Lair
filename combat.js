@@ -747,6 +747,13 @@ function dragonBreathTick(gs, dt, ds) {
   // --- Build path from EXIT up to range (no walls) ---
   const maxTiles = Math.max(1, Math.round(ds.breathRange / state.GRID.tile));
   const path = breathPathFromExit(gs, maxTiles);
+ 
+for (let i = 1; i < path.length; i++) {
+  const a = path[i-1], b = path[i];
+  const horiz = (a.x !== b.x);
+  a.dir = horiz ? 'h' : 'v';
+}
+
   if (!path || path.length === 0) {
     // nothing to do, reset cooldown so we won't retry every frame
     fireCooldown = firePeriod * 0.25;
