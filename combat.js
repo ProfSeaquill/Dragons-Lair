@@ -51,6 +51,20 @@ e.speedMul = 1;
   if (initFn) initFn(e);
   return e;
 }
+
+function enemyTile(e) {
+  // Prefer live tile indices; fall back to legacy cx/cy; last resort: derive from pixels.
+  if (Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
+    return { x: e.tileX, y: e.tileY };
+  }
+  if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
+    return { x: e.cx, y: e.cy };
+  }
+  const t = state.GRID.tile || 32;
+  const x = Math.floor((e.x || 0) / t), y = Math.floor((e.y || 0) / t);
+  return { x, y };
+}
+
 function releaseEnemy(e) {
   if (!e || !e.type) return;
   let pool = ENEMY_POOL.get(e.type);
@@ -102,6 +116,7 @@ function ensureSuccessTrail(gs) {
     }
   }
 }
+
 
 // expose cooldowns for UI
 export function getCooldowns() {
