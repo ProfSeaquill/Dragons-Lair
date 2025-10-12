@@ -771,17 +771,14 @@ function dragonBreathTick(gs, dt, ds) {
 
   // If no target in range, we still put the breath on cooldown (small penalty)
   if (!isFinite(nearestIdx)) {
-    fireCooldown = firePeriod * 0.5;
-    // inside dragonBreathTick, right before returning when no target:
-if (!isFinite(nearestIdx)) {
-  // No reachable enemy within ds.breathRange tiles
-  // console.debug('[breath] no target in path/range', { pathLen: path.length, rangeTiles: maxTiles });
+  console.debug('[breath] no target in path/range', {
+    pathLen: path.length,
+    rangeTiles: Math.round(ds.breathRange / state.GRID.tile),
+    enemyTilesOnPath: gs.enemies?.map(e => `${e.cx},${e.cy}`).filter(k => k && indexByKey.has(k)).length || 0
+  });
   fireCooldown = firePeriod * 0.5;
   return;
 }
-
-    return;
-  }
 
   // ---- Shield block: if a Hero sits on the path, stop visuals (and direct dmg) there
   // Find the FIRST hero index along the path (closest to dragon)
