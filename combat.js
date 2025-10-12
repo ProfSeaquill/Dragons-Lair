@@ -349,18 +349,22 @@ const FLAGS = {
   groupMin: 6,
   groupMax: 10,
 };
-// -------- Wave tuning helpers (reads tuning.json) --------
+
 // -------- Wave tuning helpers (reads tuning.json) --------
 function TW(gs = state.GameState) {
   const cfg = state.getCfg?.(gs) || {};
-  // Try typical shapes, in order:
-  return (
-    cfg.tuning?.waves ??            // normal: { cfg: { tuning: { waves: {...} } } }
-    cfg.tuning?.tuning?.waves ??    // defensive: { tuning: { tuning: { waves } } }
-    cfg.waves ??                    // last resort if someone placed it top-level
-    null
-  );
+  const tW  = cfg.tuning && cfg.tuning.waves;
+
+  // Only accept a *proper object* for tuning.waves (must not be an array)
+  if (tW && typeof tW === 'object' && !Array.isArray(tW)) return tW;
+
+  // Do NOT fall back to top-level cfg.waves if it's an array placeholder
+  const topW = cfg.waves;
+  if (topW && typeof topW === 'object' && !Array.isArray(topW)) return topW;
+
+  return null; // force derived builder to log and use its internal fallback
 }
+
 
 const _val = (v, d) => (v == null ? d : v);
 
@@ -1056,6 +1060,18 @@ function makePlanDerived(gs) {
   const wave = (gs.wave | 0) || 1;
 
   console.log('[D makePlanDerived pre]', state.getCfg(gs)?.tuning, state.getCfg(gs)?.tuning?.waves);
+
+  console.log('[D2 ids]', { gsIsGameState: gs === state.GameState, hasGsCfg: !!gs.cfg, hasGameCfg: !!state.GameState.cfg });
+
+console.log('[D3 cfg objects equal]', state.getCfg(gs) === state.getCfg(state.GameState));
+
+console.log('[D4 shapes]', {
+  tW_type: typeof state.getCfg(gs)?.tuning?.waves,
+  tW_isArray: Array.isArray(state.getCfg(gs)?.tuning?.waves),
+  topW_type: typeof state.getCfg(gs)?.waves,
+  topW_isArray: Array.isArray(state.getCfg(gs)?.waves)
+});
+
 
   // IMPORTANT: use TW(gs) so we tolerate any config shape
   const W = (typeof TW === 'function' ? TW(gs) : (state.getCfg?.(gs)?.tuning?.waves)) || {};
