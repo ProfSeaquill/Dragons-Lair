@@ -3,13 +3,19 @@
 // ---- Config defaults (safe, minimal, matches your current game) ----
 export const DEFAULT_CFG = {
   tuning: {
-    abilities: { gust: 30, roar: 60, stomp: 30 },   // keep your current timers
+    abilities: { gust: 15, roar: 25, stomp: 20 },   // keep your current timers
     dragon:   { maxHP: 100, healCostBone: 1 },      // 1 bone per HP
     boss:     { hpMultiplier: 10, armor: 2 },       // as-used in your scaling
     economy:  { wallCostBones: 1, goldBase: 5 }     // WALLS: 1 bone by default
   },
+  waves: {
+     count: { base: 5, cap: 200, k: 0.001 },
+     mixCurves: { villager: { minWave: 1, base: 1, cap: 1, k: 0 } },
+     mixOptions: { floor: 0.0, ceil: 1.0, unlockFill: 'renorm' },
+     cadence: { bossEvery: 10, kingsguardEvery: 5 }
+   }
   enemies: {},     // no assumptions; fill via enemies.json
-  waves: [],       // fill via waves.json
+  waves: null,     // not used; real tuning lives in tuning.waves
   upgrades: {}     // fill via upgrades.json
 };
 
