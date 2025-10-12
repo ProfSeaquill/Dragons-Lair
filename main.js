@@ -20,14 +20,15 @@ let __lastWaveSaved = 0;
 
 
 async function loadConfigFiles() {
-  const [tuning, enemies, waves, upgrades] = await Promise.all([
-    fetch('./tuning.json').then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch('./enemies.json').then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch('./waves.json').then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch('./upgrades.json').then(r => r.ok ? r.json() : null).catch(() => null),
+  const [tuning, enemies, upgrades] = await Promise.all([
+    fetch('./tuning.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
+    fetch('./enemies.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
+    fetch('./upgrades.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
   ]);
-  return { tuning, enemies, waves, upgrades };
+  // Keep the same shape; just omit waves entirely
+  return { tuning, enemies, waves: null, upgrades };
 }
+
 
 // pick the per-frame update function (support update | tick | step)
 const combatUpdate = (typeof combat.update === 'function')
