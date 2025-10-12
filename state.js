@@ -398,6 +398,38 @@ export function setEdgeWall(gs, x, y, side, hasWall) {
   return true;
 }
 
+// --- Maze presets: serialize/apply just the walls (no gold/wave changes) ---
+export function serializeMaze(gs) {
+  gs = __useGS(gs);
+  const edges = [];
+  // Serialize only "N" and "W" to avoid double-counting shared edges.
+  for (const [k, rec] of gs.cellWalls.entries()) {
+    const [xStr, yStr] = k.split(',');
+    const x = xStr|0, y = yStr|0;
+    if (rec.N) edges.push([x, y, 'N']);
+    if (rec.W) edges.push([x, y, 'W']);
+  }
+  return edges; // compact: array of [x,y,side]
+}
+
+export function clearMaze(gs) {
+  gs = __useGS(gs);
+  gs.cellWalls.clear();
+  gs.topologyVersion = (gs.topologyVersion || 0) + 1;
+}
+
+export function applyMaze(gs, edges) {
+  gs = __useGS(gs);
+  clearMaze(gs);
+  if (Array.isArray(edges)) {
+    for (let i = 0; i < edges.length; i++) {
+      const [x, y, side] = edges[i];
+      setEdgeWall(gs, x|0, y|0, side, true);
+    }
+  }
+  gs.topologyVersion = (gs.topologyVersion || 0) + 1;
+}
+
 // ===== Dragon Stats with upgrades applied =====
 export function getDragonStats(gs) {
   const u = gs?.upgrades || {};
