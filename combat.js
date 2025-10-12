@@ -1326,54 +1326,6 @@ if (bombAccum >= 1.0) {
     if (e.slowLeft > 0) e.slowLeft -= dt;
     if (e.roarBuffLeft > 0) e.roarBuffLeft -= dt;
 
-    // --- NEW: attack-over-time logic (pause movement + tick attacks) ---
-    // If enemy is within range (manhattan) of nearest dragon cell, attack.
-   // --- attack-over-time logic (no per-attack round timer; pure DPS) ---
-if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
-  const nearest = nearestDragonCell(gs, e.cx, e.cy);
-  if (nearest) {
-    const distMan = Math.abs(nearest.x - e.cx) + Math.abs(nearest.y - e.cy);
-    const range = (typeof e.range === 'number') ? e.range : 1;
-
-    if (distMan <= range) {
-      // In range: pause movement and apply continuous DPS
-      e.pausedForAttack = true;
-      e.isAttacking = true;
-      e.commitDir = null;
-      e.commitSteps = 0;
-      e.vx = 0; e.vy = 0;   // harmless if undefined
-
-      const rate = Math.max(0, e.rate || 0);             // attacks/sec
-const perHit = (typeof e.damage === 'number') ? e.damage : 0;
-const dps = rate * perHit;
-
-
-      // deal damage continuously (no ticking/round timer)
-      if (dps > 0 && gs.dragonHP > 0) {
-        gs.dragonHP = Math.max(0, gs.dragonHP - dps * dt);
-        // touch the healthbar visibility briefly
-        markHit(e, 0.0001);
-      }
-
-    } else {
-      // Out of range: resume movement
-      e.pausedForAttack = false;
-      e.isAttacking = false;
-
-      // Near the lair but not yet adjacent? Bias straight into it.
-     if (distMan <= 2) {
-       const dx = nearest.x - e.cx;
-       const dy = nearest.y - e.cy;
-       const dir = (Math.abs(dx) >= Math.abs(dy))
-         ? (dx > 0 ? 'E' : 'W')
-         : (dy > 0 ? 'S' : 'N');
-       e.commitDir = dir;
-       e.commitSteps = Math.max(e.commitSteps | 0, 2);
-     }
-    }
-  }
-}
-
     // Death -> rewards (DoT, projectiles, or other effects may have killed them)
     if (e.hp <= 0) {
   const eg = (typeof e.gold  === 'number') ? (e.gold  | 0) : 5;
