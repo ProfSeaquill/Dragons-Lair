@@ -1404,12 +1404,6 @@ if (bombAccum >= 1.0) {
       }
     }
 
-    // Ability cooldowns tick
-    clawCooldown  = Math.max(0, clawCooldown  - dt);
-    gustCooldown  = Math.max(0, gustCooldown  - dt);
-    roarCooldown  = Math.max(0, roarCooldown  - dt);
-    stompCooldown = Math.max(0, stompCooldown - dt);
-
     // Burn DoT (burn always ticks; shield only blocks direct fire)
     if (e.burnLeft > 0 && e.burnDps > 0) {
       const tick = Math.min(dt, e.burnLeft);
@@ -1435,6 +1429,12 @@ if (bombAccum >= 1.0) {
 }
 }
 
+    // once per frame (not in any enemy loop)
+    clawCooldown  = Math.max(0, clawCooldown  - dt);
+    gustCooldown  = Math.max(0, gustCooldown  - dt);
+    roarCooldown  = Math.max(0, roarCooldown  - dt);
+    stompCooldown = Math.max(0, stompCooldown - dt);
+   
   // --- Claw: high dmg melee, auto when any adjacent enemy exists (gated by CD)
   {
     const cs = state.getClawStatsTuned(gs);
