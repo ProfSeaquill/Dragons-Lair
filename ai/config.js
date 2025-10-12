@@ -25,5 +25,5 @@ export const CFG = {
   LOS_MAX_TILES: 8,
 
   // Priority (higher beats lower)
-  PRI: { search:0, fear:1, decision:2, charge:3 },
+  PRI: { search:0, fear:1, decision:2, attack:3, charge:4 },
 };
