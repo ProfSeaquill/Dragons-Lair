@@ -870,6 +870,8 @@ function markHit(e, amount = 0) {
 
 
 export function startWave(gs = state.GameState) {
+  console.log('[C combat.startWave]', state.getCfg(state.GameState)?.tuning?.waves);
+
   _warnedTypesThisWave = new Set();
 
   if (R.waveActive || R.spawning) return false; // simple re-entrancy guard
@@ -1053,8 +1055,12 @@ function makePlanDerived(gs) {
   const now  = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   const wave = (gs.wave | 0) || 1;
 
+  console.log('[D makePlanDerived pre]', state.getCfg(gs)?.tuning, state.getCfg(gs)?.tuning?.waves);
+
   // IMPORTANT: use TW(gs) so we tolerate any config shape
   const W = (typeof TW === 'function' ? TW(gs) : (state.getCfg?.(gs)?.tuning?.waves)) || {};
+
+  console.log('[E makePlanDerived W]', W);
 
   // spawn interval from tuning (or FLAGS)
   const gaps = (typeof tunedSpawnParams === 'function') ? tunedSpawnParams(gs) : null;
