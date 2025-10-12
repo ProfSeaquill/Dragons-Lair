@@ -6,8 +6,7 @@ import * as S_fear from './states/fear.js';
 import { initMemory } from './memory.js';
 import * as state from '../state.js';
 import * as S_attack from './states/attack.js';
-import { isDecisionNode, canAttackDragon } from './perception.js';
-
+import { isDecisionNode, canSeeDragon, canAttackDragon } from './perception.js';
 
 
 // --- Safety helpers ---
@@ -125,7 +124,10 @@ if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && e.commitTilesLeft <= 0 && !(
 }
   if (/* lightweight check here; heavy LOS lives in search state update too */ false) candidates.push('charge');
   if (canAttackDragon(gs, e)) candidates.push('attack');
-
+// Only consider Charge if we have LOS AND we're not already in melee range.
+if (canSeeDragon(gs, e.tileX|0, e.tileY|0) && !canAttackDragon(gs, e)) {
+  candidates.push('charge');
+}
   // Force Decision > Fear
   candidates.sort((a, b) => priOf(pri, b) - priOf(pri, a));
   const top = candidates[0] || e.state || 'search';
