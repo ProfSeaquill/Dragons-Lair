@@ -213,6 +213,14 @@ export function getClawStatsTuned(gs) {
   };
 }
 
+// Local read helpers (avoid importing upgrades.js)
+function abilityLvl(gs, key) {
+  return Math.max(0, (gs?.upgrades?.[key] | 0));
+}
+function statLvl(gs, key) {           // if you also reference statLvl here
+  return Math.max(0, (gs?.upgrades?.[key] | 0));
+}
+
 export function getGustStatsTuned(gs) {
   const lv = abilityLvl(gs, 'gust');
   const base = { pushTiles: 2, cd: 30.0 };
