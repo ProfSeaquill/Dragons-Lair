@@ -227,6 +227,14 @@ function wingGustPush(gs, tiles) {
   }
 }
 
+function dragonMouthCell(gs) {
+  // choose the westernmost tile of the dragon footprint
+  const cells = state.dragonCells(gs);
+  if (!cells || !cells.length) return { x: state.EXIT.x, y: state.EXIT.y };
+  let best = cells[0];
+  for (const c of cells) if (c.x < best.x) best = c;
+  return best;
+}
 
 function dragonAnchor(gs) {
   const cells = state.dragonCells(gs);
@@ -720,6 +728,7 @@ let trailDecayAccum = 0;
 let bombAccum = 0;
 
 function breathPathFromExit(gs, maxTiles) {
+  const m = dragonMouthCell(gs);
   const start = { x: state.EXIT.x, y: state.EXIT.y };
   const q = [start];
   const seen = new Set([state.tileKey(start.x, start.y)]);
