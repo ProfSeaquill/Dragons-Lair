@@ -840,11 +840,31 @@ function dragonBreathTick(gs, dt, ds) {
     a.dir = (a.x !== b.x) ? 'h' : 'v';
   }
 
+  // Ensure the last node also has a dir (copy previous) to avoid renderer defaulting vertical.
+  if (fullPath.length >= 2 && !fullPath[fullPath.length - 1].dir) {
+    fullPath[fullPath.length - 1].dir = fullPath[fullPath.length - 2].dir;
+  }
+
+  // --- Hero shield: only stop if a hero is actually ON THIS corridor
+  const tkey = (x,y) => state.tileKey(x,y);
+  const heroTiles = new Set(
+    (gs.enemies || [])
+      .filter(e => e.type === 'hero')
+      .map(e => {
+        const et = enemyTile(e);
+        return tkey(et.x, et.y);
+      })
+  );
+  const heroIdxOnPath = fullPath.findIndex(p => heroTiles.has(tkey(p.x, p.y)));
+
   // Determine how far the breath travels this shot:
   //  - cannot exceed range
   //  - if a hero is closer, stop at the hero tile (no direct past it)
   const farthestIdxInRange = Math.min(fullPath.length - 1, maxTiles - 1);
-  const stopIdx = Math.min(farthestIdxInRange, heroBlockIdx); // if heroBlockIdx is Infinity, this is farthestIdxInRange
+  const stopIdx = Math.min(
+    farthestIdxInRange,
+    (heroIdxOnPath >= 0 ? heroIdxOnPath : Infinity)
+  );
 
   const travelPath = fullPath.slice(0, stopIdx + 1);
 
@@ -873,7 +893,6 @@ function dragonBreathTick(gs, dt, ds) {
   }
 
   // --- Damage: build index for fast inclusion along the corridor
-  const tkey = (x,y) => state.tileKey(x,y);
   const idxByKey = new Map(travelPath.map((p,i)=>[tkey(p.x,p.y), i]));
   const lastIdx = travelPath.length - 1; // we don't apply anything beyond stopIdx
 
@@ -883,11 +902,13 @@ function dragonBreathTick(gs, dt, ds) {
     const idx = idxByKey.get(tkey(et.x, et.y));
     if (idx == null || idx > lastIdx) continue;
 
-    const isHero = (e.type === 'hero');
-    const isHeroTile = idx === heroBlockIdx;
-
-    // Direct damage is blocked on hero tiles; burn still applies there.
-    const canDirect = !isHero && !(isFinite(heroBlockIdx) && idx > heroBlockIdx);
+   
+     const isHero = (e.type === 'hero');
+    // Direct damage is blocked on and beyond the hero stop tile on THIS corridor.
+    const heroStopIdx = heroIdxOnPath; // -1 means "no hero on this path"
+    const canDirect = !isHero && !(
+      heroStopIdx >= 0 && idx >= heroStopIdx
+    );
     if (canDirect) {
       e.hp -= ds.breathPower;
       markHit(e, ds.breathPower);
