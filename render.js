@@ -422,7 +422,7 @@ function drawDragonAndMouthFire(ctx, gs) {
     const progress = Math.min(1, fx.t / Math.max(0.001, fx.dur));
     const frame = Math.floor(progress * (FIRE_FRAMES - 1));
 
-    const mouthX = p.x + Math.round(state.GRID.tile * 0.6);
+    const mouthX = p.x - Math.round(state.GRID.tile * 0.6);
     const mouthY = p.y - Math.round(state.GRID.tile * 0.15);
 
     ctx.drawImage(
