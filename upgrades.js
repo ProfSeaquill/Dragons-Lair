@@ -198,18 +198,18 @@ function buildUpgradeRows(gs) {
 
 
   const abilityRows = ABILITY_UPGRADES.map(def => {
-    const level = abilityLvl(gs, def.key);
-    return {
-      key: def.key,
-      title: def.title,
-      level,
-      cost: costFor(def, level),
-      desc: abilityLive[def.key] || '',
-      max: undefined,
-      isMax: false,
-      type: def.type, // 'ability'
-    };
-  });
+  const level = abilityLvl(gs, def.key);
+  return {
+    key: def.key,
+    title: def.title,
+    level,
+    cost: abilityCostFor(gs, def.key, level),  // ← asymptotic cost
+    desc: abilityLive[def.key] || '',
+    max: undefined,
+    isMax: false,
+    type: def.type,
+  };
+});
 
   return [...statRows, ...abilityRows];
 }
@@ -289,43 +289,18 @@ export const ABILITY_UPGRADES = [
 
 /** Live descriptions for abilities (matches combat/state scaling we discussed) */
 function buildAbilityDesc(gs) {
-  // Formulas mirror the earlier recommendations; tweak here if you change them in combat/state.
-  const lv = (k) => abilityLvl(gs, k);
-
-  const clawLv  = lv('claw');
-  const gustLv  = lv('gust');
-  const roarLv  = lv('roar');
-  const stompLv = lv('stomp');
-
-  // Claw: dmg 100 + 50/level; cooldown step ↓15% every 3 levels, min 1s from base 10.0
-  const clawDmg = 100 + 50 * clawLv;
-  const clawSteps = Math.floor(clawLv / 3);
-  const clawCD = Math.max(1, 10.0 * Math.pow(0.85, clawSteps));
-
-  // Gust: push tiles = min(6, 2 + 1/level); cooldown step ↓15% every 2 levels, min 5.0 from base 30.0
-  const gustPush = Math.min(6, 2 + gustLv);
-  const gustSteps = Math.floor(gustLv / 2);
-  const gustCD = Math.max(5.0, 30.0 * Math.pow(0.85, gustSteps));
-
-  // Roar: stun 1.5 + 0.25/level; cooldown step ↓15% every 2 levels, min 15.0 from base 60.0
-  const roarStun = (1.5 + 0.25 * roarLv);
-  const roarSteps = Math.floor(roarLv / 2);
-  const roarCD = Math.max(15.0, 60.0 * Math.pow(0.85, roarSteps));
-  // (sense/herding multipliers are fixed, applied in combat)
-
-  // Stomp: slow = 20% + 3%/level (cap to 70% slow); dmg 20 + 10/level; cooldown step ↓15% every 2 levels, min 10.0 from base 30.0
-  const stompSlow = Math.min(0.70, 0.20 + 0.03 * stompLv); // fraction slowed (e.g., 0.35 = 35% slow)
-  const stompDmg = 20 + 10 * stompLv;
-  const stompSteps = Math.floor(stompLv / 2);
-  const stompCD = Math.max(10.0, 30.0 * Math.pow(0.85, stompSteps));
-
+  const cs = getClawStatsTuned(gs);
+  const gsT = getGustStatsTuned(gs);
+  const rs = getRoarStatsTuned(gs);
+  const ss = getStompStatsTuned(gs);
   return {
-    claw:  `DMG: ${Math.round(clawDmg)}`,
-    gust:  `Push: ${gustPush} tiles`,
-    roar:  `Stun: ${roarStun.toFixed(2)}s`,
-    stomp: `Slow: ${(stompSlow*100)|0}%  •  Damage: ${stompDmg}`,
+    claw:  `DMG: ${Math.round(cs.dmg)}  •  CD: ${cs.cd.toFixed(2)}s`,
+    gust:  `Push: ${gsT.pushTiles} tiles  •  CD: ${gsT.cd.toFixed(2)}s`,
+    roar:  `Stun: ${rs.stunSec.toFixed(2)}s  •  CD: ${rs.cd.toFixed(2)}s`,
+    stomp: `Slow: ${Math.round((1-ss.slowMult)*100)}%  •  DMG: ${ss.dmg}  •  CD: ${ss.cd.toFixed(2)}s`,
   };
 }
+
 
 /* ============================================================
  * Public API expected by ui.js
