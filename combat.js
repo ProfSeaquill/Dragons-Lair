@@ -840,10 +840,11 @@ function dragonBreathTick(gs, dt, ds) {
     a.dir = (a.x !== b.x) ? 'h' : 'v';
   }
 
-  // Ensure the last node also has a dir (copy previous) to avoid renderer defaulting vertical.
-  if (fullPath.length >= 2 && !fullPath[fullPath.length - 1].dir) {
-    fullPath[fullPath.length - 1].dir = fullPath[fullPath.length - 2].dir;
-  }
+  // Ensure the last node has a dir too (copy previous)
+if (fullPath.length >= 2) {
+  fullPath[fullPath.length - 1].dir = fullPath[fullPath.length - 2].dir;
+}
+
 
   // --- Hero shield: only stop if a hero is actually ON THIS corridor
   const tkey = (x,y) => state.tileKey(x,y);
