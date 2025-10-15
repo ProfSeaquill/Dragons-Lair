@@ -75,7 +75,7 @@ export const UI = { refreshHUD, tell, renderUpgradesPanel };
 
 export function refreshHUD() {
   const gs = state.GameState;
-  const ds = state.getDragonStats(gs);
+  const ds = state.getDragonStatsTuned(gs);
 
   // Dev: top up first (this may change gold/bones)
   if (gs.dev?.infiniteMoney) {
