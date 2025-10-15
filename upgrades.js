@@ -61,11 +61,48 @@ function flameTune(gs) {
  * Cost model (unchanged for stats; also used for abilities)
  * ========================================================== */
 
-/** Cost function (geometric) for going from level L -> L+1 */
-function costFor(def, level) {
-  const L = Math.max(0, level | 0);
-  return Math.round(def.base * Math.pow(def.mult, L));
+/** Cost function for going from level L -> L+1 */
+function statCostFor(gs, key, level) {
+  const T = flameTune(gs);
+  const base = getDragonStatsBase();
+
+  const shapes = {
+    power: {
+      base: (typeof T.baseDamage     === 'number') ? T.baseDamage     : base.breathPower,
+      cap:  T.capDamage,   k: T.kDamage,   baseCost: T.costBasePower
+    },
+    rate:  {
+      base: (typeof T.fireRate       === 'number') ? T.fireRate       : base.fireRate,
+      cap:  T.capRate,     k: T.kRate,     baseCost: T.costBaseRate
+    },
+    range: {
+      base: (typeof T.baseRangeTiles === 'number') ? T.baseRangeTiles : (base.breathRange / GRID.tile),
+      cap:  T.capRangeTiles, k: T.kRange, baseCost: T.costBaseRange
+    },
+    burn:  {
+      base: (typeof T.burnDps        === 'number') ? T.burnDps        : base.burnDPS,
+      cap:  T.capBurnDps,  k: T.kBurnDps, baseCost: T.costBaseBurn
+    },
+  };
+
+  const s = shapes[key];
+  if (!s) return 999999; // unknown stat key
+
+  const vNow = approachCap(s.base, s.cap, level,     s.k);
+  const vNext= approachCap(s.base, s.cap, level + 1, s.k);
+  const progress = (vNow - s.base) / Math.max(1e-6, (s.cap - s.base)); // 0..~1
+  // Optionally factor marginal gain (small near cap) if you like:
+  // const marginal = Math.max(1e-6, vNext - vNow);
+
+  return asymptoticCost({
+    baseCost: s.baseCost,
+    progress,
+    p: T.costP,
+    bumpPerLevel: T.costBumpPerLevel,
+    level
+  });
 }
+
 
 /** Safe getters for current levels in both stores */
 function statLvl(gs, key) {
@@ -81,18 +118,19 @@ function buildUpgradeRows(gs) {
   const abilityLive = buildAbilityDesc(gs);
 
   const statRows = STAT_UPGRADES.map(def => {
-    const level = statLvl(gs, def.key);
-    return {
-      key: def.key,
-      title: def.title,
-      level,
-      cost: costFor(def, level),
-      desc: statLive[def.key] || '',
-      max: undefined,
-      isMax: false,
-      type: def.type, // 'stat'
-    };
-  });
+  const level = statLvl(gs, def.key);
+  return {
+    key: def.key,
+    title: def.title,
+    level,
+    cost: statCostFor(gs, def.key, level),   // <— asymptotic
+    desc: statLive[def.key] || '',
+    max: undefined,
+    isMax: false,
+    type: def.type,
+  };
+});
+
 
   const abilityRows = ABILITY_UPGRADES.map(def => {
     const level = abilityLvl(gs, def.key);
