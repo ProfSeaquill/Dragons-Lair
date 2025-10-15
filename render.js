@@ -417,7 +417,7 @@ function drawDragonAndMouthFire(ctx, gs) {
   }
 
   // Mouth fire overlay (if attacking)
-  const fx = gs.dragonFX;
+  /* const fx = gs.dragonFX;
   if (fx && fx.attacking && fireReady) {
     const fw = fireImg.width / FIRE_FRAMES;
     const fh = fireImg.height;
@@ -433,7 +433,7 @@ function drawDragonAndMouthFire(ctx, gs) {
       frame * fw, 0, fw, fh,             // source
       mouthX, mouthY - fh / 2, fw, fh    // dest near mouth
     );
-  }
+  } */
 }
 
 
