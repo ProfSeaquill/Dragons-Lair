@@ -23,6 +23,39 @@ function asymptoticCost({ baseCost, progress, p = 1.5, floor = 1, bumpPerLevel =
   return Math.max(floor|0, Math.round(baseCost * nearCapMult * linearBump));
 }
 
+function flameTune(gs) {
+  const t = getCfg(gs)?.tuning?.flame || {};
+  return {
+    // BASES (fallback to DRAGON_BASE via getDragonStatsBase call below)
+    baseDamage:       t.baseDamage,              // number
+    fireRate:         t.fireRate,                // shots/s
+    baseRangeTiles:   t.baseRangeTiles,          // tiles
+    burnDps:          t.burnDps,
+    burnDuration:     t.burnDuration,
+
+    // CAPS (where asymptotes land)
+    capDamage:        t.capDamage ?? 220,
+    capRate:          t.capRate   ?? 3.0,
+    capRangeTiles:    t.capRangeTiles ?? 22,
+    capBurnDps:       t.capBurnDps ?? 12,
+    capBurnDuration:  t.capBurnDuration ?? 4,
+
+    // TEMPOS (how fast levels approach cap)
+    kDamage:          t.kDamage ?? 0.22,
+    kRate:            t.kRate   ?? 0.18,
+    kRange:           t.kRange  ?? 0.12,
+    kBurnDps:         t.kBurnDps ?? 0.20,
+    kBurnDuration:    t.kBurnDuration ?? 0.10,
+
+    // COST curve knobs
+    costBasePower:    t.costBasePower ?? 20,
+    costBaseRate:     t.costBaseRate  ?? 25,
+    costBaseRange:    t.costBaseRange ?? 30,
+    costBaseBurn:     t.costBaseBurn  ?? 22,
+    costP:            t.costP ?? 1.5,
+    costBumpPerLevel: t.costBumpPerLevel ?? 0.05,
+  };
+}
 
 /* ============================================================
  * Cost model (unchanged for stats; also used for abilities)
