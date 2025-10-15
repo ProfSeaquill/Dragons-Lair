@@ -4,6 +4,9 @@
 
 import * as state from './state.js';
 
+// DEBUG toggle
+window.__logFlame = window.__logFlame ?? true;
+
 // ===== Phase 9: render scratch + caches =====
 const SCR = {
   rect: { x:0, y:0, w:0, h:0 },       // generic rect scratch
@@ -542,9 +545,22 @@ function drawFlameWaves(ctx, gs) {
     const start = Math.max(0, fx.headIdx - tailLen);
     const end   = fx.headIdx;
 
+  if (window.__logFlame) {
+  console.debug('[flameWave] headIdx, head.dir, len',
+    fx.headIdx,
+    fx.path?.[fx.headIdx]?.dir,
+    fx.path?.length
+  );
+}
+
     for (let i = start; i <= end; i++) {
       const seg = fx.path[i];
       if (!seg) continue;
+
+      if (window.__logFlame && (seg.dir !== 'h' && seg.dir !== 'v')) {
+  console.warn('[flameWave] segment missing dir at i=', i, seg);
+}
+
       const c = centerOf(seg.x, seg.y);
       const age = end - i;                         // 0 = freshest
       const alpha = Math.max(0, 1 - age / tailLen);
