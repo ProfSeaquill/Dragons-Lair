@@ -39,8 +39,6 @@ export function applyConfig(gs, cfg) {
   gs.dragonHPMax = (gs.cfg.tuning.dragon.maxHP | 0) || 100;
 }
 
-// keep old name as an alias so legacy calls stay correct
-export const getDragonStats = getDragonStatsTuned;
 
 // If you added healDragon earlier, keep it but read from cfg:
 export function healDragon(gs) {
@@ -223,6 +221,9 @@ export function getDragonStatsTuned(gs) {
     breathRange
   };
 }
+
+// keep old name as alias so existing imports keep working
+export { getDragonStatsTuned as getDragonStats };
 
 export function getClawStatsTuned(gs) {
   const base = (typeof getClawStats === 'function') ? getClawStats(gs) : {};
@@ -432,26 +433,6 @@ export function applyMaze(gs, edges) {
   }
   gs.topologyVersion = (gs.topologyVersion || 0) + 1;
 }
-
-// ===== Dragon Stats with upgrades applied =====
-export function getDragonStats(gs) {
-  const u = gs?.upgrades || {};
-  const powMult   = 1 + 0.15 * (u.power || 0);
-  const rateMult  = 1 + 0.10 * (u.rate  || 0);
-  const rangeMult = 1 + 0.05 * (u.range || 0);
-  const burnMult  = 1 + 0.15 * (u.burn  || 0);
-
-  return {
-    maxHP: DRAGON_BASE.maxHP + 10 * (u.hp || 0),
-    breathPower: DRAGON_BASE.breathPower * powMult,
-    breathRange: DRAGON_BASE.breathRange * rangeMult,
-    breathWidth: DRAGON_BASE.breathWidth,
-    burnDPS: DRAGON_BASE.burnDPS * burnMult,
-    burnDuration: DRAGON_BASE.burnDuration + 0.5 * (u.burn || 0),
-    fireRate: DRAGON_BASE.fireRate * rateMult,
-  };
-}
-
 
 // ===== Phase 7: Robust saves (versioned + migration) =====
 export const SAVE_SCHEMA_VERSION = 2;
