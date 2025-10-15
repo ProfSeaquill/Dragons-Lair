@@ -3,6 +3,27 @@
 import { GameState, getDragonStatsTuned, GRID } from './state.js';
 import { getCfg } from './state.js';
 
+
+// ---- Asymptotic curves (like waves) ----
+function approachCap(base, cap, level, k) {
+  // rises from base toward cap; k controls tempo
+  return cap - (cap - base) * Math.exp(-Math.max(0, k) * Math.max(0, level|0));
+}
+function approachMin(base, min, level, k) {
+  // drops from base toward min; k controls tempo
+  return min + (base - min) * Math.exp(-Math.max(0, k) * Math.max(0, level|0));
+}
+
+// Asymptotic cost: cheap early, explodes near the cap.
+// progress = how close current value is to the cap (0..~1)
+function asymptoticCost({ baseCost, progress, p = 1.5, floor = 1, bumpPerLevel = 0.0, level = 0 }) {
+  const denom = Math.max(0.05, 1 - Math.min(0.999, progress)); // 1→∞ near the cap
+  const nearCapMult = Math.pow(1 / denom, Math.max(0.5, p));
+  const linearBump = 1 + Math.max(0, bumpPerLevel) * Math.max(0, level|0);
+  return Math.max(floor|0, Math.round(baseCost * nearCapMult * linearBump));
+}
+
+
 /* ============================================================
  * Cost model (unchanged for stats; also used for abilities)
  * ========================================================== */
