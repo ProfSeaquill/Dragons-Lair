@@ -1433,7 +1433,6 @@ if (bombAccum >= 1.0) {
 
     // bombs are handled elsewhere; ignore here
   }
-}
 
   // 2) Enemy status (engineer tunneling, burn DoT, deaths, contact/attack)
   const exitCx = state.EXIT.x, exitCy = state.EXIT.y;
