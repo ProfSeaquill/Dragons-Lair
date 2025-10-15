@@ -721,24 +721,62 @@ let bombAccum = 0;
 
 function breathPathFromExit(gs, maxTiles) {
   const start = { x: state.EXIT.x, y: state.EXIT.y };
-  const out = [{ x: start.x, y: start.y }];
-  const q = [[start.x, start.y]];
+  const q = [start];
   const seen = new Set([state.tileKey(start.x, start.y)]);
+  const parent = new Map(); // key -> parentKey
+  const key = (x,y) => state.tileKey(x,y);
 
-  while (q.length && out.length < maxTiles) {
-    const [x, y] = q.shift();
-    // Use your edge-aware neighbors (respects walls)
-    for (const n of state.neighborsByEdges(gs, x, y)) {
-      const k = state.tileKey(n.x, n.y);
-      if (!seen.has(k)) {
-        seen.add(k);
-        q.push([n.x, n.y]);
-        out.push({ x: n.x, y: n.y });
-        if (out.length >= maxTiles) break;
-      }
+  // First BFS to explore reachable tiles (respecting walls)
+  while (q.length && seen.size < maxTiles) {
+    const cur = q.shift();
+    for (const n of state.neighborsByEdges(gs, cur.x, cur.y)) {
+      const k = key(n.x, n.y);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      parent.set(k, key(cur.x, cur.y));
+      q.push({ x: n.x, y: n.y });
+      if (seen.size >= maxTiles) break;
     }
   }
-  return out;
+
+  // Pick the nearest reachable enemy tile (by BFS layers)
+  const enemies = gs.enemies || [];
+  let targetKey = null, bestDepth = Infinity;
+  for (const e of enemies) {
+    const tx = Number.isInteger(e.tileX) ? e.tileX
+             : Number.isInteger(e.cx)    ? e.cx
+             : Math.floor((e.x||0) / state.GRID.tile);
+    const ty = Number.isInteger(e.tileY) ? e.tileY
+             : Number.isInteger(e.cy)    ? e.cy
+             : Math.floor((e.y||0) / state.GRID.tile);
+    const k = key(tx, ty);
+    if (!seen.has(k)) continue;
+    // measure depth by walking parents back to start
+    let d = 0, cur = k;
+    while (cur && cur !== key(start.x,start.y)) { cur = parent.get(cur); d++; if (d>maxTiles) break; }
+    if (d < bestDepth) { bestDepth = d; targetKey = k; }
+  }
+
+  // If no target, return just the start tile
+  if (!targetKey) return [start];
+
+  // Reconstruct shortest path from target back to start
+  const path = [];
+  let cur = targetKey;
+  while (cur) {
+    const [x,y] = cur.split(',').map(n=>parseInt(n,10));
+    path.push({ x, y });
+    if (cur === key(start.x,start.y)) break;
+    cur = parent.get(cur);
+  }
+  path.reverse();
+
+  // Annotate segment orientation for the renderer
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i-1], b = path[i];
+    a.dir = (a.x !== b.x) ? 'h' : 'v';
+  }
+  return path.slice(0, maxTiles);
 }
 
 /**
