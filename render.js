@@ -556,6 +556,9 @@ function drawFlameWaves(ctx, gs) {
       ctx.save();
       ctx.globalAlpha = alpha * 0.95;
 
+      // in drawFlameWaves loop
+      if (!seg || !seg.dir) continue; // no dir → don’t draw it
+
       if (horiz && fireHReady) {
         ctx.drawImage(fireStripH, c.x - w/2, c.y - h/2, w, h);
       } else if (!horiz && fireVReady) {
