@@ -1,6 +1,6 @@
 // upgrades.js — fire stat upgrades + ability upgrades (Claw/Gust/Roar/Stomp)
 
-import { GameState, getDragonStats, GRID } from './state.js';
+import { GameState, getDragonStatsTuned, GRID } from './state.js';
 import { getCfg } from './state.js';
 
 /* ============================================================
@@ -98,7 +98,7 @@ export const STAT_UPGRADES = [
 
 /** Build live description strings for the stat upgrades using current dragon stats */
 function buildFireDesc(gs) {
-  const ds = getDragonStats(gs);
+  const ds = getDragonStatsTuned(gs);
   const power   = Math.round(ds.breathPower);
   const rate    = ds.fireRate.toFixed(2); // shots/sec
   const pxRange = Math.round(ds.breathRange);
@@ -109,7 +109,7 @@ function buildFireDesc(gs) {
   return {
     power: `Damage: ${power}`,
     rate:  `Rate: ${rate} /s`,
-    range: `Reach: ${tiles} tiles)`,
+    range: `Reach: ${tiles} tiles`,
     burn:  `Burn: ${burnDps} DPS for ${burnDur}s`,
   };
 }
