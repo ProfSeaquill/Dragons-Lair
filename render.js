@@ -25,15 +25,6 @@ dragonImg.onload = () => { dragonReady = true; };
 dragonImg.src = './assets/dragon_idle.png';
 
 /* -----------------------------------------------------------
- * FIRE (mouth) — sprite sheet animation
- * --------------------------------------------------------- */
-const fireImg = new Image();
-let fireReady = false;
-const FIRE_FRAMES = 4; // set to your sheet's frame count
-fireImg.onload = () => { fireReady = true; };
-fireImg.src = './assets/fire_breath.png'; // N frames wide, 1 row
-
-/* -----------------------------------------------------------
  * FLAME STRIPS (corridor fire) — optional textures
  * --------------------------------------------------------- */
 const fireStripH = new Image();
@@ -415,25 +406,6 @@ function drawDragonAndMouthFire(ctx, gs) {
     circle(ctx, p.x, p.y, Math.max(6, state.GRID.tile * 0.35), '#b33', true);
     ring(ctx, p.x, p.y, Math.max(6, state.GRID.tile * 0.35) + 3, '#f88');
   }
-
-  // Mouth fire overlay (if attacking)
-  /* const fx = gs.dragonFX;
-  if (fx && fx.attacking && fireReady) {
-    const fw = fireImg.width / FIRE_FRAMES;
-    const fh = fireImg.height;
-
-    const progress = Math.min(1, fx.t / Math.max(0.001, fx.dur));
-    const frame = Math.floor(progress * (FIRE_FRAMES - 1));
-
-    const mouthX = p.x - Math.round(state.GRID.tile * 0.6);
-    const mouthY = p.y - Math.round(state.GRID.tile * 0.15);
-
-    ctx.drawImage(
-      fireImg,
-      frame * fw, 0, fw, fh,             // source
-      mouthX, mouthY - fh / 2, fw, fh    // dest near mouth
-    );
-  } */
 }
 
 
