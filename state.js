@@ -238,7 +238,7 @@ export function getClawStatsTuned(gs) {
   const cdMult  = (typeof t.cooldownMultPerLevel === 'number') ? t.cooldownMultPerLevel : 1.0;
 
   const tunedDmg = (typeof baseDmg === 'number') ? (baseDmg + perLvl * dmgLvl) : base.dmg;
-  const tunedCd  = (typeof cdBase === 'number') ? (cdBase * Math.pow(cdMult, speedLvl)) : base.cd;
+  const tunedCd  = (typeof cdBase === 'number') ? (cdBase * Math.pow(cdMult)) : base.cd;
 
   return { ...base, dmg: tunedDmg, cd: tunedCd };
 }
