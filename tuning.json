@@ -17,8 +17,8 @@
 
         // per-level effects (these make the purchases matter)
       "damagePerLevel": 6,         // +6 damage per Power level
-      "rateMultPerLevel": 1.08,    // x1.3 fire rate per Rate level
-      "burnDpsPerLevel": 0.4,      // +1 DPS per Burn level
+      "rateMultPerLevel": 1.3,    // x1.3 fire rate per Rate level
+      "burnDpsPerLevel": 1,      // +1 DPS per Burn level
       "rangePerLevelTiles": 2    // +2 tiles per Range level
     },
       
