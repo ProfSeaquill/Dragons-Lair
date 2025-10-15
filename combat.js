@@ -509,7 +509,6 @@ function makeEnemy(type, wave) {
   }
 
   // --- Phase 5: apply per-type overrides from cfg.enemies[type], if present ---
-  const cfg = state.getCfg?.(state.GameState) || state.getCfg?.(state.GameState);
   const ov = cfg?.enemies?.[type];
   if (ov && typeof ov === 'object') {
     if (typeof ov.hp === 'number')      { out.hp = Math.max(1, ov.hp|0); out.maxHp = out.hp; }
