@@ -142,49 +142,6 @@ function stepDownCooldown(base, min, level, every, factor) {
 function lin(base, perLvl, level) { return base + perLvl * level; }
 function clamp01(x){ return Math.max(0, Math.min(1, x)); }
 
-// ===== Ability Stat Getters (exported) =====
-export function getClawStats(gs) {
-  const lv = (gs.upgrades?.claw | 0);
-  return {
-    dmg:         Math.round(lin(40, 8, lv)),             // big hit
-    cd:          stepDownCooldown(6.0, 2.5, lv, 3, 0.85), // every 3 lv -> -15%
-    radiusCells: 1,                                       // adjacents around dragon
-  };
-}
-
-export function getGustStats(gs) {
-  const lv = (gs.upgrades?.gust | 0);
-  return {
-    pushTiles: Math.min(6, lin(2, 1, lv)),               // +1 tile per level up to 6
-    cd:        stepDownCooldown(14.0, 6.0, lv, 2, 0.85),
-  };
-}
-
-export function getRoarStats(gs) {
-  const lv = (gs.upgrades?.roar | 0);
-  const rangeTiles = GRID.cols + GRID.rows; // covers entire map
-  return {
-    stunSec:     lin(1.5, 0.25, lv),                     // longer stun per level
-    cd:          stepDownCooldown(40.0, 20.0, lv, 2, 0.85),
-    // fear behavior buffs (no penalty increase over time—per your request)
-    senseMult:   1.4,
-    herdingMult: 1.5,
-    buffDur:     5.0,
-    rangeTiles,
-  };
-}
-
-export function getStompStats(gs) {
-  const lv = (gs.upgrades?.stomp | 0);
-  const rangeTiles = GRID.cols + GRID.rows; // covers entire map
-  return {
-    dmg:        Math.round(lin(6, 3, lv)),               // chip damage
-    slowMult:   clamp01(1.0 - (0.20 + 0.05 * lv)),       // base 20% slow +3%/lvl
-    slowSec:    3.0,
-    cd:         stepDownCooldown(18.0, 8.0, lv, 2, 0.85),
-    rangeTiles,
-  };
-}
 
 // ===== Phase 6: tuned wrappers (non-breaking) =====
 
@@ -237,8 +194,6 @@ export function getDragonStatsTuned(gs) {
   };
 }
 
-// keep alias so legacy imports work
-export { getDragonStatsTuned as getDragonStats };
 
 // CLaw: damage ↑ to capDmg, cooldown ↓ to minCd
 export function getClawStatsTuned(gs) {
@@ -317,6 +272,12 @@ export function getStompStatsTuned(gs) {
   };
 }
 
+// keep alias so legacy imports work
+export { getDragonStatsTuned as getDragonStats };
+export { getClawStatsTuned   as getClawStats };
+export { getGustStatsTuned   as getGustStats };
+export { getRoarStatsTuned   as getRoarStats };
+export { getStompStatsTuned  as getStompStats };
 
 // ===== Utility: Field allocation =====
 export function makeScalarField(w, h, fill = 0) {
