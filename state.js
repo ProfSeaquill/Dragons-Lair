@@ -240,52 +240,83 @@ export function getDragonStatsTuned(gs) {
 // keep alias so legacy imports work
 export { getDragonStatsTuned as getDragonStats };
 
+// CLaw: damage ↑ to capDmg, cooldown ↓ to minCd
 export function getClawStatsTuned(gs) {
-  const base = (typeof getClawStats === 'function') ? getClawStats(gs) : {};
-  const t = _cfg(gs).claw || {};
+  const lv = abilityLvl(gs, 'claw');
+  const base = { dmg: 100, cd: 10.0 };
+  const t = getCfg(gs)?.tuning?.claw || {};
+  const capDmg = t.capDamage ?? 500;
+  const kDmg   = t.kDamage  ?? 0.25;
 
-  // Levels: sum any "claw_dmg_*" & upgrades (prefix counting)
-  const dmgLvl   = _lvl(gs, 'claw');   // additive damage tiers
+  const baseCd = t.baseCooldownSec ?? base.cd;
+  const minCd  = t.minCooldownSec  ?? 1.0;
+  const kCd    = t.kCooldown       ?? 0.25;
 
-  const baseDmg = (typeof t.baseDamage === 'number') ? t.baseDamage : base.dmg;
-  const perLvl  = (typeof t.damagePerLevel === 'number') ? t.damagePerLevel : 0;
-  const cdBase  = (typeof t.baseCooldownSec === 'number') ? t.baseCooldownSec : base.cd;
-  const cdMult  = (typeof t.cooldownMultPerLevel === 'number') ? t.cooldownMultPerLevel : 1.0;
-
-  const tunedDmg = (typeof baseDmg === 'number') ? (baseDmg + perLvl * dmgLvl) : base.dmg;
-  const tunedCd  = (typeof cdBase === 'number') ? (cdBase * Math.pow(cdMult, dmgLvl)) : base.cd;
-
-  return { ...base, dmg: tunedDmg, cd: tunedCd };
+  return {
+    dmg: Math.round(approachCap(base.dmg, capDmg, lv, kDmg)),
+    cd:  approachMin(baseCd,  minCd,  lv, kCd),
+  };
 }
 
 export function getGustStatsTuned(gs) {
-  const base = (typeof getGustStats === 'function') ? getGustStats(gs) : {};
-  const t = (_cfg(gs).crowd || {}).gust || {};
-  // pushTiles only; cooldown still comes from your existing ability tuning
+  const lv = abilityLvl(gs, 'gust');
+  const base = { pushTiles: 2, cd: 30.0 };
+  const t = getCfg(gs)?.tuning?.gust || {};
+  const capPush = t.capPushTiles ?? 6;
+  const kPush   = t.kPush       ?? 0.35;
+
+  const baseCd = t.baseCooldownSec ?? base.cd;
+  const minCd  = t.minCooldownSec  ?? 5.0;
+  const kCd    = t.kCooldown       ?? 0.30;
+
   return {
-    ...base,
-    pushTiles: (typeof t.pushTiles === 'number') ? t.pushTiles : base.pushTiles
+    pushTiles: Math.round(approachCap(base.pushTiles, capPush, lv, kPush)),
+    cd:        approachMin(baseCd, minCd, lv, kCd)
   };
 }
 
 export function getRoarStatsTuned(gs) {
-  const base = (typeof getRoarStats === 'function') ? getRoarStats(gs) : {};
-  const t = (_cfg(gs).crowd || {}).roar || {};
+  const lv = abilityLvl(gs, 'roar');
+  const base = { stunSec: 1.5, cd: 60.0, buffDur: 5, senseMult: 1.4, herdingMult: 1.5, rangeTiles: (state.GRID.cols + state.GRID.rows) };
+  const t = getCfg(gs)?.tuning?.roar || {};
+  const capStun = t.capStunSec ?? 5.0;
+  const kStun   = t.kStun      ?? 0.25;
+
+  const baseCd = t.baseCooldownSec ?? base.cd;
+  const minCd  = t.minCooldownSec  ?? 15.0;
+  const kCd    = t.kCooldown       ?? 0.25;
+
   return {
     ...base,
-    stunSec: (typeof t.stunSec === 'number') ? t.stunSec : base.stunSec
+    stunSec: approachCap(base.stunSec, capStun, lv, kStun),
+    cd:      approachMin(baseCd, minCd, lv, kCd),
   };
 }
 
 export function getStompStatsTuned(gs) {
-  const base = (typeof getStompStats === 'function') ? getStompStats(gs) : {};
-  const t = (_cfg(gs).crowd || {}).stomp || {};
+  const lv = abilityLvl(gs, 'stomp');
+  const base = { slowMult: 0.80, slowSec: 3.0, dmg: 20, cd: 30.0, rangeTiles: (state.GRID.cols + state.GRID.rows) };
+  const t = getCfg(gs)?.tuning?.stomp || {};
+  // slowMult is a multiplier applied to speed (lower is stronger)
+  const floorSlowMult = t.floorSlowMult ?? 0.30; // i.e., 70% slow max
+  const kSlow         = t.kSlow         ?? 0.30;
+
+  const capDmg = t.capDamage ?? 100;
+  const kDmg   = t.kDamage   ?? 0.25;
+
+  const baseCd = t.baseCooldownSec ?? base.cd;
+  const minCd  = t.minCooldownSec  ?? 10.0;
+  const kCd    = t.kCooldown       ?? 0.30;
+
   return {
-    ...base,
-    slowMult: (typeof t.slowMult === 'number') ? t.slowMult : base.slowMult,
-    slowSec:  (typeof t.slowSec  === 'number') ? t.slowSec  : base.slowSec
+    rangeTiles: base.rangeTiles,
+    slowMult:   approachMin(base.slowMult, floorSlowMult, lv, kSlow),
+    slowSec:    base.slowSec,
+    dmg:        Math.round(approachCap(base.dmg, capDmg, lv, kDmg)),
+    cd:         approachMin(baseCd, minCd, lv, kCd),
   };
 }
+
 
 // ===== Utility: Field allocation =====
 export function makeScalarField(w, h, fill = 0) {
