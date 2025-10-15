@@ -3,9 +3,9 @@
 // ---- Config defaults (safe, minimal, matches your current game) ----
 export const DEFAULT_CFG = {
   tuning: {
-    abilities: { gust: 15, roar: 25, stomp: 20 },   // keep your current timers
+    abilities: { gust: 15, roar: 20, stomp: 20 },   // keep your current timers
     dragon:   { maxHP: 100, healCostBone: 1 },      // 1 bone per HP
-    boss:     { hpMultiplier: 10, armor: 2 },       // as-used in your scaling
+    boss:     { hpMultiplier: 10, armor: 0 },       // as-used in your scaling
     economy:  { wallCostBones: 1, goldBase: 5 },     // WALLS: 1 bone by default
 
   waves: {
@@ -38,6 +38,9 @@ export function applyConfig(gs, cfg) {
 
   gs.dragonHPMax = (gs.cfg.tuning.dragon.maxHP | 0) || 100;
 }
+
+// keep old name as an alias so legacy calls stay correct
+export const getDragonStats = getDragonStatsTuned;
 
 // If you added healDragon earlier, keep it but read from cfg:
 export function healDragon(gs) {
