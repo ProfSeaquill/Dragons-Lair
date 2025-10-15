@@ -7,12 +7,21 @@
     "telemetry":{ "enabled": false },
 
     "flame": {
+      // base stats (optional – omit to use your old base values)
       "baseRangeTiles": 15,
       "rangePerLevelTiles": 2,
       "dmgPerHit": 14,
-      "burnDps": 1,
+      "burnDps": 2,
       "fireRate": 0.50
+      "burnDuration": 2,
+
+        // per-level effects (these make the purchases matter)
+      "damagePerLevel": 6,         // +6 damage per Power level
+      "rateMultPerLevel": 1.08,    // x1.3 fire rate per Rate level
+      "burnDpsPerLevel": 0.4,      // +1 DPS per Burn level
+      "rangePerLevelTiles": 2    // +2 tiles per Range level
     },
+      
     "claw": {
       "baseDamage": 100,
       "damagePerLevel": 10,
