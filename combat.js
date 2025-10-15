@@ -894,6 +894,15 @@ if (travelPath.length < 2) {
 
   const tilesPerSec = 14;
   const travelSec = travelPath.length / Math.max(1, tilesPerSec);
+  
+  // Remove any existing flameWave before spawning a new one (avoids overlapping artifacts)
+for (let i = gs.effects.length - 1; i >= 0; i--) {
+  if (gs.effects[i].type === 'flameWave') {
+    // optional: releaseEffect(gs.effects[i]); // if you want to return it to the pool
+    gs.effects.splice(i, 1);
+  }
+}
+
   (gs.effects || (gs.effects = [])).push(
     acquireEffect('flameWave', {
       path: travelPath, headIdx: 0, t: 0,
