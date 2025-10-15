@@ -198,7 +198,8 @@ function _lvl(gs, keyPrefix) {
 }
 
 export function getDragonStatsTuned(gs) {
-  const base = (typeof getDragonStats === 'function') ? getDragonStats(gs) : {};
+  // Use static base to avoid recursion (we re-export tuned as getDragonStats below)
+  const base = { ...DRAGON_BASE, maxHP: (_cfg(gs).dragon?.maxHP ?? DRAGON_BASE.maxHP) };
   const t = _cfg(gs).flame || {};
 
   // --- levels from purchases ---
