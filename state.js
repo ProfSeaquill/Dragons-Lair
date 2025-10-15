@@ -198,8 +198,9 @@ function _lvl(gs, keyPrefix) {
 }
 
 export function getDragonStatsTuned(gs) {
-  const base = (typeof getDragonStats === 'function') ? getDragonStats(gs) : {};
   const t = _cfg(gs).flame || {};
+  // Use static base to avoid recursion (we re-export tuned as getDragonStats below)
+  const base = { ...DRAGON_BASE, maxHP: (_cfg(gs).dragon?.maxHP ?? DRAGON_BASE.maxHP) };
 
   // Range in tiles: base + per-level bonus from the 'range' upgrade level
   const flameLvl = ((gs?.upgrades?.range) | 0) || 0;
@@ -217,6 +218,7 @@ export function getDragonStatsTuned(gs) {
     fireRate:   (typeof t.fireRate  === 'number') ? t.fireRate  : base.fireRate,
     breathPower:(typeof t.dmgPerHit === 'number') ? t.dmgPerHit : base.breathPower,
     burnDPS:    (typeof t.burnDps   === 'number') ? t.burnDps   : base.burnDPS,
+    burnDuration: base.burnDuration,
     // keep whatever burnDuration your game already had (tuning didn’t specify change)
     breathRange
   };
@@ -238,7 +240,7 @@ export function getClawStatsTuned(gs) {
   const cdMult  = (typeof t.cooldownMultPerLevel === 'number') ? t.cooldownMultPerLevel : 1.0;
 
   const tunedDmg = (typeof baseDmg === 'number') ? (baseDmg + perLvl * dmgLvl) : base.dmg;
-  const tunedCd  = (typeof cdBase === 'number') ? (cdBase * Math.pow(cdMult)) : base.cd;
+  const tunedCd  = (typeof cdBase === 'number') ? (cdBase * Math.pow(cdMult, dmgLvl)) : base.cd;
 
   return { ...base, dmg: tunedDmg, cd: tunedCd };
 }
