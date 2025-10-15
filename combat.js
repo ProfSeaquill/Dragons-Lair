@@ -865,8 +865,19 @@ function dragonBreathTick(gs, dt, ds) {
     farthestIdxInRange,
     (heroIdxOnPath >= 0 ? heroIdxOnPath : Infinity)
   );
-
   const travelPath = fullPath.slice(0, stopIdx + 1);
+
+  // If we truncated, make sure the head still has a dir
+if (travelPath.length >= 2 && !travelPath[travelPath.length - 1].dir) {
+  travelPath[travelPath.length - 1].dir = travelPath[travelPath.length - 2].dir;
+}
+
+// Skip spawning corridor flame if it’s < 2 tiles (avoids stray 1-tile “down” draw)
+if (travelPath.length < 2) {
+  gs.dragonFX = { attacking: true, t: 0, dur: 0.25 }; // keep the mouth flash
+  fireCooldown = firePeriod;
+  return;
+}
 
   // --- Visuals: brief mouth burst + traveling wave to stopIdx
   gs.dragonFX = { attacking: true, t: 0, dur: 0.25 };
