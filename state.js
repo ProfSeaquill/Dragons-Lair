@@ -152,6 +152,18 @@ function approachCap(base, cap, level, k) {
   return c - (c - b) * Math.exp(-kk * L);
 }
 
+// Smoothly decreases a value toward a floor (e.g., cooldown toward a minimum).
+// base: starting value at level 0
+// min:  asymptotic floor you approach as level ↑
+// level: upgrade level (≥0)
+// k:     tempo (higher → approaches min faster)
+function approachMin(base, min, level, k = 0.07) {
+  const L = Math.max(0, level | 0);
+  const b = Number(base) || 0;
+  const m = Number(min)  || 0;
+  return m + (b - m) * Math.exp(-k * L);
+}
+
 
 // ===== Phase 6: tuned wrappers (non-breaking) =====
 
