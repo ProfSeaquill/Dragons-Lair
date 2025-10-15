@@ -52,19 +52,6 @@ e.speedMul = 1;
   return e;
 }
 
-function enemyTile(e) {
-  // Prefer live tile indices; fall back to legacy cx/cy; last resort: derive from pixels.
-  if (Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
-    return { x: e.tileX, y: e.tileY };
-  }
-  if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
-    return { x: e.cx, y: e.cy };
-  }
-  const t = state.GRID.tile || 32;
-  const x = Math.floor((e.x || 0) / t), y = Math.floor((e.y || 0) / t);
-  return { x, y };
-}
-
 function releaseEnemy(e) {
   if (!e || !e.type) return;
   let pool = ENEMY_POOL.get(e.type);
@@ -227,24 +214,8 @@ function wingGustPush(gs, tiles) {
   }
 }
 
-function dragonMouthCell(gs) {
-  // choose the westernmost tile of the dragon footprint
-  const cells = state.dragonCells(gs);
-  if (!cells || !cells.length) return { x: state.EXIT.x, y: state.EXIT.y };
-  let best = cells[0];
-  for (const c of cells) if (c.x < best.x) best = c;
-  return best;
-}
 
-function dragonAnchor(gs) {
-  const cells = state.dragonCells(gs);
-  // simple centroid of dragon tiles
-  let sx = 0, sy = 0;
-  for (const c of cells) { sx += c.x; sy += c.y; }
-  const cx = Math.round(sx / Math.max(1, cells.length));
-  const cy = Math.round(sy / Math.max(1, cells.length));
-  return { cx, cy };
-}
+
 
 // Roar: stun + temporary behavior buff within range
 function roarAffect(gs, rs) {
@@ -794,141 +765,131 @@ function breathPathFromExit(gs, maxTiles) {
  * - finds the nearest reachable enemy on that path
  * - spawns a flameWave effect for visuals
  * - applies damage on a cadence (fireCooldown)
- *
- * ds should be getDragonStats(gs) (precomputed caller-side is fine).
  */
-// module-scope breath cooldown (already declared above): let fireCooldown = 0;
-function dragonBreathTick(gs, dt, ds) {
-  // cooldown ticks down
-  fireCooldown = Math.max(0, fireCooldown - dt);
-  const firePeriod = 1 / Math.max(0.0001, ds.fireRate);
 
-  // We only start a new BREATH when cooldown hits 0.
-  if (fireCooldown > 0) return;
+// Helper: west-most dragon tile = mouth (dragon faces west toward ENTRY)
 
-  // --- Build path from EXIT up to range (no walls) ---
-  const maxTiles = Math.max(1, Math.round(ds.breathRange / state.GRID.tile));
-  const path = breathPathFromExit(gs, maxTiles);
- 
-for (let i = 1; i < path.length; i++) {
-  const a = path[i-1], b = path[i];
-  const horiz = (a.x !== b.x);
-  a.dir = horiz ? 'h' : 'v';
+function dragonAnchor(gs) {
+  const cells = state.dragonCells(gs);
+  // simple centroid of dragon tiles
+  let sx = 0, sy = 0;
+  for (const c of cells) { sx += c.x; sy += c.y; }
+  const cx = Math.round(sx / Math.max(1, cells.length));
+  const cy = Math.round(sy / Math.max(1, cells.length));
+  return { cx, cy };
 }
 
-  if (!path || path.length === 0) {
-    // nothing to do, reset cooldown so we won't retry every frame
-    fireCooldown = firePeriod * 0.25;
+function dragonMouthCell(gs) {
+  const cells = state.dragonCells(gs);
+  if (!cells || !cells.length) return { x: state.EXIT.x, y: state.EXIT.y };
+  let best = cells[0];
+  for (const c of cells) if (c.x < best.x) best = c;
+  return best;
+}
+
+// One place to read an enemy's current tile (keeps combat/AI in sync)
+function enemyTile(e) {
+  if (Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) return { x: e.tileX, y: e.tileY };
+  if (Number.isInteger(e.cx)    && Number.isInteger(e.cy))    return { x: e.cx,    y: e.cy    };
+  const t = state.GRID.tile || 32;
+  return { x: Math.floor((e.x||0)/t), y: Math.floor((e.y||0)/t) };
+}
+
+function dragonBreathTick(gs, dt, ds) {
+  // cooldown
+  fireCooldown = Math.max(0, fireCooldown - dt);
+  const firePeriod = 1 / Math.max(0.0001, ds.fireRate);
+  if (fireCooldown > 0) return;
+
+  // range (in tiles)
+  const maxTiles = Math.max(1, Math.round(ds.breathRange / (state.GRID.tile || 32)));
+
+  // choose source at the mouth
+  const mouth = dragonMouthCell(gs);
+
+  // --- pick target by SHORTEST PATH (not by “is enemy on a pre-flood set?”) ---
+  const candidates = [];
+  for (const e of (gs.enemies || [])) {
+    if (e.type === 'engineer' && e.tunneling) continue;
+    const et = enemyTile(e);
+    // Use your topology's shortest path to this specific tile
+    const pathObjs = (typeof computeShortestPath === 'function')
+      ? computeShortestPath(gs, mouth.x, mouth.y, [{ x: et.x, y: et.y }])
+      : null;
+    if (!Array.isArray(pathObjs) || pathObjs.length === 0) continue;
+
+    // Path length in tiles
+    const L = pathObjs.length;
+    if (L <= maxTiles) {
+      candidates.push({ e, et, L, pathObjs });
+    }
+  }
+
+  // If no reachable enemy within range, soft put on CD and bail
+  if (candidates.length === 0) {
+    fireCooldown = firePeriod * 0.5; // small penalty so we re-check soon
     return;
   }
 
-  // Fast index for tiles in path
-  const key = (x, y) => state.tileKey(x, y);
-  const indexByKey = new Map();
-  for (let i = 0; i < path.length; i++) indexByKey.set(key(path[i].x, path[i].y), i);
+  // nearest by path length (the one fire would hit first)
+  candidates.sort((a, b) => a.L - b.L);
+  const pick = candidates[0];
 
-  // Find nearest *reachable* enemy on the path
-  let nearestIdx = Infinity;
+  // Build a compact path array your renderer expects, annotated with segment dir
+  const path = pick.pathObjs.map(p => ({ x: p.x, y: p.y }));
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i];
+    a.dir = (a.x !== b.x) ? 'h' : 'v';
+  }
+
+  // --- Visuals: burst at mouth, traveling wave along the corridor to the target ---
+  gs.dragonFX = { attacking: true, t: 0, dur: 0.25 };
+
+  const tilesPerSec = 14;
+  const travelSec = Math.min(path.length, maxTiles) / Math.max(1, tilesPerSec);
+  (gs.effects || (gs.effects = [])).push(
+    acquireEffect('flameWave', {
+      path, headIdx: 0, t: 0,
+      tilesPerSec, widthPx: state.GRID.tile * 0.85, dur: travelSec + 0.6
+    })
+  );
+
+  // Optional tiny splash at the last tile (looks nice when it “hits”)
+  const hit = path[Math.min(path.length - 1, maxTiles - 1)];
+  if (hit) {
+    (gs.effects || (gs.effects = [])).push(
+      acquireEffect('fireSplash', {
+        x: (hit.x + 0.5) * state.GRID.tile,
+        y: (hit.y + 0.5) * state.GRID.tile,
+        t: 0, dur: 0.35
+      })
+    );
+  }
+
+  // --- Damage application along the path up to the target tile ---
+  const tileKey = (x, y) => state.tileKey(x, y);
+  const idxByKey = new Map(path.map((p, i) => [tileKey(p.x, p.y), i]));
+  const lastIdx  = Math.min(path.length - 1, maxTiles - 1);
+
   for (const e of gs.enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
     const et = enemyTile(e);
- if (!Number.isInteger(et.x) || !Number.isInteger(et.y)) continue;
- const k = key(et.x, et.y);
-    if (!indexByKey.has(k)) continue;
-    const idx = indexByKey.get(k);
-    if (idx < nearestIdx) nearestIdx = idx;
-  }
+    const idx = idxByKey.get(tileKey(et.x, et.y));
+    if (idx == null || idx > lastIdx) continue;
 
-  // If no target in range, we still put the breath on cooldown (small penalty)
-  if (!isFinite(nearestIdx)) {
-  console.debug('[breath] no target in path/range', {
-    pathLen: path.length,
-    rangeTiles: Math.round(ds.breathRange / state.GRID.tile),
-    enemyTilesOnPath: gs.enemies?.map(e => `${e.cx},${e.cy}`).filter(k => k && indexByKey.has(k)).length || 0
-  });
-  fireCooldown = firePeriod * 0.5;
-  return;
-}
-
-  // ---- Shield block: if a Hero sits on the path, stop visuals (and direct dmg) there
-  // Find the FIRST hero index along the path (closest to dragon)
-  let heroBlockIdx = Infinity;
-  for (const e of gs.enemies) {
-    if (e.type !== 'hero') continue;
- const ht = enemyTile(e);
- const idx = indexByKey.get(key(ht.x, ht.y));
-    if (idx !== undefined && idx < heroBlockIdx) heroBlockIdx = idx;
-  }
-
-  // The visual wave should end at:
-  // - the nearest target, unless a hero is even closer; then end at the hero.
-  const visualEndIdx = Math.min(nearestIdx, heroBlockIdx);
-  const truncatedPath = path.slice(0, Math.min(path.length, visualEndIdx + 1));
-
-  // --- Spawn the one-shot mouth animation (short)
-  gs.dragonFX = { attacking: true, t: 0, dur: 0.25 };
-
-  // --- Spawn a flame wave that continues traveling even after mouth stops
-  // Make duration long enough to traverse its truncated path (plus fade tail)
-  const tilesPerSec = 14; // travel speed of flame head
-  const travelSec = truncatedPath.length / Math.max(1, tilesPerSec);
-  (gs.effects || (gs.effects = [])).push(
-  acquireEffect('flameWave', {
-    path: truncatedPath, headIdx: 0, t: 0,
-    tilesPerSec, widthPx: state.GRID.tile * 0.85, dur: travelSec + 0.6
-  })
-);
-
-
-  // --- If hero blocked, add a short "splash" effect at that tile
-  const blockedByHero = (heroBlockIdx <= nearestIdx);
-  if (blockedByHero && isFinite(heroBlockIdx)) {
-    const hit = path[heroBlockIdx];
-    (gs.effects || (gs.effects = [])).push(
-  acquireEffect('fireSplash', { x: (hit.x + 0.5) * state.GRID.tile, y: (hit.y + 0.5) * state.GRID.tile, t: 0, dur: 0.35 })
-);
-  }
-  
-  // --- Apply damage ONCE per breath:
-  //   - Direct+burn to enemies on tiles up to nearestIdx
-  //   - But if heroBlockIdx < nearestIdx, direct is stopped at hero (no direct past it),
-  //     and hero takes ONLY burn (your rule).
-  const hitSet = new Set(path.slice(0, Math.min(path.length, nearestIdx + 1)).map(s => key(s.x, s.y)));
-
-  for (const e of gs.enemies) {
-    if (!e || (e.type === 'engineer' && e.tunneling)) continue;
-    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-
-    const k = key(e.cx, e.cy);
-    if (!hitSet.has(k)) continue; // not in the breath corridor up to nearest
-
-    const idx = indexByKey.get(k);
-    const isHero = (e.type === 'hero');
-
-    // if a hero is closer than this enemy, the hero blocks direct damage past itself
-    const behindHero = isFinite(heroBlockIdx) && idx > heroBlockIdx;
-
-    // Direct damage rules:
-    // - Heroes never take direct (but can take burn).
-    // - Units behind the hero (idx>heroBlockIdx) take no direct (blocked).
-    const canDirect = !isHero && !behindHero;
-
-    if (canDirect) {
-      e.hp -= ds.breathPower;
-      markHit(e, ds.breathPower);
-    }
-    // Burn applies to heroes AND non-behind units (optional: keep burn even if behind hero? we won’t)
-    const canBurn = isHero || !behindHero;
-    if (canBurn && ds.burnDPS > 0 && ds.burnDuration > 0) {
-      e.burnDps = ds.burnDPS;
+    // Direct + burn. (If you want hero shields again, re-add that conditional.)
+    e.hp -= ds.breathPower;
+    markHit(e, ds.breathPower);
+    if (ds.burnDPS > 0 && ds.burnDuration > 0) {
+      e.burnDps  = ds.burnDPS;
       e.burnLeft = Math.max(e.burnLeft || 0, ds.burnDuration);
-      if (!canDirect) markHit(e, 0.0001);
     }
   }
 
-  // Put breath on cooldown now (one-shot)
+  // one-shot CD
   fireCooldown = firePeriod;
 }
+
 
 
 // simple in-place Fisher–Yates shuffle (used by engineer spawn spots)
