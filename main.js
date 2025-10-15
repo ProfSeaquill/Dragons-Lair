@@ -441,8 +441,6 @@ function update(dt) {
 // 2) Fallback enemy movement using interpolated center-to-center steps
 for (const enemy of gs.enemies) {
   if (enemy.updateByCombat) continue;
-  // NEW: if the unit is currently attacking the dragon, don't move it
-  if (enemy.pausedForAttack) continue;
 
   if (Number.isInteger(enemy.cx) && Number.isInteger(enemy.cy)) {
     if (typeof enemy.pxPerSec !== 'number' && typeof enemy.speed !== 'number') {
