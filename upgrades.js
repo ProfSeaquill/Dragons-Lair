@@ -90,10 +90,10 @@ export function getUpgradeInfo(a = GameState, maybeGs) {
  * ========================================================== */
 
 export const STAT_UPGRADES = [
-  { key: 'power', title: 'Fire Power',  base: 20, mult: 1.35, type: 'stat' },
-  { key: 'rate',  title: 'Fire Rate',   base: 25, mult: 1.35, type: 'stat' },
-  { key: 'range', title: 'Flame Range', base: 30, mult: 1.28, type: 'stat' },
-  { key: 'burn',  title: 'Burn DoT',    base: 22, mult: 1.25, type: 'stat' },
+  { key: 'power', title: 'Fire Power',  base: 20, mult: 1.6, type: 'stat' },
+  { key: 'rate',  title: 'Fire Rate',   base: 25, mult: 1.4, type: 'stat' },
+  { key: 'range', title: 'Flame Range', base: 30, mult: 1.30, type: 'stat' },
+  { key: 'burn',  title: 'Burn DoT',    base: 22, mult: 1.5, type: 'stat' },
 ];
 
 /** Build live description strings for the stat upgrades using current dragon stats */
