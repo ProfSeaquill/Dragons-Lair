@@ -18,7 +18,7 @@ export const DEFAULT_CFG = {
   
   enemies: {},     // no assumptions; fill via enemies.json
   waves: null,     // not used; real tuning lives in tuning.waves
-  upgrades: {}     // fill via upgrades.json
+  upgrades: {}     // runtime levels
 };
 
 export function getCfg(gs) {
@@ -33,7 +33,7 @@ export function applyConfig(gs, cfg) {
     tuning:  { ...DEFAULT_CFG.tuning,  ...tuningObj },
     enemies: { ...DEFAULT_CFG.enemies, ...(cfg?.enemies || {}) },
     waves:   Array.isArray(cfg?.waves) ? cfg.waves : DEFAULT_CFG.waves,
-    upgrades:{ ...DEFAULT_CFG.upgrades, ...(cfg?.upgrades || {}) },
+    upgrades: {}  // runtime levels only; rows come from upgrades.js (buildUpgradeRows)
   };
 
   gs.dragonHPMax = (gs.cfg.tuning.dragon.maxHP | 0) || 100;
