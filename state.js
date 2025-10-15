@@ -197,55 +197,47 @@ function _lvl(gs, keyPrefix) {
   return n | 0;
 }
 
-export function getDragonStatsTuned(gs) {
-  // Use static base to avoid recursion (we re-export tuned as getDragonStats below)
-  const base = { ...DRAGON_BASE, maxHP: (_cfg(gs).dragon?.maxHP ?? DRAGON_BASE.maxHP) };
-  const t = _cfg(gs).flame || {};
-
-  // --- levels from purchases ---
-  const pLvl = (gs?.upgrades?.power | 0) || 0;
-  const rLvl = (gs?.upgrades?.rate  | 0) || 0;
-  const bLvl = (gs?.upgrades?.burn  | 0) || 0;
-  const rngLvl = (gs?.upgrades?.range | 0) || 0;
-
-  // --- per-level tuning (from tuning.json → tuning.flame), with safe defaults ---
-  const basePower = (typeof t.baseDamage       === 'number') ? t.baseDamage       : base.breathPower;
-  const perPower  = (typeof t.powerPerLevel    === 'number') ? t.powerPerLevel    : 5;     // +5 dmg / lvl
-
-  const baseRate  = (typeof t.fireRate         === 'number') ? t.fireRate         : base.fireRate;
-  const rateMult  = (typeof t.rateMultPerLevel === 'number') ? t.rateMultPerLevel : 1.05;  // +5% / lvl
-
-  const baseBurn  = (typeof t.burnDps          === 'number') ? t.burnDps          : base.burnDPS;
-  const burnPer   = (typeof t.burnDpsPerLevel  === 'number') ? t.burnDpsPerLevel  : 0.5;   // +0.5 dps / lvl
-
-  const baseBurnDur = (typeof t.burnDuration   === 'number') ? t.burnDuration     : base.burnDuration;
-
-  // --- range: keep your existing tiles logic + per-level tiles from JSON ---
-  const baseTiles  = (typeof t.baseRangeTiles      === 'number')
-                       ? t.baseRangeTiles
-                       : (base.breathRange ? (base.breathRange / (GRID?.tile || 1)) : undefined);
-  const tilesPerLv = (typeof t.rangePerLevelTiles  === 'number') ? t.rangePerLevelTiles : 0;
-  const breathRange =
-    (typeof baseTiles === 'number')
-      ? (baseTiles + tilesPerLv * rngLvl) * (GRID?.tile || 1)
-      : base.breathRange;
-
-  // --- apply levels ---
-  const breathPower = (typeof basePower === 'number') ? (basePower + perPower * pLvl) : base.breathPower;
-  const fireRate    = (typeof baseRate  === 'number') ? (baseRate  * Math.pow(rateMult, rLvl)) : base.fireRate;
-  const burnDPS     = (typeof baseBurn  === 'number') ? (baseBurn  + burnPer * bLvl)          : base.burnDPS;
-
+// keep your base helper (or add if you don't have it yet)
+function getDragonStatsBase() {
+  // Matches DRAGON_BASE; adjust if you changed it
   return {
-    ...base,
-    breathPower,
-    fireRate,
-    burnDPS,
-    burnDuration: baseBurnDur,
-    breathRange
+    maxHP: 100, breathPower: 10, breathRange: 8 * GRID.tile,
+    breathWidth: GRID.tile * 0.9, burnDPS: 1, burnDuration: 1, fireRate: 0.5
   };
 }
 
-// keep old name as alias so existing imports keep working
+export function getDragonStatsTuned(gs) {
+  const base = getDragonStatsBase();
+  const T = flameTune(gs);
+
+  const lvPower = (gs?.upgrades?.power | 0) || 0;
+  const lvRate  = (gs?.upgrades?.rate  | 0) || 0;
+  const lvRange = (gs?.upgrades?.range | 0) || 0;
+  const lvBurn  = (gs?.upgrades?.burn  | 0) || 0;
+
+  const basePower = (typeof T.baseDamage     === 'number') ? T.baseDamage     : base.breathPower;
+  const baseRate  = (typeof T.fireRate       === 'number') ? T.fireRate       : base.fireRate;
+  const baseTiles = (typeof T.baseRangeTiles === 'number') ? T.baseRangeTiles : (base.breathRange / GRID.tile);
+  const baseBurn  = (typeof T.burnDps        === 'number') ? T.burnDps        : base.burnDPS;
+  const baseBurnS = (typeof T.burnDuration   === 'number') ? T.burnDuration   : base.burnDuration;
+
+  const breathPower = approachCap(basePower, T.capDamage,      lvPower, T.kDamage);
+  const fireRate    = approachCap(baseRate,  T.capRate,        lvRate,  T.kRate);
+  const tiles       = approachCap(baseTiles, T.capRangeTiles,  lvRange, T.kRange);
+  const burnDPS     = approachCap(baseBurn,  T.capBurnDps,     lvBurn,  T.kBurnDps);
+  const burnDuration= approachCap(baseBurnS, T.capBurnDuration,lvBurn,  T.kBurnDuration);
+
+  return {
+    ...base,
+    breathPower: Math.max(0, breathPower),
+    fireRate:    Math.max(0.01, fireRate),
+    breathRange: Math.max(1, tiles) * GRID.tile,
+    burnDPS:     Math.max(0, burnDPS),
+    burnDuration:Math.max(0, burnDuration),
+  };
+}
+
+// keep alias so legacy imports work
 export { getDragonStatsTuned as getDragonStats };
 
 export function getClawStatsTuned(gs) {
