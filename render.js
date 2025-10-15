@@ -196,7 +196,7 @@ drawVignette(ctx);
   // -------- Enemies / Dragon / Mouth fire / Heat shimmer
   drawEnemies(ctx, gs);
   drawDragonAndMouthFire(ctx, gs);
-  drawHeatShimmer(ctx, gs); // subtle, after dragon + fire for overlay then
+  // drawHeatShimmer(ctx, gs); // subtle, after dragon + fire for overlay then
 drawFireSplash(ctx, gs);
 
   // -------- Corridor fire (traveling flame)
