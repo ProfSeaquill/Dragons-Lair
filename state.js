@@ -142,6 +142,16 @@ function stepDownCooldown(base, min, level, every, factor) {
 function lin(base, perLvl, level) { return base + perLvl * level; }
 function clamp01(x){ return Math.max(0, Math.min(1, x)); }
 
+// --- smooth asymptotic growth: starts at base, rises quickly, then approaches cap
+function approachCap(base, cap, level, k) {
+  const L = Math.max(0, level | 0);
+  const b = Number(base) || 0;
+  const c = Number(cap);
+  const kk = (k == null) ? 0.07 : Number(k);
+  if (!Number.isFinite(c)) return b;     // guard if cap not provided
+  return c - (c - b) * Math.exp(-kk * L);
+}
+
 
 // ===== Phase 6: tuned wrappers (non-breaking) =====
 
