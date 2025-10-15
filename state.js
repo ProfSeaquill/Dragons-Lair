@@ -190,7 +190,7 @@ export function getStompStats(gs) {
 
 function _cfg(gs) { return (getCfg?.(gs) ?? {}).tuning ?? {}; }
 function _lvl(gs, keyPrefix) {
-  // Count how many upgrades matching a prefix were bought (e.g., "claw_dmg_", "claw_speed_")
+  // Count how many upgrades matching a prefix were bought (e.g., "claw_dmg_")
   const U = (gs && gs.upgrades) || {};
   let n = 0;
   for (const k in U) if (U[k] && k.startsWith(keyPrefix)) n += (U[k] | 0);
@@ -201,8 +201,8 @@ export function getDragonStatsTuned(gs) {
   const base = (typeof getDragonStats === 'function') ? getDragonStats(gs) : {};
   const t = _cfg(gs).flame || {};
 
-  // Range in tiles: base + per-level bonus from the 'flame_range' upgrade level
-  const flameLvl = ((gs?.upgrades?.flame_range) | 0) || 0;
+  // Range in tiles: base + per-level bonus from the 'range' upgrade level
+  const flameLvl = ((gs?.upgrades?.range) | 0) || 0;
   const baseTiles  = (typeof t.baseRangeTiles === 'number') ? t.baseRangeTiles : (base.breathRange ? (base.breathRange / (GRID?.tile || 1)) : undefined);
   const bonusTiles = (typeof t.rangePerLevelTiles === 'number') ? (t.rangePerLevelTiles * flameLvl) : 0;
 
@@ -229,9 +229,8 @@ export function getClawStatsTuned(gs) {
   const base = (typeof getClawStats === 'function') ? getClawStats(gs) : {};
   const t = _cfg(gs).claw || {};
 
-  // Levels: sum any "claw_dmg_*" & "claw_speed_*" upgrades (prefix counting)
-  const dmgLvl   = _lvl(gs, 'claw_dmg_');   // additive damage tiers
-  const speedLvl = _lvl(gs, 'claw_speed_'); // multiplicative cooldown tiers
+  // Levels: sum any "claw_dmg_*" & upgrades (prefix counting)
+  const dmgLvl   = _lvl(gs, 'claw');   // additive damage tiers
 
   const baseDmg = (typeof t.baseDamage === 'number') ? t.baseDamage : base.dmg;
   const perLvl  = (typeof t.damagePerLevel === 'number') ? t.damagePerLevel : 0;
