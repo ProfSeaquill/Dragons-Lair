@@ -884,13 +884,10 @@ if (travelPath.length >= 2 && !travelPath[travelPath.length - 1].dir) {
 
 // Skip spawning corridor flame if it’s < 2 tiles (avoids stray 1-tile “down” draw)
 if (travelPath.length < 2) {
-  gs.dragonFX = { attacking: true, t: 0, dur: 0.25 }; // keep the mouth flash
   fireCooldown = firePeriod;
   return;
 }
 
-  // --- Visuals: brief mouth burst + traveling wave to stopIdx
-  gs.dragonFX = { attacking: true, t: 0, dur: 0.25 };
 
   const tilesPerSec = 14;
   const travelSec = travelPath.length / Math.max(1, tilesPerSec);
@@ -1400,17 +1397,6 @@ if (bombAccum >= 1.0) {
   }
 }
 
-   // --- FX tick (fire mouth overlay + traveling flames + splash) ---
-{
-  // 1) Mouth fire overlay timer
-  const fx = gs.dragonFX;
-  if (fx && fx.attacking) {
-    fx.t = (fx.t || 0) + dt;
-    if (fx.t >= (fx.dur || 0.25)) {
-      fx.attacking = false;
-      fx.t = 0;
-    }
-  }
 
   // 2) Effects array
   for (let i = gs.effects.length - 1; i >= 0; i--) {
