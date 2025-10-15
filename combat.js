@@ -835,10 +835,19 @@ function dragonBreathTick(gs, dt, ds) {
 
   // Build the corridor path (array of {x,y, dir})
   const fullPath = baseRec.pathObjs.map(p => ({ x: p.x, y: p.y }));
+  // Assign dir to BOTH nodes of each edge, and seed node0 from the first edge.
   for (let i = 1; i < fullPath.length; i++) {
-    const a = fullPath[i-1], b = fullPath[i];
-    a.dir = (a.x !== b.x) ? 'h' : 'v';
+  const prev = fullPath[i - 1];
+  const cur  = fullPath[i];
+  const d = (prev.x !== cur.x) ? 'h' : 'v';
+  prev.dir = d;
+  cur.dir  = d;     // <- important: head node inherits too
   }
+  // If there’s at least one step, ensure node0 is initialized:
+  if (fullPath.length >= 2 && !fullPath[0].dir) {
+  fullPath[0].dir = fullPath[1].dir;
+}
+
 
   // Ensure the last node has a dir too (copy previous)
 if (fullPath.length >= 2) {
