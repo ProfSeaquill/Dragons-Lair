@@ -198,28 +198,48 @@ function _lvl(gs, keyPrefix) {
 }
 
 export function getDragonStatsTuned(gs) {
+  const base = (typeof getDragonStats === 'function') ? getDragonStats(gs) : {};
   const t = _cfg(gs).flame || {};
-  // Use static base to avoid recursion (we re-export tuned as getDragonStats below)
-  const base = { ...DRAGON_BASE, maxHP: (_cfg(gs).dragon?.maxHP ?? DRAGON_BASE.maxHP) };
 
-  // Range in tiles: base + per-level bonus from the 'range' upgrade level
-  const flameLvl = ((gs?.upgrades?.range) | 0) || 0;
-  const baseTiles  = (typeof t.baseRangeTiles === 'number') ? t.baseRangeTiles : (base.breathRange ? (base.breathRange / (GRID?.tile || 1)) : undefined);
-  const bonusTiles = (typeof t.rangePerLevelTiles === 'number') ? (t.rangePerLevelTiles * flameLvl) : 0;
+  // --- levels from purchases ---
+  const pLvl = (gs?.upgrades?.power | 0) || 0;
+  const rLvl = (gs?.upgrades?.rate  | 0) || 0;
+  const bLvl = (gs?.upgrades?.burn  | 0) || 0;
+  const rngLvl = (gs?.upgrades?.range | 0) || 0;
 
-  // Compute breathRange in pixels if cfg provided; otherwise keep base
+  // --- per-level tuning (from tuning.json → tuning.flame), with safe defaults ---
+  const basePower = (typeof t.baseDamage       === 'number') ? t.baseDamage       : base.breathPower;
+  const perPower  = (typeof t.powerPerLevel    === 'number') ? t.powerPerLevel    : 5;     // +5 dmg / lvl
+
+  const baseRate  = (typeof t.fireRate         === 'number') ? t.fireRate         : base.fireRate;
+  const rateMult  = (typeof t.rateMultPerLevel === 'number') ? t.rateMultPerLevel : 1.05;  // +5% / lvl
+
+  const baseBurn  = (typeof t.burnDps          === 'number') ? t.burnDps          : base.burnDPS;
+  const burnPer   = (typeof t.burnDpsPerLevel  === 'number') ? t.burnDpsPerLevel  : 0.5;   // +0.5 dps / lvl
+
+  const baseBurnDur = (typeof t.burnDuration   === 'number') ? t.burnDuration     : base.burnDuration;
+
+  // --- range: keep your existing tiles logic + per-level tiles from JSON ---
+  const baseTiles  = (typeof t.baseRangeTiles      === 'number')
+                       ? t.baseRangeTiles
+                       : (base.breathRange ? (base.breathRange / (GRID?.tile || 1)) : undefined);
+  const tilesPerLv = (typeof t.rangePerLevelTiles  === 'number') ? t.rangePerLevelTiles : 0;
   const breathRange =
     (typeof baseTiles === 'number')
-      ? (baseTiles + bonusTiles) * (GRID?.tile || 1)
+      ? (baseTiles + tilesPerLv * rngLvl) * (GRID?.tile || 1)
       : base.breathRange;
+
+  // --- apply levels ---
+  const breathPower = (typeof basePower === 'number') ? (basePower + perPower * pLvl) : base.breathPower;
+  const fireRate    = (typeof baseRate  === 'number') ? (baseRate  * Math.pow(rateMult, rLvl)) : base.fireRate;
+  const burnDPS     = (typeof baseBurn  === 'number') ? (baseBurn  + burnPer * bLvl)          : base.burnDPS;
 
   return {
     ...base,
-    fireRate:   (typeof t.fireRate  === 'number') ? t.fireRate  : base.fireRate,
-    breathPower:(typeof t.dmgPerHit === 'number') ? t.dmgPerHit : base.breathPower,
-    burnDPS:    (typeof t.burnDps   === 'number') ? t.burnDps   : base.burnDPS,
-    burnDuration: base.burnDuration,
-    // keep whatever burnDuration your game already had (tuning didn’t specify change)
+    breathPower,
+    fireRate,
+    burnDPS,
+    burnDuration: baseBurnDur,
     breathRange
   };
 }
