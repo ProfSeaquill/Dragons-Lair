@@ -255,122 +255,132 @@ function boot() {
   window.addEventListener('dl-start-wave', () => { startWave(); });
 
   // --- FSM time bootstrap (exists even before the first frame) ---
-{
-  const gs = state.GameState;
-  if (!gs.time) gs.time = { now: performance.now() / 1000, dt: 0, t: 0 };
-  // helpful for ai/* that read tile size
-  gs.tileSize = state.GRID.tile;
-}
+  {
+    const gs = state.GameState;
+    if (!gs.time) gs.time = { now: performance.now() / 1000, dt: 0, t: 0 };
+    gs.tileSize = state.GRID.tile;
+  }
 
   lastT = performance.now();
-  requestAnimationFrame(frame);     // <- use frame, not tick
+  requestAnimationFrame(frame); // <- use frame, not tick
 
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
-
   Debug.init();
 
+  // --- UI event wiring (unchanged) ---
   window.addEventListener('dl-heal', () => {
-  const { healed, reason } = state.healDragon(state.GameState);
-  if (healed > 0) {
-    UI.refreshHUD?.();
-    UI.tell?.(`Healed ${healed} HP`);
-  } else {
-    UI.tell?.(reason === 'full' ? 'HP already full' : 'Not enough bones');
-  }
-});
-
-window.addEventListener('dl-auto-start', (e) => {
-  state.GameState.autoStart = !!e.detail;
-  UI.refreshHUD?.();
-  UI.tell?.(state.GameState.autoStart ? 'Auto-start ON' : 'Auto-start OFF');
-});
-
-window.addEventListener('dl-save', () => {
-  const ok = state.saveState(state.GameState);
-  globalThis.Telemetry?.log(`save:${ok ? 'success' : 'fail'}`, { manual: true });
-  UI.tell?.(ok ? 'Saved' : 'Save failed', ok ? '#8f8' : '#f88');
-});
-
-window.addEventListener('dl-load', () => {
-  if (state.loadState()) {
-    state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
-    UI.refreshHUD?.();
-    UI.tell?.('Loaded', '#8f8');
-  } else {
-    UI.tell?.('No save found', '#f88');
-  }
-});
-
-  window.addEventListener('dl-save-clear', () => {
-  const ok = state.clearSave();
-  globalThis.Telemetry?.log('save:clear', { ok: !!ok });
-  UI.tell?.(ok ? 'Save cleared' : 'No save to clear');
-});
-
-window.addEventListener('dl-upgrade-buy', (e) => {
-  const id = e.detail?.id;
-  if (!id) return;
-  const ok = buyUpgrade(state.GameState, id);
-  if (ok) {
-    // HUD refresh also triggers upgrade button re-eval when gold changes
-    UI.refreshHUD?.();
-    globalThis.Telemetry?.log('upgrade:buy', { id, level: state.GameState.upgrades?.[id] | 0 });
-    UI.tell?.(`Upgraded ${id}`);
-  } else {
-    UI.tell?.('Not enough gold');
-  }
-});
-
-// declare if it’s the first time you use this variable
-let __lastWaveSaved = (state.GameState.wave | 0) || 0;
-
-loadConfigFiles()
-  .then(cfg => {
-    console.debug(
-      'tuning.waves present?',
-      !!state.getCfg(state.GameState)?.tuning?.waves,
-      state.getCfg(state.GameState)?.tuning?.waves
-    );
-
-    state.applyConfig(state.GameState, cfg);
-
-    console.log('[A after applyConfig]', {
-      hasCfg:    !!state.getCfg(state.GameState),
-      hasTuning: !!state.getCfg(state.GameState)?.tuning,
-      tuningKeys: Object.keys(state.getCfg(state.GameState)?.tuning || {}),
-      hasWaves:  !!state.getCfg(state.GameState)?.tuning?.waves,
-      wavesKeys:
-        (state.getCfg(state.GameState)?.tuning?.waves &&
-         typeof state.getCfg(state.GameState).tuning.waves === 'object' &&
-         !Array.isArray(state.getCfg(state.GameState).tuning.waves))
-          ? Object.keys(state.getCfg(state.GameState).tuning.waves)
-          : null
-    });
-
-    // Wire UI after listeners are set
-    bindUI();
-  })
-  .catch(err => {
-    console.error('loadConfigFiles failed', err);
+    const { healed, reason } = state.healDragon(state.GameState);
+    if (healed > 0) {
+      UI.refreshHUD?.();
+      UI.tell?.(`Healed ${healed} HP`);
+    } else {
+      UI.tell?.(reason === 'full' ? 'HP already full' : 'Not enough bones');
+    }
   });
 
-
-    // Console debug for tuning
-const tcfg = state.getCfg(state.GameState)?.tuning;
-console.debug('[cfg] tuning keys =', tcfg ? Object.keys(tcfg) : '(none)');
-console.debug('[cfg] tuning.waves =', tcfg?.waves);
-    
-    UI.renderUpgradesPanel?.();
-    state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
+  window.addEventListener('dl-auto-start', (e) => {
+    state.GameState.autoStart = !!e.detail;
     UI.refreshHUD?.();
-    UI.tell?.('Config loaded');
-    globalThis.Telemetry?.setup(() => !!state.GameState.dev?.telemetry || !!state.getCfg(state.GameState)?.tuning?.telemetry?.enabled);
-    // now safe to start waves; also refresh preview once more
-    if (startBtn) startBtn.disabled = false;
-    window.dispatchEvent(new CustomEvent('dl-preview-refresh'));
+    UI.tell?.(state.GameState.autoStart ? 'Auto-start ON' : 'Auto-start OFF');
+  });
+
+  window.addEventListener('dl-save', () => {
+    const ok = state.saveState(state.GameState);
+    globalThis.Telemetry?.log(`save:${ok ? 'success' : 'fail'}`, { manual: true });
+    UI.tell?.(ok ? 'Saved' : 'Save failed', ok ? '#8f8' : '#f88');
+  });
+
+  window.addEventListener('dl-load', () => {
+    if (state.loadState()) {
+      state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
+      UI.refreshHUD?.();
+      UI.tell?.('Loaded', '#8f8');
+    } else {
+      UI.tell?.('No save found', '#f88');
+    }
+  });
+
+  window.addEventListener('dl-save-clear', () => {
+    const ok = state.clearSave();
+    globalThis.Telemetry?.log('save:clear', { ok: !!ok });
+    UI.tell?.(ok ? 'Save cleared' : 'No save to clear');
+  });
+
+  window.addEventListener('dl-upgrade-buy', (e) => {
+    const id = e.detail?.id;
+    if (!id) return;
+    const ok = buyUpgrade(state.GameState, id);
+    if (ok) {
+      UI.refreshHUD?.(); // triggers button re-eval when gold changes
+      globalThis.Telemetry?.log('upgrade:buy', { id, level: state.GameState.upgrades?.[id] | 0 });
+      UI.tell?.(`Upgraded ${id}`);
+    } else {
+      UI.tell?.('Not enough gold');
+    }
+  });
+
+  // declare if it’s the first time you use this variable
+  let __lastWaveSaved = (state.GameState.wave | 0) || 0;
+
+  // ---- Load config, apply, then wire UI and finish boot ----
+  loadConfigFiles()
+    .then(cfg => {
+      console.debug(
+        'tuning.waves present?',
+        !!state.getCfg(state.GameState)?.tuning?.waves,
+        state.getCfg(state.GameState)?.tuning?.waves
+      );
+
+      state.applyConfig(state.GameState, cfg);
+
+      const cfgNow = state.getCfg(state.GameState);
+      console.log('[A after applyConfig]', {
+        hasCfg:    !!cfgNow,
+        hasTuning: !!cfgNow?.tuning,
+        tuningKeys: Object.keys(cfgNow?.tuning || {}),
+        hasWaves:  !!cfgNow?.tuning?.waves,
+        wavesKeys:
+          (cfgNow?.tuning?.waves &&
+           typeof cfgNow.tuning.waves === 'object' &&
+           !Array.isArray(cfgNow.tuning.waves))
+            ? Object.keys(cfgNow.tuning.waves)
+            : null
+      });
+
+      // Wire UI after listeners are set
+      bindUI();
+
+      // Console debug for tuning
+      const tcfg = state.getCfg(state.GameState)?.tuning;
+      console.debug('[cfg] tuning keys =', tcfg ? Object.keys(tcfg) : '(none)');
+      console.debug('[cfg] tuning.waves =', tcfg?.waves);
+
+      // Initial UI render passes
+      UI.renderUpgradesPanel?.();
+      state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
+      UI.refreshHUD?.();
+      UI.tell?.('Config loaded');
+
+      // Telemetry gate can read either dev flag or cfg
+      globalThis.Telemetry?.setup(
+        () => !!state.GameState.dev?.telemetry
+           || !!state.getCfg(state.GameState)?.tuning?.telemetry?.enabled
+      );
+
+      // Now safe to start waves; also refresh preview once more
+      if (startBtn) startBtn.disabled = false;
+      window.dispatchEvent(new CustomEvent('dl-preview-refresh'));
     })
-    .catch(err => console.warn('Config load failed, using defaults', err));
+    .catch(err => {
+      console.error('loadConfigFiles failed', err);
+      // Optional: apply defaults & still bring up UI
+      state.applyConfig(state.GameState, {});
+      bindUI();
+      UI.refreshHUD?.();
+      if (startBtn) startBtn.disabled = false; // or true if you want to force config
+    });
 }
+
 
 function startWave() {
   console.log('[B startWave guard]', state.getCfg(state.GameState)?.tuning?.waves);
