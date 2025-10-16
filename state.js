@@ -1,26 +1,5 @@
 // state.js — per-edge wall model + core game state + helpers
 
-// ---- Config defaults (safe, minimal, matches your current game) ----
-export const DEFAULT_CFG = {
-  tuning: {
-    abilities: { gust: 15, roar: 20, stomp: 20 },   // keep your current timers
-    dragon:   { maxHP: 100, healCostBone: 1 },      // 1 bone per HP
-    boss:     { hpMultiplier: 10, armor: 0 },       // as-used in your scaling
-    economy:  { wallCostBones: 1, goldBase: 5 },     // WALLS: 1 bone by default
-
-  waves: {
-     count: { base: 5, cap: 200, k: 0.001 },
-     mixCurves: { villager: { minWave: 1, base: 1, cap: 1, k: 0 } },
-     mixOptions: { floor: 0.0, ceil: 1.0, unlockFill: 'renorm' },
-     cadence: { bossEvery: 10, kingsguardEvery: 5 }
-   }
-},
-  
-  enemies: {},     // no assumptions; fill via enemies.json
-  waves: null,     // not used; real tuning lives in tuning.waves
-  upgrades: {}     // runtime levels
-};
-
 export function getCfg(gs) {
   return (gs && gs.cfg) ? gs.cfg : DEFAULT_CFG;
 }
@@ -82,28 +61,7 @@ export const DRAGON_HITBOX = {
   h: 3,   // height in tiles (try 3, 4, or 5)
 };
 
-export const flameTune = (gs) => {
-  const t = getCfg(gs)?.tuning?.flame || {};
-  return {
-    baseDamage:       t.baseDamage,
-    fireRate:         t.fireRate,
-    baseRangeTiles:   t.baseRangeTiles,
-    burnDps:          t.burnDps,
-    burnDuration:     t.burnDuration,
-
-    capDamage:        t.capDamage ?? 220,
-    capRate:          t.capRate   ?? 3.0,
-    capRangeTiles:    t.capRangeTiles ?? 22,
-    capBurnDps:       t.capBurnDps ?? 12,
-    capBurnDuration:  t.capBurnDuration ?? 4,
-
-    kDamage:          t.kDamage ?? 0.22,
-    kRate:            t.kRate   ?? 0.18,
-    kRange:           t.kRange  ?? 0.12,
-    kBurnDps:         t.kBurnDps ?? 0.20,
-    kBurnDuration:    t.kBurnDuration ?? 0.10
-  };
-};
+export const flameTune = (gs) => (getCfg(gs)?.tuning?.flame) || {};
 
 function _dragonCellsImpl(gs) {
 const { x: cx, y: cy } = EXIT; // EXIT is the lair mouth tile
@@ -135,17 +93,6 @@ export function isDragonCell(x, y, gs) {
   return false;
 }
 
-
-// ===== Base Dragon Stats =====
-const DRAGON_BASE = {
-  maxHP: 100,
-  breathPower: 10,
-  breathRange: 8 * GRID.tile,
-  breathWidth: GRID.tile * 0.9,
-  burnDPS: 1,
-  burnDuration: 1,
-  fireRate: 0.5, // shots/sec
-};
 
 // ===== Ability Upgrade Levels =====
 // (0 = base; you can unlock/level these however you like)
@@ -240,13 +187,20 @@ export function enemyBase(type, gs = GameState) {
 }
 
 // keep your base helper (or add if you don't have it yet)
-export function getDragonStatsBase() {
-  // Matches DRAGON_BASE; adjust if you changed it
+export function getDragonStatsBase(gs = GameState) {
+  const t = getCfg(gs)?.tuning?.flame || {};
+  // prefer tuning.json if present; else fallback to the hardcoded DRAGON_BASE
   return {
-    maxHP: 100, breathPower: 10, breathRange: 8 * GRID.tile,
-    breathWidth: GRID.tile * 0.9, burnDPS: 1, burnDuration: 1, fireRate: 0.5
+    maxHP:      getCfg(gs)?.tuning?.dragon?.maxHP ?? DRAGON_BASE.maxHP,
+    breathPower:  (typeof t.dmgPerHit      === 'number') ? t.dmgPerHit      : DRAGON_BASE.breathPower,
+    fireRate:     (typeof t.fireRate       === 'number') ? t.fireRate       : DRAGON_BASE.fireRate,
+    breathRange:  (typeof t.baseRangeTiles === 'number') ? t.baseRangeTiles * GRID.tile : DRAGON_BASE.breathRange,
+    burnDPS:      (typeof t.burnDps        === 'number') ? t.burnDps        : DRAGON_BASE.burnDPS,
+    burnDuration: (typeof t.burnDuration   === 'number') ? t.burnDuration   : DRAGON_BASE.burnDuration,
+    breathWidth: DRAGON_BASE.breathWidth
   };
 }
+
 
 export function getDragonStatsTuned(gs) {
   const base = getDragonStatsBase();
