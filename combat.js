@@ -330,13 +330,17 @@ function expCap(base, cap, p, k = 3.0) {
   return base + (cap - base) * s;
 }
 
+// combat.js (top-level, near other curve helpers)
+const ENEMY_MAX_WAVE = 101;
+function waveP(w, max = ENEMY_MAX_WAVE) { return Math.min(1, Math.max(0, (Math.max(1, w|0)-1) / (max-1))); }
+function exp01(p, k=3){ const d=1-Math.exp(-k); return d>0 ? (1-Math.exp(-k*p))/d : p; }
+function lerpCap(base, cap, p, {shape='exp', k=3, a=1}={}) {
+  const t = Math.max(0, Math.min(1, p));
+  const s = shape==='lin' ? t : shape==='pow' ? Math.pow(t, Math.max(1e-4,a)) : exp01(t, k);
+  return base + (cap - base) * s;
+}
 
 const CURVES = {
-  // Bases per type
-  hpBase:       { villager: 12,  squire: 16,  knight: 45,  hero: 65, engineer: 40, kingsguard: 90, boss: 300 },
-  spdBase:      { villager: 1, squire: 1.02, knight: 2, hero: 1.1, engineer: 1.05, kingsguard: 1.8, boss: 1.6 },
-  dmgBase:      { villager: 8,   squire: 10,  knight: 14,  hero: 16, engineer: 20, kingsguard: 28, boss: 40 },
-
   // Caps relative to base (your request):
   // speed: 2×, hp: 10×, damage: 1.5×
   hpCapMult:   10.0,
@@ -516,18 +520,6 @@ function makeEnemy(type, wave) {
   
   const leaderTypes = new Set(['hero', 'kingsguard', 'boss']);
   const trailStrength = leaderTypes.has(type) ? 2.5 : 0.5; // tune these
-  
-  // --- per-type attack tuning (range in tiles, attacks/sec, damage per hit)
-  const ATTACK_PROFILE = {
-    villager:   { range: 1, rate: 0.45, dmg: Math.max(1, Math.round(tDmg * 0.4)) },
-    squire:     { range: 1, rate: 0.5, dmg: Math.round(tDmg * 0.5) },
-    knight:     { range: 1, rate: 0.7,  dmg: Math.round(tDmg * 0.7) },
-    hero:       { range: 1, rate: 1.0,  dmg: Math.round(tDmg * 1.0) },
-    engineer:   { range: 1, rate: 0.01,  dmg: Math.round(tDmg * 0.1) }, // engineers still plant bombs
-    kingsguard: { range: 1, rate: 0.5,  dmg: Math.round(tDmg * 1.2) },
-    boss:       { range: 1, rate: 0.3,  dmg: Math.round(tDmg * 1.7)  },
-  };
-  const prof = ATTACK_PROFILE[type] || { range: 1, rate: 0.8, dmg: tDmg };
 
   const base = {
     type,
