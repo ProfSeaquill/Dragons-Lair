@@ -321,9 +321,6 @@ window.addEventListener('dl-upgrade-buy', (e) => {
   }
 });
 
-// Wire UI after listeners are set
-bindUI();
-
 __lastWaveSaved = (state.GameState.wave | 0) || 0;
 
   loadConfigFiles()
@@ -337,6 +334,10 @@ console.log('[A after applyConfig]', {
   tuningKeys: Object.keys(state.getCfg(state.GameState)?.tuning || {}),
   hasWaves: !!state.getCfg(state.GameState)?.tuning?.waves,
   wavesKeys: state.getCfg(state.GameState)?.tuning?.waves && Object.keys(state.getCfg(state.GameState).tuning.waves)
+
+
+  // Wire UI after listeners are set
+bindUI();
 });
 
     // Console debug for tuning
