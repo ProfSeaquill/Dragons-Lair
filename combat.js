@@ -301,24 +301,52 @@ function nearestDragonCell(gs, ox, oy) {
 /* =========================
  * Enemy templates & scaling
  * ========================= */
+// --- Wave progress in [0,1] where wave 1 -> 0, wave 101 -> 1
+const MAX_WAVE_CAP = 101;
+function waveProgress(wave, maxWave = MAX_WAVE_CAP) {
+  const w = Math.max(1, wave | 0);
+  return Math.min(1, (w - 1) / Math.max(1, (maxWave - 1)));
+}
+
+// Linear: early slow, exactly cap at p=1
+function linCap(base, cap, p) {
+  const t = Math.max(0, Math.min(1, p));
+  return base + (cap - base) * t;
+}
+
+// Power curve: p^a (a>1 = slow early, a<1 = fast early), hits cap at p=1
+function powCap(base, cap, p, a = 1.0) {
+  const t = Math.max(0, Math.min(1, p));
+  const s = Math.pow(t, Math.max(0.0001, a));
+  return base + (cap - base) * s;
+}
+
+// Exponential-like (tempered) growth, normalized to reach exactly 1 at p=1
+// k controls “tempo” (higher = faster early growth). Always reaches cap at p=1.
+function expCap(base, cap, p, k = 3.0) {
+  const t = Math.max(0, Math.min(1, p));
+  const denom = 1 - Math.exp(-k);
+  const s = denom > 0 ? (1 - Math.exp(-k * t)) / denom : t; // normalized
+  return base + (cap - base) * s;
+}
+
 
 const CURVES = {
   // Bases per type
   hpBase:       { villager: 12,  squire: 16,  knight: 45,  hero: 65, engineer: 40, kingsguard: 90, boss: 300 },
-  spdBase:      { villager: 1, squire: 1.1, knight: 2, hero: 1.2, engineer: 1.15, kingsguard: 1.8, boss: 1.6 },
+  spdBase:      { villager: 1, squire: 1.02, knight: 2, hero: 1.1, engineer: 1.05, kingsguard: 1.8, boss: 1.6 },
   dmgBase:      { villager: 8,   squire: 10,  knight: 14,  hero: 16, engineer: 20, kingsguard: 28, boss: 40 },
 
   // Caps relative to base (your request):
   // speed: 2×, hp: 10×, damage: 1.5×
   hpCapMult:   10.0,
-  spdCapMult:   2.0,
-  dmgCapMult:   1.5,
+  spdCapMult:   1.5,
+  dmgCapMult:   1.0,
 
-  // How quickly each stat approaches its cap (tune to taste)
-  // Larger k => reaches the cap sooner.
-  kHP:   0.06,
-  kSPD:  0.03,
-  kDMG:  0.05,
+ // Tempo knobs for expCap (tune to taste; higher = reaches cap sooner)
+  kHP:  3.0,
+  kSPD: 1.0,
+  kDMG: 2.6,
 };
 
 
@@ -450,10 +478,12 @@ function makeEnemy(type, wave) {
   const spd0 = CURVES.spdBase[type];
   const dmg0 = CURVES.dmgBase[type];
 
-  // Approach caps per your spec
-  const hp   = Math.round(approachCap(hp0,  hp0  * CURVES.hpCapMult,  wave, CURVES.kHP));
-  const spd  =           approachCap(spd0, spd0 * CURVES.spdCapMult, wave, CURVES.kSPD);
-  const tDmg = Math.round(approachCap(dmg0, dmg0 * CURVES.dmgCapMult, wave, CURVES.kDMG));
+  const p = waveProgress(wave, MAX_WAVE_CAP); // 0 at wave1, 1 at wave101
+
+  // Example using expCap (nice “fast early” feel but exact cap at wave 101)
+  const hp  = Math.round(expCap(hp0,  hp0  * CURVES.hpCapMult,  p, CURVES.kHP));
+  const spd =            expCap(spd0, spd0 * CURVES.spdCapMult, p, CURVES.kSPD);
+  const tDmg= Math.round(expCap(dmg0, dmg0 * CURVES.dmgCapMult, p, CURVES.kDMG));
   
   const leaderTypes = new Set(['hero', 'kingsguard', 'boss']);
   const trailStrength = leaderTypes.has(type) ? 2.5 : 0.5; // tune these
