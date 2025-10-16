@@ -335,7 +335,7 @@ console.log('[A after applyConfig]', {
   hasWaves: !!state.getCfg(state.GameState)?.tuning?.waves,
   wavesKeys: state.getCfg(state.GameState)?.tuning?.waves && Object.keys(state.getCfg(state.GameState).tuning.waves)
 }
-
+            }
   // Wire UI after listeners are set
 bindUI();
 });
