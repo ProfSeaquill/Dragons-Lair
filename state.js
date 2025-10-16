@@ -82,6 +82,11 @@ export const DRAGON_HITBOX = {
   h: 3,   // height in tiles (try 3, 4, or 5)
 };
 
+// state.js
+export const flameTune = (gs) => (getCfg(gs)?.tuning?.flame) ?? {};
+export const crowdTune = (gs) => (getCfg(gs)?.tuning?.crowd) ?? {};
+
+
 function _dragonCellsImpl(gs) {
 const { x: cx, y: cy } = EXIT; // EXIT is the lair mouth tile
   const halfW = Math.floor(DRAGON_HITBOX.w / 2);
