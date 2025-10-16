@@ -35,11 +35,11 @@ function flameTune(gs) {
     burnDuration:     t.burnDuration,
 
     // CAPS (where asymptotes land)
-    capDamage:        t.capDamage ?? 220,
-    capRate:          t.capRate   ?? 3.0,
-    capRangeTiles:    t.capRangeTiles ?? 22,
-    capBurnDps:       t.capBurnDps ?? 12,
-    capBurnDuration:  t.capBurnDuration ?? 4,
+    capDamage:        t.capDamage ?? 800,
+    capRate:          t.capRate   ?? 2.5,
+    capRangeTiles:    t.capRangeTiles ?? 30,
+    capBurnDps:       t.capBurnDps ?? 15,
+    capBurnDuration:  t.capBurnDuration ?? 2,
 
     // TEMPOS (how fast levels approach cap)
     kDamage:          t.kDamage ?? 0.22,
@@ -108,22 +108,22 @@ function abilityCostFor(gs, key, level) {
   const T = getCfg(gs)?.tuning || {};
   const shapes = {
     claw: {
-      baseDmg: 100,  capDmg: (T.claw?.capDamage ?? 500),   kDmg: (T.claw?.kDamage ?? 0.25),
-      baseCd:  (T.claw?.baseCooldownSec ?? 10), minCd:(T.claw?.minCooldownSec ?? 1), kCd:(T.claw?.kCooldown ?? 0.25),
-      baseCost: 120
+      baseDmg: 100,  capDmg: (T.claw?.capDamage ?? 1000),   kDmg: (T.claw?.kDamage ?? 0.25),
+      baseCd:  (T.claw?.baseCooldownSec ?? 10), minCd:(T.claw?.minCooldownSec ?? 5), kCd:(T.claw?.kCooldown ?? 0.25),
+      baseCost: 100
     },
     gust: {
-      basePush: 2, capPush:(T.gust?.capPushTiles ?? 6), kPush:(T.gust?.kPush ?? 0.35),
+      basePush: 2, capPush:(T.gust?.capPushTiles ?? 15), kPush:(T.gust?.kPush ?? 0.35),
       baseCd:(T.gust?.baseCooldownSec ?? 30), minCd:(T.gust?.minCooldownSec ?? 5), kCd:(T.gust?.kCooldown ?? 0.30),
       baseCost: 220
     },
     roar: {
-      baseStun: 1.5, capStun:(T.roar?.capStunSec ?? 5.0), kStun:(T.roar?.kStun ?? 0.25),
+      baseStun: 1.5, capStun:(T.roar?.capStunSec ?? 6.0), kStun:(T.roar?.kStun ?? 0.25),
       baseCd:(T.roar?.baseCooldownSec ?? 60), minCd:(T.roar?.minCooldownSec ?? 15), kCd:(T.roar?.kCooldown ?? 0.25),
       baseCost: 400
     },
     stomp: {
-      baseDmg: 20, capDmg:(T.stomp?.capDamage ?? 100), kDmg:(T.stomp?.kDamage ?? 0.25),
+      baseDmg: 20, capDmg:(T.stomp?.capDamage ?? 500), kDmg:(T.stomp?.kDamage ?? 0.25),
       baseSlow:(0.80), floorSlow:(T.stomp?.floorSlowMult ?? 0.30), kSlow:(T.stomp?.kSlow ?? 0.30),
       baseCd:(T.stomp?.baseCooldownSec ?? 30), minCd:(T.stomp?.minCooldownSec ?? 10), kCd:(T.stomp?.kCooldown ?? 0.30),
       baseCost: 500
