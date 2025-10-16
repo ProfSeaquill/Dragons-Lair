@@ -7,35 +7,39 @@
     "telemetry":{ "enabled": false },
 
     "flame": {
-      // base stats (optional – omit to use your old base values)
       "baseRangeTiles": 15,
-      "rangePerLevelTiles": 2,
       "dmgPerHit": 14,
       "burnDps": 2,
-      "fireRate": 0.50
+      "fireRate": 0.50,
       "burnDuration": 2,
 
-        // per-level effects (these make the purchases matter)
-      "damagePerLevel": 6,         // +6 damage per Power level
-      "rateMultPerLevel": 1.3,    // x1.3 fire rate per Rate level
-      "burnDpsPerLevel": 1,      // +1 DPS per Burn level
-      "rangePerLevelTiles": 2    // +2 tiles per Range level
-    },
-      
-    "claw": {
-      "baseDamage": 100,
-      "damagePerLevel": 10,
-      "baseCooldownSec": 5,
-      "cooldownMultPerLevel": 0.9
-    },
-    "crowd": {
-      "gust":  { "pushTiles": 3 },
-      "roar":  { "stunSec": 2 },
-      "stomp": { "slowMult": 0.5, "slowSec": 3.0 }
+      "capDamage": 220,
+      "capRate": 3.0,
+      "capRangeTiles": 22,
+      "capBurnDps": 12,
+      "capBurnDuration": 4,
+
+      "kDamage": 0.22,
+      "kRate": 0.18,
+      "kRange": 0.12,
+      "kBurnDps": 0.20,
+      "kBurnDuration": 0.10,
+
+      "costBasePower": 20,
+      "costBaseRate": 25,
+      "costBaseRange": 30,
+      "costBaseBurn": 22,
+      "costP": 1.5,
+      "costBumpPerLevel": 0.05
     },
 
+    "claw":  { "baseCooldownSec": 5,  "minCooldownSec": 1,  "capDamage": 500, "kCooldown": 0.25, "kDamage": 0.25 },
+    "gust":  { "baseCooldownSec": 30, "minCooldownSec": 5,  "capPushTiles": 6, "kCooldown": 0.30, "kPush": 0.35 },
+    "roar":  { "baseCooldownSec": 60, "minCooldownSec": 15, "capStunSec": 5,  "kCooldown": 0.25, "kStun": 0.25 },
+    "stomp": { "baseCooldownSec": 30, "minCooldownSec": 10, "capDamage": 100, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
+
     "waves": {
-      "count": { "base": 5, "cap": 120, "k": 0.015 },
+      "count": { "base": 7, "cap": 300, "k": 0.07 },
       "mixCurves": {
         "villager": { "minWave": 1,  "base": 1.00, "cap": 0.55, "k": 0.07 },
         "squire":   { "minWave": 2,  "base": 0.10, "cap": 0.20, "k": 0.20 },
@@ -43,15 +47,8 @@
         "hero":     { "minWave": 11, "base": 0.05, "cap": 0.12, "k": 0.04 },
         "engineer": { "minWave": 21, "base": 0.03, "cap": 0.05, "k": 0.04 }
       },
-      "mixOptions": {
-        "floor": 0.0,
-        "ceil":  0.8,
-        "unlockFill": "renorm"
-      },
-      "cadence": {
-        "bossEvery": 10,
-        "kingsguardEvery": 5
-      }
+      "mixOptions": { "floor": 0.0, "ceil": 0.8, "unlockFill": "renorm" },
+      "cadence": { "bossEvery": 10, "kingsguardEvery": 5 }
     }
   }
 }
