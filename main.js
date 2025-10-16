@@ -321,24 +321,39 @@ window.addEventListener('dl-upgrade-buy', (e) => {
   }
 });
 
-__lastWaveSaved = (state.GameState.wave | 0) || 0;
+// declare if it’s the first time you use this variable
+let __lastWaveSaved = (state.GameState.wave | 0) || 0;
 
-  loadConfigFiles()
+loadConfigFiles()
   .then(cfg => {
-    console.debug('tuning.waves present?', !!state.getCfg(state.GameState)?.tuning?.waves,
-              state.getCfg(state.GameState)?.tuning?.waves);
+    console.debug(
+      'tuning.waves present?',
+      !!state.getCfg(state.GameState)?.tuning?.waves,
+      state.getCfg(state.GameState)?.tuning?.waves
+    );
+
     state.applyConfig(state.GameState, cfg);
-console.log('[A after applyConfig]', {
-  hasCfg: !!state.getCfg(state.GameState),
-  hasTuning: !!state.getCfg(state.GameState)?.tuning,
-  tuningKeys: Object.keys(state.getCfg(state.GameState)?.tuning || {}),
-  hasWaves: !!state.getCfg(state.GameState)?.tuning?.waves,
-  wavesKeys: state.getCfg(state.GameState)?.tuning?.waves && Object.keys(state.getCfg(state.GameState).tuning.waves)
-}
-            }
-  // Wire UI after listeners are set
-bindUI();
-});
+
+    console.log('[A after applyConfig]', {
+      hasCfg:    !!state.getCfg(state.GameState),
+      hasTuning: !!state.getCfg(state.GameState)?.tuning,
+      tuningKeys: Object.keys(state.getCfg(state.GameState)?.tuning || {}),
+      hasWaves:  !!state.getCfg(state.GameState)?.tuning?.waves,
+      wavesKeys:
+        (state.getCfg(state.GameState)?.tuning?.waves &&
+         typeof state.getCfg(state.GameState).tuning.waves === 'object' &&
+         !Array.isArray(state.getCfg(state.GameState).tuning.waves))
+          ? Object.keys(state.getCfg(state.GameState).tuning.waves)
+          : null
+    });
+
+    // Wire UI after listeners are set
+    bindUI();
+  })
+  .catch(err => {
+    console.error('loadConfigFiles failed', err);
+  });
+
 
     // Console debug for tuning
 const tcfg = state.getCfg(state.GameState)?.tuning;
