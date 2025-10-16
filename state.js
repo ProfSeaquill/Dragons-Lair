@@ -297,86 +297,58 @@ export function getDragonStatsTuned(gs) {
 
 // CLaw: damage ↑ to capDmg, cooldown ↓ to minCd
 export function getClawStatsTuned(gs) {
-  const lv = abilityLvl(gs, 'claw');
-  const base = { dmg: 100, cd: 10.0 };
+  const lv = Math.max(0, (gs?.upgrades?.claw|0));
   const t = getCfg(gs)?.tuning?.claw || {};
-  const capDmg = t.capDamage ?? 500;
-  const kDmg   = t.kDamage  ?? 0.25;
-
-  const baseCd = t.baseCooldownSec ?? base.cd;
-  const minCd  = t.minCooldownSec  ?? 1.0;
-  const kCd    = t.kCooldown       ?? 0.25;
+  const baseD = 100, capD = t.capDamage ?? 500;
+  const baseC = t.baseCooldownSec ?? 10.0, floorC = t.minCooldownSec ?? 1.0;
 
   return {
-    dmg: Math.round(approachCap(base.dmg, capDmg, lv, kDmg)),
-    cd:  approachMin(baseCd,  minCd,  lv, kCd),
+    dmg: Math.round(lerpToCap(baseD, capD, lv, { shape: t.dmgShape || 'exp', k: t.kDamage ?? 2.5 })),
+    cd:  lerpDownToFloor(baseC, floorC, lv, { shape: t.cdShape || 'exp', k: t.kCooldown ?? 2.5 })
   };
 }
 
-// Local read helpers (avoid importing upgrades.js)
-function abilityLvl(gs, key) {
-  return Math.max(0, (gs?.upgrades?.[key] | 0));
-}
-function statLvl(gs, key) {           // if you also reference statLvl here
-  return Math.max(0, (gs?.upgrades?.[key] | 0));
-}
-
 export function getGustStatsTuned(gs) {
-  const lv = abilityLvl(gs, 'gust');
-  const base = { pushTiles: 2, cd: 30.0 };
+  const lv = Math.max(0, (gs?.upgrades?.gust|0));
   const t = getCfg(gs)?.tuning?.gust || {};
-  const capPush = t.capPushTiles ?? 6;
-  const kPush   = t.kPush       ?? 0.35;
-
-  const baseCd = t.baseCooldownSec ?? base.cd;
-  const minCd  = t.minCooldownSec  ?? 5.0;
-  const kCd    = t.kCooldown       ?? 0.30;
+  const baseP = 2, capP = t.capPushTiles ?? 6;
+  const baseC = t.baseCooldownSec ?? 30.0, floorC = t.minCooldownSec ?? 5.0;
 
   return {
-    pushTiles: Math.round(approachCap(base.pushTiles, capPush, lv, kPush)),
-    cd:        approachMin(baseCd, minCd, lv, kCd)
+    pushTiles: Math.round(lerpToCap(baseP, capP, lv, { shape: t.pushShape || 'exp', k: t.kPush ?? 2.5 })),
+    cd:        lerpDownToFloor(baseC, floorC, lv, { shape: t.cdShape || 'exp', k: t.kCooldown ?? 2.5 })
   };
 }
 
 export function getRoarStatsTuned(gs) {
-  const lv = abilityLvl(gs, 'roar');
-  const base = { stunSec: 1.5, cd: 60.0, buffDur: 5, senseMult: 1.4, herdingMult: 1.5, rangeTiles: (GRID.cols + GRID.rows) };
+  const lv = Math.max(0, (gs?.upgrades?.roar|0));
   const t = getCfg(gs)?.tuning?.roar || {};
-  const capStun = t.capStunSec ?? 5.0;
-  const kStun   = t.kStun      ?? 0.25;
-
-  const baseCd = t.baseCooldownSec ?? base.cd;
-  const minCd  = t.minCooldownSec  ?? 15.0;
-  const kCd    = t.kCooldown       ?? 0.25;
+  const baseS = 1.5, capS = t.capStunSec ?? 5.0;
+  const baseC = t.baseCooldownSec ?? 60.0, floorC = t.minCooldownSec ?? 15.0;
 
   return {
-    ...base,
-    stunSec: approachCap(base.stunSec, capStun, lv, kStun),
-    cd:      approachMin(baseCd, minCd, lv, kCd),
+    rangeTiles: (GRID.cols + GRID.rows), // unchanged
+    senseMult:  1.4,
+    herdingMult:1.5,
+    buffDur:    5,
+    stunSec:    lerpToCap(baseS, capS, lv, { shape: t.stunShape || 'exp', k: t.kStun ?? 2.5 }),
+    cd:         lerpDownToFloor(baseC, floorC, lv, { shape: t.cdShape || 'exp', k: t.kCooldown ?? 2.5 }),
   };
 }
 
 export function getStompStatsTuned(gs) {
-  const lv = abilityLvl(gs, 'stomp');
-  const base = { slowMult: 0.80, slowSec: 3.0, dmg: 20, cd: 30.0, rangeTiles: (GRID.cols + GRID.rows) };
+  const lv = Math.max(0, (gs?.upgrades?.stomp|0));
   const t = getCfg(gs)?.tuning?.stomp || {};
-  // slowMult is a multiplier applied to speed (lower is stronger)
-  const floorSlowMult = t.floorSlowMult ?? 0.30; // i.e., 70% slow max
-  const kSlow         = t.kSlow         ?? 0.30;
-
-  const capDmg = t.capDamage ?? 100;
-  const kDmg   = t.kDamage   ?? 0.25;
-
-  const baseCd = t.baseCooldownSec ?? base.cd;
-  const minCd  = t.minCooldownSec  ?? 10.0;
-  const kCd    = t.kCooldown       ?? 0.30;
+  const baseD = 20, capD = t.capDamage ?? 100;
+  const baseSlow = 0.80, floorSlow = t.floorSlowMult ?? 0.30;
+  const baseC = t.baseCooldownSec ?? 30.0, floorC = t.minCooldownSec ?? 10.0;
 
   return {
-    rangeTiles: base.rangeTiles,
-    slowMult:   approachMin(base.slowMult, floorSlowMult, lv, kSlow),
-    slowSec:    base.slowSec,
-    dmg:        Math.round(approachCap(base.dmg, capDmg, lv, kDmg)),
-    cd:         approachMin(baseCd, minCd, lv, kCd),
+    rangeTiles: (GRID.cols + GRID.rows),
+    slowMult:   lerpDownToFloor(baseSlow, floorSlow, lv, { shape: t.slowShape || 'exp', k: t.kSlow ?? 2.5 }),
+    slowSec:    3.0,
+    dmg:        Math.round(lerpToCap(baseD, capD, lv, { shape: t.dmgShape || 'exp', k: t.kDamage ?? 2.5 })),
+    cd:         lerpDownToFloor(baseC, floorC, lv, { shape: t.cdShape || 'exp', k: t.kCooldown ?? 2.5 }),
   };
 }
 
