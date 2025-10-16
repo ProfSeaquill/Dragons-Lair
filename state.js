@@ -82,8 +82,29 @@ export const DRAGON_HITBOX = {
   h: 3,   // height in tiles (try 3, 4, or 5)
 };
 
-// state.js
-export const flameTune = (gs) => (getCfg(gs)?.tuning?.flame) ?? {};
+export const flameTune = (gs) => {
+  const t = getCfg(gs)?.tuning?.flame || {};
+  return {
+    baseDamage:       t.baseDamage,
+    fireRate:         t.fireRate,
+    baseRangeTiles:   t.baseRangeTiles,
+    burnDps:          t.burnDps,
+    burnDuration:     t.burnDuration,
+
+    capDamage:        t.capDamage ?? 220,
+    capRate:          t.capRate   ?? 3.0,
+    capRangeTiles:    t.capRangeTiles ?? 22,
+    capBurnDps:       t.capBurnDps ?? 12,
+    capBurnDuration:  t.capBurnDuration ?? 4,
+
+    kDamage:          t.kDamage ?? 0.22,
+    kRate:            t.kRate   ?? 0.18,
+    kRange:           t.kRange  ?? 0.12,
+    kBurnDps:         t.kBurnDps ?? 0.20,
+    kBurnDuration:    t.kBurnDuration ?? 0.10
+  };
+};
+
 export const crowdTune = (gs) => (getCfg(gs)?.tuning?.crowd) ?? {};
 
 
