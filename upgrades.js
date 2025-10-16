@@ -268,7 +268,7 @@ function buildFireDesc(gs) {
   const power   = Math.round(ds.breathPower);
   const rate    = ds.fireRate.toFixed(2); // shots/sec
   const pxRange = Math.round(ds.breathRange);
-  const tiles   = (ds.breathRange / state.GRID.tile).toFixed(1);
+  const tiles   = (ds.breathRange / GRID.tile).toFixed(1);
   const burnDps = ds.burnDPS.toFixed(1);
   const burnDur = ds.burnDuration.toFixed(1);
 
@@ -324,21 +324,19 @@ function buildAbilityDesc(gs) {
  * - Returns true/false.
  */
 export function buyUpgrade(gs = GameState, key) {
-  // Find in either list
-  let def = STAT_UPGRADES.find(d => d.key === key);
-  let store = 'upgrades';
-  if (!def) {
-    def = ABILITY_UPGRADES.find(d => d.key === key);
-    store = def ? 'upgrades' : store;
-  }
+  let def = STAT_UPGRADES.find(d => d.key === key) || ABILITY_UPGRADES.find(d => d.key === key);
   if (!def) return false;
 
-  const level = (store === 'upgrades') ? statLvl(gs, key) : abilityLvl(gs, key);
-  const price = costFor(def, level);
+  const level = (def.type === 'stat') ? statLvl(gs, key) : abilityLvl(gs, key);
+  const price = (def.type === 'stat')
+    ? statCostFor(gs, key, level)
+    : abilityCostFor(gs, key, level);
+
   if ((gs.gold | 0) < price) return false;
 
   gs.gold = (gs.gold | 0) - price;
-  if (!gs[store]) gs[store] = {};
-  gs[store][key] = level + 1;
+  (gs.upgrades || (gs.upgrades = {}));
+  gs.upgrades[key] = level + 1;
   return true;
 }
+
