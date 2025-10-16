@@ -267,7 +267,7 @@ export function getGustStatsTuned(gs) {
 
 export function getRoarStatsTuned(gs) {
   const lv = abilityLvl(gs, 'roar');
-  const base = { stunSec: 1.5, cd: 60.0, buffDur: 5, senseMult: 1.4, herdingMult: 1.5, rangeTiles: (state.GRID.cols + state.GRID.rows) };
+  const base = { stunSec: 1.5, cd: 60.0, buffDur: 5, senseMult: 1.4, herdingMult: 1.5, rangeTiles: (GRID.cols + GRID.rows) };
   const t = getCfg(gs)?.tuning?.roar || {};
   const capStun = t.capStunSec ?? 5.0;
   const kStun   = t.kStun      ?? 0.25;
@@ -285,7 +285,7 @@ export function getRoarStatsTuned(gs) {
 
 export function getStompStatsTuned(gs) {
   const lv = abilityLvl(gs, 'stomp');
-  const base = { slowMult: 0.80, slowSec: 3.0, dmg: 20, cd: 30.0, rangeTiles: (state.GRID.cols + state.GRID.rows) };
+  const base = { slowMult: 0.80, slowSec: 3.0, dmg: 20, cd: 30.0, rangeTiles: (GRID.cols + GRID.rows) };
   const t = getCfg(gs)?.tuning?.stomp || {};
   // slowMult is a multiplier applied to speed (lower is stronger)
   const floorSlowMult = t.floorSlowMult ?? 0.30; // i.e., 70% slow max
