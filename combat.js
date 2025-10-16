@@ -3,6 +3,7 @@ import * as state from './state.js';
 import { updateEnemyDistance } from './ai/metrics.js';
 import { buildJunctionGraph } from './ai/topology.js';
 import { computeShortestPath } from './ai/topology.js';
+import { flameTune, crowdTune } from './state.js';
 
 
 // === Ability cooldown timers (module-local) ===
