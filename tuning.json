@@ -39,7 +39,7 @@
     "stomp": { "baseCooldownSec": 30, "minCooldownSec": 10, "capDamage": 100, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
 
     "waves": {
-      "count": { "base": 7, "cap": 300, "k": 0.07 },
+      "count": { "base": 5, "cap": 200, "k": 0.07 },
       "mixCurves": {
         "villager": { "minWave": 1,  "base": 1.00, "cap": 0.55, "k": 0.07 },
         "squire":   { "minWave": 2,  "base": 0.10, "cap": 0.20, "k": 0.20 },
