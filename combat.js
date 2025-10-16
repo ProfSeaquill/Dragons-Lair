@@ -373,7 +373,38 @@ const FLAGS = {
   groupMax: 10,
 };
 
-// -------- Wave tuning helpers (reads tuning.json) --------
+// -------- Wave helpers --------
+const MAX_WAVE_CAP = 101;
+
+function normalizedWaveProgress(wave, maxWave = MAX_WAVE_CAP) {
+  const w = Math.max(1, wave | 0);
+  return Math.min(1, (w - 1) / Math.max(1, (maxWave - 1)));
+}
+
+// Progress gated by unlock (minWave): 0 before unlock; 1 at maxWave
+function unlockedProgress(wave, minWave = 1, maxWave = MAX_WAVE_CAP) {
+  if (wave < (minWave | 0)) return 0;
+  const span = Math.max(1, (maxWave - (minWave | 0)));
+  const p = (wave - (minWave | 0)) / span;
+  return Math.max(0, Math.min(1, p));
+}
+
+// Normalized exponential shape (reaches 1 exactly at p=1)
+function exp01(p, k = 3.0) {
+  const t = Math.max(0, Math.min(1, p));
+  const denom = 1 - Math.exp(-k);
+  return denom > 0 ? (1 - Math.exp(-k * t)) / denom : t; // linear fallback if k≈0
+}
+
+// Optional power shape (a>0)
+function pow01(p, a = 1.0) {
+  const t = Math.max(0, Math.min(1, p));
+  return Math.pow(t, Math.max(0.0001, a));
+}
+
+// Linear shape
+function lin01(p) { return Math.max(0, Math.min(1, p)); }
+
 function TW(gs = state.GameState) {
   const cfg = state.getCfg?.(gs) || {};
   const tW  = cfg.tuning && cfg.tuning.waves;
@@ -1084,12 +1115,26 @@ function makePlanFromConfig(gs, waveRec) {
 
 // ===== Wave mix (asymptotic shares) =========================================
 
-// gated asymptotic share: 0 before minWave, then base→cap with tempo k
-function _curveShare(wave, { minWave = 1, base = 0, cap = 0, k = 0.01 }) {
-  if (wave < minWave) return 0;
-  const progress = (wave - minWave + 1);
-  return cap - (cap - base) * Math.exp(-k * progress);
+// Normalized share: base -> cap by wave 101, honoring minWave unlock.
+// shape: default 'exp' via k; or specify {shape:'pow', a:...} or {shape:'lin'}
+function _curveShare(wave, cfg = {}) {
+  const base = Number(cfg.base ?? 0);
+  const cap  = Number(cfg.cap  ?? 0);
+  const minW = Number(cfg.minWave ?? 1);
+
+  const p = unlockedProgress(wave, minW, MAX_WAVE_CAP); // 0..1
+  let s;
+  if (cfg.shape === 'pow') {
+    s = pow01(p, cfg.a ?? 1);
+  } else if (cfg.shape === 'lin') {
+    s = lin01(p);
+  } else {
+    // default: exponential tempo via k
+    s = exp01(p, cfg.k ?? 3.0);
+  }
+  return base + (cap - base) * s;
 }
+
 
 // Build normalized shares Map<type, fraction 0..1> for this wave
 function _computeSharesForWave(wave, mixCurves = {}, opts = {}) {
