@@ -2,7 +2,6 @@
 
 import { GameState, getDragonStatsTuned, GRID } from './state.js';
 import { getCfg } from './state.js';
-import { flameTune, crowdTune } from './state.js';
 
 
 // ---- Asymptotic curves (like waves) ----
