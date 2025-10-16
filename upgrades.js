@@ -1,7 +1,6 @@
 // upgrades.js — fire stat upgrades + ability upgrades (Claw/Gust/Roar/Stomp)
 
-import { GameState, getDragonStatsTuned, GRID } from './state.js';
-import { getCfg } from './state.js';
+import * as state from './state.js';
 
 
 // ---- Asymptotic curves (like waves) ----
@@ -255,11 +254,11 @@ export const STAT_UPGRADES = [
 
 /** Build live description strings for the stat upgrades using current dragon stats */
 function buildFireDesc(gs) {
-  const ds = getDragonStatsTuned(gs);
+  const ds = state.getDragonStatsTuned(gs);
   const power   = Math.round(ds.breathPower);
   const rate    = ds.fireRate.toFixed(2); // shots/sec
   const pxRange = Math.round(ds.breathRange);
-  const tiles   = (ds.breathRange / GRID.tile).toFixed(1);
+  const tiles   = (ds.breathRange / state.GRID.tile).toFixed(1);
   const burnDps = ds.burnDPS.toFixed(1);
   const burnDur = ds.burnDuration.toFixed(1);
 
@@ -289,10 +288,10 @@ export const ABILITY_UPGRADES = [
 
 /** Live descriptions for abilities (matches combat/state scaling we discussed) */
 function buildAbilityDesc(gs) {
-  const cs = getClawStatsTuned(gs);
-  const gsT = getGustStatsTuned(gs);
-  const rs = getRoarStatsTuned(gs);
-  const ss = getStompStatsTuned(gs);
+  const cs = state.getClawStatsTuned(gs);
+  const gsT = state.getGustStatsTuned(gs);
+  const rs = state.getRoarStatsTuned(gs);
+  const ss = state.getStompStatsTuned(gs);
   return {
     claw:  `DMG: ${Math.round(cs.dmg)}  •  CD: ${cs.cd.toFixed(2)}s`,
     gust:  `Push: ${gsT.pushTiles} tiles  •  CD: ${gsT.cd.toFixed(2)}s`,
