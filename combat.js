@@ -374,8 +374,6 @@ const FLAGS = {
 };
 
 // -------- Wave helpers --------
-const MAX_WAVE_CAP = 101;
-
 function normalizedWaveProgress(wave, maxWave = MAX_WAVE_CAP) {
   const w = Math.max(1, wave | 0);
   return Math.min(1, (w - 1) / Math.max(1, (maxWave - 1)));
