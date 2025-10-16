@@ -506,79 +506,53 @@ function approachCap(base, cap, wave, k) {
   return cap - (cap - base) * Math.exp(-k * w);
 }
 
+// combat.js
 function makeEnemy(type, wave) {
-  const hp0  = CURVES.hpBase[type];
-  const spd0 = CURVES.spdBase[type];
-  const dmg0 = CURVES.dmgBase[type];
+  const base = state.enemyBase(type) || {};           // ← from enemies.json
+  const es   = state.getCfg(state.GameState)?.tuning?.enemyScaling || {};
 
-  const p = waveProgress(wave, MAX_WAVE_CAP); // 0 at wave1, 1 at wave101
+  const p    = waveP(wave, es.maxWave ?? 101);
 
-  // Example using expCap (nice “fast early” feel but exact cap at wave 101)
-  const hp  = Math.round(expCap(hp0,  hp0  * CURVES.hpCapMult,  p, CURVES.kHP));
-  const spd =            expCap(spd0, spd0 * CURVES.spdCapMult, p, CURVES.kSPD);
-  const tDmg= Math.round(expCap(dmg0, dmg0 * CURVES.dmgCapMult, p, CURVES.kDMG));
-  
-  const leaderTypes = new Set(['hero', 'kingsguard', 'boss']);
-  const trailStrength = leaderTypes.has(type) ? 2.5 : 0.5; // tune these
+  // Bases (with safe fallbacks)
+  const hp0   = Number(base.hp)    || 10;
+  const spd0  = Number(base.speed) || 1.0;           // tiles/sec
+  const rate0 = Number(base.rate)  || 0.5;           // attacks/sec
+  const dps0  = (Number(base.damage)||1) * rate0;    // treat damage scaling in DPS
 
-  const base = {
-    type,
-    name: type,
-    hp,
-    maxHp: hp,
-    speed: spd,             // tiles/sec
-    speedBase: spd,
-    speedMul: 1,
-    damage: prof.dmg,
-    range: prof.range,
-    rate: prof.rate,
-    attackTimer: Math.random() * (1 / Math.max(0.0001, prof.rate)), // jitter so not every attacker hits same frame
-    pausedForAttack: false,
-    shield: false,
-    miniboss: false,
-    burnLeft: 0,
-    burnDps: 0,
-    updateByCombat: false,
-    lastHitAt: 0,
-    showHpUntil: 0,
-    behavior: BEHAVIOR[type] || { sense: 0.5, herding: 1.0, curiosity: 0.12 },
-    isLeader: leaderTypes.has(type),
-    trailStrength,
+  // Caps
+  const hpCap  = hp0  * (es.hpCapMult  ?? 10.0);
+  const spdCap = spd0 * (es.spdCapMult ?? 1.5);
+  const dpsCap = dps0 * (es.dpsCapMult ?? 1.0);
+
+  // Shapes
+  const shape = es.shape || 'exp';
+  const hp  = Math.round( lerpCap(hp0,  hpCap,  p, {shape, k: es.kHP  ?? 3.0}) );
+  const spd =              lerpCap(spd0, spdCap, p, {shape, k: es.kSPD ?? 1.0});
+  const dps =              lerpCap(dps0, dpsCap, p, {shape, k: es.kDPS ?? 2.6});
+
+  // Convert DPS back to per-hit, keeping the *base* enemy cadence unless you want that to scale too
+  const rate = rate0; // keep attacks/sec from enemies.json
+  const dmgPerHit = Math.max(1, Math.round(dps / Math.max(0.01, rate)));
+
+  const out = {
+    type, name: type,
+    hp, maxHp: hp,
+    speed: spd, speedBase: spd, speedMul: 1,
+    damage: dmgPerHit,
+    rate,
+    range: Number(base.range) || 1,
+    // ...rest of your fields...
   };
 
-  // (keep your existing switch with names/flags)
-   let out;
-  switch (type) {
-    case 'villager':   out = { ...base, name: 'Villager' }; break;
-    case 'squire':     out = { ...base, name: 'Squire' }; break;
-    case 'knight':     out = { ...base, name: 'Knight' }; break;
-    case 'hero':       out = { ...base, name: 'Hero', shield: true }; break;
-    case 'engineer':   out = { ...base, name: 'Engineer', tunneling: true, tunnelT: FLAGS.engineerTravelTime, updateByCombat: true }; break;
-    case 'kingsguard': out = { ...base, name: "King's Guard", miniboss: true }; break;
-    case 'boss':       out = { ...base, name: 'Knight of the Round Table', miniboss: true }; break;
-    default:           out = base; break;
-  }
+  // Optional: apply cosmetic/flag overrides from enemies.json (gold, bones, armor, shielded, tags, sprite, etc.)
+  if (typeof base.gold === 'number')  out.gold  = base.gold|0;
+  if (typeof base.bones === 'number') out.bones = base.bones|0;
+  if (typeof base.armor === 'number') out.armor = base.armor|0;
+  if (typeof base.shielded === 'boolean') out.shield = !!base.shielded;
+  if (Array.isArray(base.tags)) out.tags = [...base.tags];
 
-  // --- Phase 5: apply per-type overrides from cfg.enemies[type], if present ---
-  const cfg = state.getCfg?.(state.GameState) || {};
-  const ov = cfg?.enemies?.[type];
-  if (ov && typeof ov === 'object') {
-    if (typeof ov.hp === 'number')      { out.hp = Math.max(1, ov.hp|0); out.maxHp = out.hp; }
-    if (typeof ov.speed === 'number')   { out.speed = ov.speed; }
-    if (typeof ov.damage === 'number')  { out.damage = ov.damage; }
-if (typeof ov.range === 'number')   { out.range = ov.range; }
-if (typeof ov.rate === 'number')    {
-  out.rate = ov.rate;
-  out.attackTimer = Math.random() * (1 / Math.max(0.0001, out.rate));
-}
-    if (typeof ov.armor === 'number')   { out.armor = ov.armor|0; }
-    if (typeof ov.gold === 'number')    { out.gold  = ov.gold|0; }
-    if (typeof ov.bones === 'number')   { out.bones = ov.bones|0; }
-    if (typeof ov.shielded === 'boolean'){ out.shield = !!ov.shielded; }
-    if (Array.isArray(ov.tags))         { out.tags = [...ov.tags]; }
-    if (typeof ov.size === 'number')    { out.size = ov.size; }
-    if (typeof ov.sprite === 'string')  { out.sprite = ov.sprite; }
-  }
+  // (keep your special-name switch and engineer tunneling bits as you have now)
+  // ...
   return out;
 }
 
