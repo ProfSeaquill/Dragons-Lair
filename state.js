@@ -235,6 +235,10 @@ function _lvl(gs, keyPrefix) {
   return n | 0;
 }
 
+export function enemyBase(type, gs = GameState) {
+  return (getCfg(gs)?.enemies?.[type]) || null; // {hp,speed,rate,damage,range,...}
+}
+
 // keep your base helper (or add if you don't have it yet)
 export function getDragonStatsBase() {
   // Matches DRAGON_BASE; adjust if you changed it
