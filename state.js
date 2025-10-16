@@ -182,7 +182,7 @@ function _lvl(gs, keyPrefix) {
 }
 
 // keep your base helper (or add if you don't have it yet)
-function getDragonStatsBase() {
+export function getDragonStatsBase() {
   // Matches DRAGON_BASE; adjust if you changed it
   return {
     maxHP: 100, breathPower: 10, breathRange: 8 * GRID.tile,
