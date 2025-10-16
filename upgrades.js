@@ -1,6 +1,8 @@
 // upgrades.js — fire stat upgrades + ability upgrades (Claw/Gust/Roar/Stomp)
 // upgrades.js (imports)
-import { GameState, GRID, getCfg, getDragonStatsTuned, getClawStatsTuned, getGustStatsTuned, getRoarStatsTuned, getStompStatsTuned, getDragonStatsBase } from './state.js';
+import { GameState, GRID, getCfg, 
+        getDragonStatsTuned, getClawStatsTuned, getGustStatsTuned, 
+        getRoarStatsTuned, getStompStatsTuned, getDragonStatsBase } from './state.js';
 
 
 // ---- Asymptotic curves (like waves) ----
