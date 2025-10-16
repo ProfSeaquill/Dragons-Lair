@@ -187,6 +187,42 @@ function approachMin(base, min, level, k = 0.07) {
   return m + (b - m) * Math.exp(-k * L);
 }
 
+// ==== Finite-horizon (finish exactly at L = 30) ====
+const MAX_UPGRADE_LVL = 30;
+
+function levelProgress(level, max = MAX_UPGRADE_LVL) {
+  const L = Math.max(0, level|0);
+  return Math.min(1, L / Math.max(1, max|0));
+}
+
+// Shapes that map progress p∈[0,1] → s∈[0,1], with s(1)=1.
+function exp01(p, k = 3.0) {
+  const t = Math.max(0, Math.min(1, p));
+  const denom = 1 - Math.exp(-k);
+  return denom > 1e-9 ? (1 - Math.exp(-k * t)) / denom : t; // linear if k≈0
+}
+function pow01(p, a = 1.0) {
+  const t = Math.max(0, Math.min(1, p));
+  return Math.pow(t, Math.max(1e-4, a));
+}
+function lin01(p) { return Math.max(0, Math.min(1, p)); }
+
+// Interpolate base→cap at finite max level
+function lerpToCap(base, cap, level, { shape = 'exp', k = 3.0, a = 1.0, max = MAX_UPGRADE_LVL } = {}) {
+  const p = levelProgress(level, max);
+  let s;
+  if (shape === 'pow') s = pow01(p, a);
+  else if (shape === 'lin') s = lin01(p);
+  else s = exp01(p, k); // default exponential tempo
+  return base + (cap - base) * s;
+}
+
+// Interpolate base→floor (monotone down) at finite max level
+function lerpDownToFloor(base, floor, level, opts) {
+  // reuse lerpToCap by flipping signs
+  const up = lerpToCap(0, base - floor, level, opts);
+  return base - up;
+}
 
 // ===== Phase 6: tuned wrappers (non-breaking) =====
 
@@ -212,32 +248,51 @@ export function getDragonStatsTuned(gs) {
   const base = getDragonStatsBase();
   const T = flameTune(gs);
 
+  // current upgrade levels
   const lvPower = (gs?.upgrades?.power | 0) || 0;
   const lvRate  = (gs?.upgrades?.rate  | 0) || 0;
   const lvRange = (gs?.upgrades?.range | 0) || 0;
   const lvBurn  = (gs?.upgrades?.burn  | 0) || 0;
 
+  // bases (tuning overrides fall back to old base)
   const basePower = (typeof T.baseDamage     === 'number') ? T.baseDamage     : base.breathPower;
   const baseRate  = (typeof T.fireRate       === 'number') ? T.fireRate       : base.fireRate;
   const baseTiles = (typeof T.baseRangeTiles === 'number') ? T.baseRangeTiles : (base.breathRange / GRID.tile);
   const baseBurn  = (typeof T.burnDps        === 'number') ? T.burnDps        : base.burnDPS;
   const baseBurnS = (typeof T.burnDuration   === 'number') ? T.burnDuration   : base.burnDuration;
 
-  const breathPower = approachCap(basePower, T.capDamage,      lvPower, T.kDamage);
-  const fireRate    = approachCap(baseRate,  T.capRate,        lvRate,  T.kRate);
-  const tiles       = approachCap(baseTiles, T.capRangeTiles,  lvRange, T.kRange);
-  const burnDPS     = approachCap(baseBurn,  T.capBurnDps,     lvBurn,  T.kBurnDps);
-  const burnDuration= approachCap(baseBurnS, T.capBurnDuration,lvBurn,  T.kBurnDuration);
+  // === New finite-horizon caps (L=30 == MAX) =========================
+  // Upgrades obey the “10% less effective vs. max-wave enemies” rule:
+  const enemyScaleAtMax = Number(T.enemyHpScaleAtMax ?? 100); // e.g. 100x
+  const effAtMax        = Number(T.efficiencyAtMax ?? 0.90);  // 0.90 = 10% less effective
+  const S = Math.max(0, enemyScaleAtMax * effAtMax);
+
+  // Derive offensive caps from that single S:
+  const capPower   = (T.capDamage    != null) ? T.capDamage    : basePower * S;
+  const capRate    = (T.capRate      != null) ? T.capRate      : baseRate  * S;
+  const capBurnDps = (T.capBurnDps   != null) ? T.capBurnDps   : baseBurn  * S;
+
+  // Burn duration/range can be independent (range isn’t “HP effectiveness”):
+  const capBurnDur   = (T.capBurnDuration   != null) ? T.capBurnDuration   : baseBurnS * (T.burnDurationScaleAtMax ?? 1.5);
+  const capRangeTile = (T.capRangeTiles     != null) ? T.capRangeTiles     : baseTiles * (T.rangeScaleAtMax ?? 2.0);
+
+  // Per-stat shape/tempos are tunable; sensible defaults given:
+  const dmg = lerpToCap(basePower,   capPower,   lvPower, { shape: T.dmgShape  || 'exp', k: T.kDamage  ?? 3.0, a: T.aDamage  ?? 1.0 });
+  const rps = lerpToCap(baseRate,    capRate,    lvRate,  { shape: T.rateShape || 'exp', k: T.kRate    ?? 2.5, a: T.aRate    ?? 1.0 });
+  const rng = lerpToCap(baseTiles,   capRangeTile, lvRange,{ shape: T.rangeShape|| 'pow', a: T.aRange   ?? 1.2, k: T.kRange   ?? 2.0 });
+  const bps = lerpToCap(baseBurn,    capBurnDps, lvBurn,  { shape: T.burnShape || 'exp', k: T.kBurnDps ?? 2.5, a: T.aBurnDps ?? 1.0 });
+  const bdu = lerpToCap(baseBurnS,   capBurnDur, lvBurn,  { shape: T.bdurShape || 'lin' });
 
   return {
     ...base,
-    breathPower: Math.max(0, breathPower),
-    fireRate:    Math.max(0.01, fireRate),
-    breathRange: Math.max(1, tiles) * GRID.tile,
-    burnDPS:     Math.max(0, burnDPS),
-    burnDuration:Math.max(0, burnDuration),
+    breathPower: Math.max(0, dmg),
+    fireRate:    Math.max(0.01, rps),
+    breathRange: Math.max(1, rng) * GRID.tile,
+    burnDPS:     Math.max(0, bps),
+    burnDuration:Math.max(0, bdu),
   };
 }
+
 
 
 // CLaw: damage ↑ to capDmg, cooldown ↓ to minCd
