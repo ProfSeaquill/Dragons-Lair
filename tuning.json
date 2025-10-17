@@ -38,9 +38,9 @@
     },
 
     "claw":  { "baseCooldownSec": 5,  "minCooldownSec": 1,  "capDamage": 500, "kCooldown": 0.25, "kDamage": 0.25 },
-    "gust":  { "baseCooldownSec": 30, "minCooldownSec": 5,  "capPushTiles": 6, "kCooldown": 0.30, "kPush": 0.35 },
-    "roar":  { "baseCooldownSec": 60, "minCooldownSec": 15, "capStunSec": 5,  "kCooldown": 0.25, "kStun": 0.25 },
-    "stomp": { "baseCooldownSec": 30, "minCooldownSec": 10, "capDamage": 100, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
+    "gust":  { "baseCooldownSec": 10, "minCooldownSec": 5,  "capPushTiles": 6, "kCooldown": 0.30, "kPush": 0.35 },
+    "roar":  { "baseCooldownSec": 10, "minCooldownSec": 15, "capStunSec": 5,  "kCooldown": 0.25, "kStun": 0.25 },
+    "stomp": { "baseCooldownSec": 10, "minCooldownSec": 10, "capDamage": 100, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
 
 "enemyScaling": {
   "maxWave": 101,
