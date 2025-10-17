@@ -48,6 +48,15 @@ e.commitTilesLeft = 0;
 e.isAttacking = false;
 e.pausedForAttack = false;
 e.speedMul = 1;
+  // Make sure behavior is present even on pooled objects
+  if (!e.behavior || typeof e.behavior !== 'object') {
+    const B = BEHAVIOR[type] || { sense: 0.25, herding: 1.0, curiosity: 0.15 };
+    e.behavior = {
+      sense:     Number(B.sense)     || 0,
+      herding:   Number(B.herding)   || 0,
+      curiosity: Number(B.curiosity) || 0,
+    };
+  }
 
   if (initFn) initFn(e);
   return e;
@@ -526,6 +535,13 @@ function makeEnemy(type, wave) {
   if (typeof base.shielded === 'boolean') out.shield = !!base.shielded;
   if (Array.isArray(base.tags)) out.tags = [...base.tags];
 
+  // Ensure default behavior per type
+  const B = BEHAVIOR[type] || { sense: 0.25, herding: 1.0, curiosity: 0.15 };
+  out.behavior = {
+    sense:     Number(B.sense)     || 0,
+    herding:   Number(B.herding)   || 0,
+    curiosity: Number(B.curiosity) || 0,
+  };
   // (keep your special-name switch and engineer tunneling bits as you have now)
   // ...
   return out;
@@ -585,8 +601,9 @@ function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
   // force torch for special roles; they can overwrite leader visually, but we keep the first as leader
   if (e.type === 'hero' || e.type === 'kingsguard' || e.type === 'boss') {
     e.torchBearer = true;
-    e.behavior.sense = (e.behavior.sense || 0.5) * 1.15;
-    e.trailStrength = Math.max(e.trailStrength || 0.5, 1.5);
+    e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
+    e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
+    e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
   }
 
   // Each member follows the current group leader (set after the first spawn)
@@ -1313,8 +1330,9 @@ if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
     if (R.groupLeaderId == null) {
       R.groupLeaderId = e.id;
       e.leader = true;
-      e.behavior.sense = (e.behavior.sense || 0.5) * 1.15;
-      e.trailStrength = Math.max(e.trailStrength || 0.5, 1.5);
+     e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
+    e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
+    e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
     }
     e.followLeaderId = R.groupLeaderId;
 
