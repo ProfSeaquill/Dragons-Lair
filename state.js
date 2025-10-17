@@ -1,5 +1,22 @@
 // state.js — per-edge wall model + core game state + helpers
 
+// near the top of state.js
+export const DRAGON_BASE = {
+  maxHP: 100,
+  breathPower: 14,
+  fireRate: 2,
+  breathRange: 15 * GRID.tile,
+  burnDPS: 2,
+  burnDuration: 2,
+  breathWidth: GRID?.tile ?? 32
+};
+
+export const DEFAULT_CFG = {
+  tuning: { dragon: { maxHP: 100, healCostBone: 1 }, flame: {}, waves: {} },
+  enemies: {},
+  waves: []
+};
+
 export function getCfg(gs) {
   return (gs && gs.cfg) ? gs.cfg : DEFAULT_CFG;
 }
@@ -203,7 +220,7 @@ export function getDragonStatsBase(gs = GameState) {
 
 
 export function getDragonStatsTuned(gs) {
-  const base = getDragonStatsBase();
+  const base = getDragonStatsBase(gs);
   const T = flameTune(gs);
 
   // current upgrade levels
@@ -522,17 +539,6 @@ const LS_KEY = 'dragons-lair-save';
 
 export function saveState(gs) {
    const cellWallsArr = Array.from(gs.cellWalls.entries());
-  const data = {
-    version: gs.version,
-    wave: gs.wave,
-    gold: gs.gold,
-    bones: gs.bones,
-    dragonHP: gs.dragonHP,
-    autoStart: gs.autoStart,
-    upgrades: gs.upgrades,
-    seed: gs.seed,
-    cellWalls: cellWallsArr,
-  };
   try {
     const payload = {
       schemaVersion: SAVE_SCHEMA_VERSION,
