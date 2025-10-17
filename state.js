@@ -10,7 +10,7 @@ export const EXIT  = { x: GRID.cols - 1, y: Math.floor(GRID.rows / 2) };
 export const DRAGON_BASE = {
   maxHP: 100,
   breathPower: 14,
-  fireRate: 2,
+  fireRate: 0.5,
   breathRange: 15 * GRID.tile,
   burnDPS: 2,
   burnDuration: 2,
