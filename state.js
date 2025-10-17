@@ -1,5 +1,11 @@
 // state.js — per-edge wall model + core game state + helpers
 
+// ===== Grid & Entry/Exit =====
+export const GRID = { cols: 24, rows: 16, tile: 32 };
+
+export const ENTRY = { x: 0, y: Math.floor(GRID.rows / 2) };
+export const EXIT  = { x: GRID.cols - 1, y: Math.floor(GRID.rows / 2) };
+
 // near the top of state.js
 export const DRAGON_BASE = {
   maxHP: 100,
@@ -55,12 +61,6 @@ export function healDragon(gs) {
   gs.dragonHP = hp + healed;
   return { healed, reason: 'ok' };
 }
-
-// ===== Grid & Entry/Exit =====
-export const GRID = { cols: 24, rows: 16, tile: 32 };
-
-export const ENTRY = { x: 0, y: Math.floor(GRID.rows / 2) };
-export const EXIT  = { x: GRID.cols - 1, y: Math.floor(GRID.rows / 2) };
 
 // --- TEST HOOKS (used only by tests) ---
 export const __testHooks = Object.create(null);
@@ -538,7 +538,6 @@ export function clearSave() {
 const LS_KEY = 'dragons-lair-save';
 
 export function saveState(gs) {
-   const cellWallsArr = Array.from(gs.cellWalls.entries());
   try {
     const payload = {
       schemaVersion: SAVE_SCHEMA_VERSION,
