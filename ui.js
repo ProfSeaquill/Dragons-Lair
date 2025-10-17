@@ -284,7 +284,7 @@ function renderUpgradesPanel() {
 function renderGridHelp(gs) {
   const el = document.querySelector('.gridHelp');
   if (!el) return;
-  const cost = (getCfg(gs).tuning.economy.wallCostBones | 0) || 1;
+  const cost = ((getCfg(gs)?.tuning?.economy?.wallCostBones ?? state.COSTS.edgeWall) | 0);
   el.textContent =
     `Build Mode: Click a TILE EDGE to add a wall (${cost} bone). ` +
     `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
@@ -327,7 +327,7 @@ function wireCanvasEdgeBuild() {
   if (remove && !hasWall) return;
 
   if (place) {
-    const cost = (state.getCfg(gs).tuning.economy.wallCostBones | 0) || 1;
+    const cost = ((state.getCfg(gs)?.tuning?.economy?.wallCostBones ?? state.COSTS.edgeWall) | 0);
     if ((gs.bones | 0) < cost) {
       UI.tell?.('Not enough bones');
       return;
