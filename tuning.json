@@ -8,7 +8,7 @@
 
     "flame": {
       "baseRangeTiles": 15,
-      "dmgPerHit": 14,
+      "dmgPerHit": 10,
       "burnDps": 2,
       "fireRate": 0.50,
       "burnDuration": 2,
