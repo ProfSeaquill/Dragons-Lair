@@ -251,12 +251,6 @@ function stompAffect(gs, ss) {
   // TODO (FX): cracks/dust ring
 }
 
-// --- VISUAL: spawn a one-shot mouth fire effect
-function spawnMouthFire(gs, dur = 0.6) {
-  gs.effects = gs.effects || [];
-gs.effects.push(acquireEffect('fireMouth', { t: 0, dur, dead: false }));
-}
-
 
 // --- Spawn helper: give freshly-spawned enemies a "previous cell" (if available)
 // and a short forward commit so they don't immediately reconsider direction.
@@ -330,7 +324,6 @@ function expCap(base, cap, p, k = 3.0) {
   return base + (cap - base) * s;
 }
 
-// combat.js (top-level, near other curve helpers)
 const ENEMY_MAX_WAVE = 101;
 function waveP(w, max = ENEMY_MAX_WAVE) { return Math.min(1, Math.max(0, (Math.max(1, w|0)-1) / (max-1))); }
 function exp01(p, k=3){ 
@@ -341,19 +334,6 @@ function lerpCap(base, cap, p, {shape='exp', k=3, a=1}={}) {
   const s = shape==='lin' ? t : shape==='pow' ? Math.pow(t, Math.max(1e-4,a)) : exp01(t, k);
   return base + (cap - base) * s;
 }
-
-const CURVES = {
-  // Caps relative to base (your request):
-  // speed: 2×, hp: 10×, damage: 1.5×
-  hpCapMult:   10.0,
-  spdCapMult:   1.5,
-  dmgCapMult:   1.0,
-
- // Tempo knobs for expCap (tune to taste; higher = reaches cap sooner)
-  kHP:  3.0,
-  kSPD: 1.0,
-  kDMG: 2.6,
-};
 
 
 // How each unit tends to decide at junctions
@@ -719,66 +699,6 @@ let trailDecayAccum = 0;
 // module-scope accumulator for bomb tick (1 Hz)
 let bombAccum = 0;
 
-function breathPathFromExit(gs, maxTiles) {
-  const m = dragonMouthCell(gs);
-  const start = { x: state.EXIT.x, y: state.EXIT.y };
-  const q = [start];
-  const seen = new Set([state.tileKey(start.x, start.y)]);
-  const parent = new Map(); // key -> parentKey
-  const key = (x,y) => state.tileKey(x,y);
-
-  // First BFS to explore reachable tiles (respecting walls)
-  while (q.length && seen.size < maxTiles) {
-    const cur = q.shift();
-    for (const n of state.neighborsByEdges(gs, cur.x, cur.y)) {
-      const k = key(n.x, n.y);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      parent.set(k, key(cur.x, cur.y));
-      q.push({ x: n.x, y: n.y });
-      if (seen.size >= maxTiles) break;
-    }
-  }
-
-  // Pick the nearest reachable enemy tile (by BFS layers)
-  const enemies = gs.enemies || [];
-  let targetKey = null, bestDepth = Infinity;
-  for (const e of enemies) {
-    const tx = Number.isInteger(e.tileX) ? e.tileX
-             : Number.isInteger(e.cx)    ? e.cx
-             : Math.floor((e.x||0) / state.GRID.tile);
-    const ty = Number.isInteger(e.tileY) ? e.tileY
-             : Number.isInteger(e.cy)    ? e.cy
-             : Math.floor((e.y||0) / state.GRID.tile);
-    const k = key(tx, ty);
-    if (!seen.has(k)) continue;
-    // measure depth by walking parents back to start
-    let d = 0, cur = k;
-    while (cur && cur !== key(start.x,start.y)) { cur = parent.get(cur); d++; if (d>maxTiles) break; }
-    if (d < bestDepth) { bestDepth = d; targetKey = k; }
-  }
-
-  // If no target, return just the start tile
-  if (!targetKey) return [start];
-
-  // Reconstruct shortest path from target back to start
-  const path = [];
-  let cur = targetKey;
-  while (cur) {
-    const [x,y] = cur.split(',').map(n=>parseInt(n,10));
-    path.push({ x, y });
-    if (cur === key(start.x,start.y)) break;
-    cur = parent.get(cur);
-  }
-  path.reverse();
-
-  // Annotate segment orientation for the renderer
-  for (let i = 1; i < path.length; i++) {
-    const a = path[i-1], b = path[i];
-    a.dir = (a.x !== b.x) ? 'h' : 'v';
-  }
-  return path.slice(0, maxTiles);
-}
 
 /**
  * Dragon breath tick:
