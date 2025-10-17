@@ -18,7 +18,12 @@ export const DRAGON_BASE = {
 };
 
 export const DEFAULT_CFG = {
-  tuning: { dragon: { maxHP: 100, healCostBone: 1 }, flame: {}, waves: {} },
+  tuning: { 
+  dragon: { maxHP: 100, healCostBone: 1 }, 
+    flame: {}, 
+    waves: {},
+    economy: { wallCostBones: 1, wallRefundBones: 0 } 
+  },
   enemies: {},
   waves: []
 };
