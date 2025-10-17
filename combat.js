@@ -333,7 +333,9 @@ function expCap(base, cap, p, k = 3.0) {
 // combat.js (top-level, near other curve helpers)
 const ENEMY_MAX_WAVE = 101;
 function waveP(w, max = ENEMY_MAX_WAVE) { return Math.min(1, Math.max(0, (Math.max(1, w|0)-1) / (max-1))); }
-function exp01(p, k=3){ const d=1-Math.exp(-k); return d>0 ? (1-Math.exp(-k*p))/d : p; }
+function exp01(p, k=3){ 
+  const d=1-Math.exp(-k); 
+  return d>0 ? (1-Math.exp(-k*p))/d : p; }
 function lerpCap(base, cap, p, {shape='exp', k=3, a=1}={}) {
   const t = Math.max(0, Math.min(1, p));
   const s = shape==='lin' ? t : shape==='pow' ? Math.pow(t, Math.max(1e-4,a)) : exp01(t, k);
@@ -389,13 +391,6 @@ function unlockedProgress(wave, minWave = 1, maxWave = MAX_WAVE_CAP) {
   const span = Math.max(1, (maxWave - (minWave | 0)));
   const p = (wave - (minWave | 0)) / span;
   return Math.max(0, Math.min(1, p));
-}
-
-// Normalized exponential shape (reaches 1 exactly at p=1)
-function exp01(p, k = 3.0) {
-  const t = Math.max(0, Math.min(1, p));
-  const denom = 1 - Math.exp(-k);
-  return denom > 0 ? (1 - Math.exp(-k * t)) / denom : t; // linear fallback if k≈0
 }
 
 // Optional power shape (a>0)
