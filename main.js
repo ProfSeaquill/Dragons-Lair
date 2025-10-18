@@ -384,6 +384,7 @@ function boot() {
 
 
 function startWave() {
+  if (!state.GameState.cfgLoaded) return; // don’t start waves before tuning exists
   console.log('[B startWave guard]', state.getCfg(state.GameState)?.tuning?.waves);
   const gs = state.GameState;
   gs.__torchWaveId = (gs.__torchWaveId || 0) + 1;
