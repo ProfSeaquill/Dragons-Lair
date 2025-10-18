@@ -261,9 +261,6 @@ function boot() {
     gs.tileSize = state.GRID.tile;
   }
 
-  lastT = performance.now();
-  requestAnimationFrame(frame); // <- use frame, not tick
-
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
   Debug.init();
 
@@ -350,6 +347,10 @@ function boot() {
       // Wire UI after listeners are set
       bindUI();
 
+     // now it’s safe to run the game loop
+     lastT = performance.now();
+     requestAnimationFrame(frame);
+      
       // Console debug for tuning
       const tcfg = state.getCfg(state.GameState)?.tuning;
       console.debug('[cfg] tuning keys =', tcfg ? Object.keys(tcfg) : '(none)');
