@@ -420,8 +420,8 @@ function tunedSpawnParams(gs = state.GameState) {
 
 function waveCountFor(wave, gs = state.GameState) {
   const c = TW(gs)?.count;
-  const base = _val(c?.base, 7);
-  const cap  = _val(c?.cap,  300);
+  const base = _val(c?.base, 5);
+  const cap  = _val(c?.cap,  202);
   const k    = _val(c?.k,   0.07);
   return Math.max(1, Math.round(approachCap(base, cap, wave, k)));
 }
@@ -1091,7 +1091,7 @@ function buildWaveListFromCurves(gs, wave, W, FLAGS) {
   const C = W?.count || {};
   const baseCount = Math.round(
     Math.max(1, typeof approachCap === 'function'
-      ? approachCap(C.base ?? 7, C.cap ?? 300, wave, C.k ?? 0.07)
+      ? approachCap(C.base ?? 7, C.cap ?? 202, wave, C.k ?? 0.07)
       : (() => {
           const w = Math.max(0, (wave|0) - 1);
           const base = C.base ?? 7, cap = C.cap ?? 300, k = C.k ?? 0.07;
