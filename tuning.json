@@ -10,11 +10,11 @@
       "baseRangeTiles": 15,
       "dmgPerHit": 10,
       "burnDps": 2,
-      "fireRate": 0.50,
+      "fireRate": 0.5,
       "burnDuration": 2,
 
-  "enemyHpScaleAtMax": 100, 
-  "efficiencyAtMax": 0.90, 
+      "enemyHpScaleAtMax": 100,
+      "efficiencyAtMax": 0.9,
 
       "capDamage": 1260,
       "capRate": 2.5,
@@ -24,8 +24,9 @@
 
       "kDamage": 0.22,
       "kRate": 0.18,
-      "aRange": 0.12,
+      "kRange": 0.12,
       "kBurnDps": 0.20,
+      "kBurnDuration": 0.10,
 
       "costBasePower": 20,
       "costBaseRate": 25,
@@ -35,21 +36,21 @@
       "costBumpPerLevel": 0.05
     },
 
-    "claw":  { "baseCooldownSec": 5,  "minCooldownSec": 1,  "capDamage": 500, "kCooldown": 0.25, "kDamage": 0.25 },
+    "claw":  { "baseCooldownSec": 5,  "minCooldownSec": 1,  "capDamage": 500,  "kCooldown": 0.25, "kDamage": 0.25 },
     "gust":  { "baseCooldownSec": 10, "minCooldownSec": 5,  "capPushTiles": 10, "kCooldown": 0.30, "kPush": 0.35 },
-    "roar":  { "baseCooldownSec": 10, "minCooldownSec": 5, "capStunSec": 6,  "kCooldown": 0.25, "kStun": 0.25 },
-    "stomp": { "baseCooldownSec": 10, "minCooldownSec": 5, "capDamage": 1000, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
+    "roar":  { "baseCooldownSec": 10, "minCooldownSec": 5,  "capStunSec": 6,   "kCooldown": 0.25, "kStun": 0.25 },
+    "stomp": { "baseCooldownSec": 10, "minCooldownSec": 5,  "capDamage": 1000, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
 
-"enemyScaling": {
-  "maxWave": 101,
-  "hpCapMult": 10.0,
-  "spdCapMult": 1.5,
-  "dpsCapMult": 1.0,
-  "shape": "exp",
-  "kHP": 3.0,
-  "kSPD": 1.0,
-  "kDPS": 2.6,
-}
+    "enemyScaling": {
+      "maxWave": 101,
+      "hpCapMult": 10.0,
+      "spdCapMult": 1.5,
+      "dpsCapMult": 1.0,
+      "shape": "exp",
+      "kHP": 3.0,
+      "kSPD": 1.0,
+      "kDPS": 2.6
+    },
 
     "waves": {
       "count": { "base": 5, "cap": 202, "k": 0.07 },
