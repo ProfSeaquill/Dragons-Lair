@@ -44,6 +44,7 @@ export function applyConfig(gs, cfg) {
   };
 
   gs.dragonHPMax = (gs.cfg.tuning.dragon.maxHP | 0) || 100;
+  gs.cfgLoaded = true;  // runtime flag
 }
 
 
