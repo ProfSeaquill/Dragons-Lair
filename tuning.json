@@ -13,9 +13,8 @@
       "fireRate": 0.50,
       "burnDuration": 2,
 
-      // finite-horizon knobs
-  "enemyHpScaleAtMax": 100,   // wave-101 enemies are 100× tankier than wave-1 (example)
-  "efficiencyAtMax": 0.90,    // upgrades are 10% less “effective” at max
+  "enemyHpScaleAtMax": 100, 
+  "efficiencyAtMax": 0.90, 
 
       "capDamage": 1260,
       "capRate": 2.5,
