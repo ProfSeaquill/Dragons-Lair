@@ -102,7 +102,7 @@ export function refreshHUD() {
   if (hud.hp && hpStrNow !== _lastHPStr)    { _lastHPStr = hpStrNow; hud.hp.textContent = hpStrNow; }
   if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.checked = autoNow; }
 
-  if ((gs.wave | 0) !== _lastPreviewWave) {
+  if (gs.cfgLoaded && (gs.wave | 0) !== _lastPreviewWave) {
     _lastPreviewWave = gs.wave | 0;
     renderNextWavePreview().catch(err => console.warn('preview failed:', err));
   }
