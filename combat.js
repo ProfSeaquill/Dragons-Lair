@@ -397,12 +397,8 @@ function TW(gs = state.GameState) {
 
   // Only accept a *proper object* for tuning.waves (must not be an array)
   if (tW && typeof tW === 'object' && !Array.isArray(tW)) return tW;
-
-  // Do NOT fall back to top-level cfg.waves if it's an array placeholder
-  const topW = cfg.waves;
-  if (topW && typeof topW === 'object' && !Array.isArray(topW)) return topW;
-
-  return null; // force derived builder to log and use its internal fallback
+  
+  return null; // require tuning.waves explicitly
 }
 
 
@@ -420,10 +416,8 @@ function tunedSpawnParams(gs = state.GameState) {
 
 function waveCountFor(wave, gs = state.GameState) {
   const c = TW(gs)?.count;
-  const base = _val(c?.base, 5);
-  const cap  = _val(c?.cap,  202);
-  const k    = _val(c?.k,   0.07);
-  return Math.max(1, Math.round(approachCap(base, cap, wave, k)));
+  if (!c) return 0; // no config → no units
+ return Math.max(0, Math.round(approachCap(c.base, c.cap, wave, c.k)));
 }
 
 function cadenceFor(wave, gs = state.GameState) {
@@ -1125,6 +1119,10 @@ function buildWaveListFromCurves(gs, wave, W, FLAGS) {
 
 // Derive a JSON-shaped plan so the game runs even without waves.json
 function makePlanDerived(gs) {
+   if (!gs.cfgLoaded) {
+   console.warn('[waves] config not loaded yet; skipping plan');
+   return { startedAt: performance.now(), groups: [] };
+ }
   const now  = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   const wave = (gs.wave | 0) || 1;
 
