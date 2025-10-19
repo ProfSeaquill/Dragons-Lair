@@ -22,7 +22,7 @@
       "capBurnDps": 180,
       "capBurnDuration": 4,
 
-      "kDamage": 0.0001,
+      "kDamage": 2.5,
       "kRate": 0.18,
       "kRange": 0.12,
       "kBurnDps": 0.20,
