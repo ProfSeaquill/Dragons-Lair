@@ -1012,6 +1012,8 @@ function _curveShare(wave, cfg = {}) {
   const cap  = Number(cfg.cap  ?? 0);
   const minW = Number(cfg.minWave ?? 1);
 
+  if (wave < minW) return 0; 
+
   const p = unlockedProgress(wave, minW, MAX_WAVE_CAP); // 0..1
   let s;
   if (cfg.shape === 'pow') {
