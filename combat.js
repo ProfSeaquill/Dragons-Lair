@@ -152,77 +152,70 @@ function stepIfOpen(gs, x, y, dir) {
 // Wing Gust: push ONLY adjacent enemies away from EXIT by N tiles, respecting walls,
 // then have them resume moving back toward the EXIT (dragon).
 function wingGustPush(gs, tiles) {
-  // compute a stable dragon anchor once
   const cells = state.dragonCells(gs);
   let sx = 0, sy = 0;
   for (const c of cells) { sx += c.x; sy += c.y; }
   const ax = Math.round(sx / Math.max(1, cells.length));
   const ay = Math.round(sy / Math.max(1, cells.length));
+  const t  = state.GRID.tile || 32;
 
-  // ----- Enemies -----
   for (const e of gs.enemies) {
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-
-    // Only push units adjacent to the dragon
     if (!isAdjacentToDragon(gs, e.cx, e.cy)) continue;
 
-    // Pick push direction away from dragon anchor on the dominant axis
     const dx0 = e.cx - ax, dy0 = e.cy - ay;
-    let dir;
-    if (Math.abs(dx0) >= Math.abs(dy0)) dir = (dx0 >= 0) ? 'E' : 'W';
-    else                                dir = (dy0 >= 0) ? 'S' : 'N';
+    let dir = (Math.abs(dx0) >= Math.abs(dy0)) ? (dx0 >= 0 ? 'E' : 'W') : (dy0 >= 0 ? 'S' : 'N');
 
-    // Step out up to N tiles, respecting walls; do not land inside dragon
     let nx = e.cx, ny = e.cy;
     for (let k = 0; k < tiles; k++) {
       const step = stepIfOpen(gs, nx, ny, dir);
-      if (step.x === nx && step.y === ny) break;    // blocked
-      if (state.isDragonCell(step.x, step.y, gs)) break; // don't shove into dragon
+      if (step.x === nx && step.y === ny) break;
+      if (state.isDragonCell(step.x, step.y, gs)) break;
       nx = step.x; ny = step.y;
     }
 
     if (nx !== e.cx || ny !== e.cy) {
+      // --- sync ALL coordinate systems ---
       e.cx = nx; e.cy = ny;
+      e.tileX = nx; e.tileY = ny;
+      e.x = (nx + 0.5) * t; e.y = (ny + 0.5) * t;
 
-      // Lightly bias next movement back toward EXIT/dragon
+      // steer back toward exit
       const dx = state.EXIT.x - nx, dy = state.EXIT.y - ny;
       const toExit = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'E' : 'W') : (dy >= 0 ? 'S' : 'N');
       const v = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] }[toExit];
-
-      // Set heading history so AI infers facing → toward EXIT
       e.prevCX = nx - v[0];
       e.prevCY = ny - v[1];
-      e.dir = toExit;            // keep dir consistent with that heading
-      e.commitDir = null;        // let normal pathing resume immediately
+      e.dir = toExit;
+
+      // cancel any straight-line commitment so AI can resume normally
+      e.commitDir = null;
       e.commitSteps = 0;
+      e.commitTilesLeft = 0;
       e.isAttacking = false;
       e.pausedForAttack = false;
+
+      // if your FSM uses dirX/dirY for pixel movement, keep them in sync too:
+      e.dirX = v[0]; e.dirY = v[1];
     }
   }
 
-  // ----- Bombs (optional): keep your existing bomb push logic, or restrict to adjacency similarly -----
+  // bombs block stays the same, but also keep pixels/tiles in sync:
   for (const fx of (gs.effects || [])) {
     if (fx.type !== 'bomb') continue;
-    // (your existing bomb tile-step code is fine; you can also gate it by adjacency if you want)
-    let cx = Math.floor(fx.x / state.GRID.tile);
-    let cy = Math.floor(fx.y / state.GRID.tile);
-
+    let cx = Math.floor(fx.x / t), cy = Math.floor(fx.y / t);
     const dx = cx - ax, dy = cy - ay;
-    let dir;
-    if (Math.abs(dx) >= Math.abs(dy)) dir = (dx >= 0) ? 'E' : 'W';
-    else                              dir = (dy >= 0) ? 'S' : 'N';
-
+    let dir = (Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'E' : 'W') : (dy >= 0 ? 'S' : 'N');
     for (let k = 0; k < tiles; k++) {
       const step = stepIfOpen(gs, cx, cy, dir);
       if (step.x === cx && step.y === cy) break;
       cx = step.x; cy = step.y;
     }
-
-    const t = state.GRID.tile;
     fx.x = (cx + 0.5) * t;
     fx.y = (cy + 0.5) * t;
   }
 }
+
 
 
 
