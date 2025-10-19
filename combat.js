@@ -1,4 +1,4 @@
-/ combat.js (top)
+// combat.js (top)
 import * as state from './state.js';
 import { updateEnemyDistance } from './ai/metrics.js';
 import { buildJunctionGraph } from './ai/topology.js';
