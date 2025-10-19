@@ -1,4 +1,4 @@
-// combat.js (top)
+/ combat.js (top)
 import * as state from './state.js';
 import { updateEnemyDistance } from './ai/metrics.js';
 import { buildJunctionGraph } from './ai/topology.js';
@@ -149,64 +149,86 @@ function stepIfOpen(gs, x, y, dir) {
   return { x, y };
 }
 
-// Wing Gust: push ONLY adjacent enemies away from EXIT by N tiles, respecting walls,
-// then have them resume moving back toward the EXIT (dragon).
+// Push enemies that are within `tiles` of the dragon anchor.
+// Displacement falls off linearly with Manhattan distance:
+//   pushSteps = max(0, tiles - distMan)
+// Adjacent (dist=1) → tiles-1 steps; two tiles away (dist=2) → tiles-2 steps; etc.
 function wingGustPush(gs, tiles) {
+  const t = state.GRID.tile || 32;
+
+  // Dragon anchor (centroid of dragon footprint)
   const cells = state.dragonCells(gs);
   let sx = 0, sy = 0;
   for (const c of cells) { sx += c.x; sy += c.y; }
   const ax = Math.round(sx / Math.max(1, cells.length));
   const ay = Math.round(sy / Math.max(1, cells.length));
-  const t  = state.GRID.tile || 32;
 
+  // ---- Enemies ----
   for (const e of gs.enemies) {
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    if (!isAdjacentToDragon(gs, e.cx, e.cy)) continue;
 
     const dx0 = e.cx - ax, dy0 = e.cy - ay;
-    let dir = (Math.abs(dx0) >= Math.abs(dy0)) ? (dx0 >= 0 ? 'E' : 'W') : (dy0 >= 0 ? 'S' : 'N');
+    const distMan = Math.abs(dx0) + Math.abs(dy0);
+    if (distMan <= 0) continue;                 // sitting inside dragon; ignore
+    if (distMan > tiles) continue;              // out of gust radius
 
+    // How many tiles to push this unit (linearly decays with distance)
+    const pushSteps = Math.max(0, tiles - distMan);
+    if (pushSteps === 0) continue;
+
+    // Pick outward direction along dominant axis (away from anchor)
+    let dir;
+    if (Math.abs(dx0) >= Math.abs(dy0)) dir = (dx0 >= 0) ? 'E' : 'W';
+    else                                dir = (dy0 >= 0) ? 'S' : 'N';
+
+    // Walk step-by-step, respecting walls and not shoving into dragon
     let nx = e.cx, ny = e.cy;
-    for (let k = 0; k < tiles; k++) {
+    for (let k = 0; k < pushSteps; k++) {
       const step = stepIfOpen(gs, nx, ny, dir);
-      if (step.x === nx && step.y === ny) break;
-      if (state.isDragonCell(step.x, step.y, gs)) break;
+      if (step.x === nx && step.y === ny) break;            // blocked
+      if (state.isDragonCell(step.x, step.y, gs)) break;    // don't push into dragon
       nx = step.x; ny = step.y;
     }
 
     if (nx !== e.cx || ny !== e.cy) {
-      // --- sync ALL coordinate systems ---
+      // --- sync all coordinate systems & steering hints ---
       e.cx = nx; e.cy = ny;
       e.tileX = nx; e.tileY = ny;
       e.x = (nx + 0.5) * t; e.y = (ny + 0.5) * t;
 
-      // steer back toward exit
+      // bias facing back toward EXIT so normal AI resumes sensibly
       const dx = state.EXIT.x - nx, dy = state.EXIT.y - ny;
       const toExit = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'E' : 'W') : (dy >= 0 ? 'S' : 'N');
       const v = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] }[toExit];
       e.prevCX = nx - v[0];
       e.prevCY = ny - v[1];
       e.dir = toExit;
+      e.dirX = v[0]; e.dirY = v[1];
 
-      // cancel any straight-line commitment so AI can resume normally
+      // clear any movement commitments / attack pauses
       e.commitDir = null;
       e.commitSteps = 0;
       e.commitTilesLeft = 0;
       e.isAttacking = false;
       e.pausedForAttack = false;
-
-      // if your FSM uses dirX/dirY for pixel movement, keep them in sync too:
-      e.dirX = v[0]; e.dirY = v[1];
     }
   }
 
-  // bombs block stays the same, but also keep pixels/tiles in sync:
+  // ---- Bombs (optional, same falloff & walls) ----
   for (const fx of (gs.effects || [])) {
     if (fx.type !== 'bomb') continue;
     let cx = Math.floor(fx.x / t), cy = Math.floor(fx.y / t);
-    const dx = cx - ax, dy = cy - ay;
-    let dir = (Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'E' : 'W') : (dy >= 0 ? 'S' : 'N');
-    for (let k = 0; k < tiles; k++) {
+
+    const dx0 = cx - ax, dy0 = cy - ay;
+    const distMan = Math.abs(dx0) + Math.abs(dy0);
+    if (distMan <= 0 || distMan > tiles) continue;
+
+    const pushSteps = Math.max(0, tiles - distMan);
+    let dir;
+    if (Math.abs(dx0) >= Math.abs(dy0)) dir = (dx0 >= 0) ? 'E' : 'W';
+    else                                dir = (dy0 >= 0) ? 'S' : 'N';
+
+    for (let k = 0; k < pushSteps; k++) {
       const step = stepIfOpen(gs, cx, cy, dir);
       if (step.x === cx && step.y === cy) break;
       cx = step.x; cy = step.y;
@@ -215,8 +237,6 @@ function wingGustPush(gs, tiles) {
     fx.y = (cy + 0.5) * t;
   }
 }
-
-
 
 
 
