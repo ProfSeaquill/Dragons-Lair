@@ -7,7 +7,7 @@
     "telemetry":{ "enabled": false },
 
     "flame": {
-      "baseRangeTiles": 15,
+      "baseRangeTiles": 8,
       "dmgPerHit": 10,
       "burnDps": 0,
       "fireRate": 0.5,
@@ -34,6 +34,12 @@
       "costBaseBurn": 22,
       "costP": 1.5,
       "costBumpPerLevel": 0.05
+
+      
+    "pricing": {
+      "stat":    { "perLevelR": 0.20, "perLevelAdd": 0, "perLevelQ": 0 },
+      "ability": { "perLevelR": 0.20, "perLevelAdd": 0, "perLevelQ": 0 }
+    }
     },
 
     "claw":  { "baseCooldownSec": 5,  "minCooldownSec": 1,  "capDamage": 500,  "kCooldown": 0.25, "kDamage": 0.25 },
