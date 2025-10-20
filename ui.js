@@ -337,15 +337,14 @@ function wireCanvasEdgeBuild() {
   if (place) {
     const cost = ((state.getCfg(gs)?.tuning?.economy?.wallCostBones ?? state.COSTS.edgeWall) | 0);
     if ((gs.bones | 0) < cost) {
-      UI.tell?.('Not enough bones');
+      UI.tell?.('Not enough bones'); 
+      return;
+    }
+    if (edgeTouchesDragon(gs, hover.x, hover.y, hover.side)) {
+      tell("Can't build on the dragon", '#f88');
       return;
     }
 
-    if (place) {
-  if (edgeTouchesDragon(state.GameState, hover.x, hover.y, hover.side)) {
-    tell("Can't build on the dragon", '#f88');
-    return;
-  }
     // Attempt to place
     toggleEdge(gs, hover.x, hover.y, hover.side);
 
@@ -358,23 +357,18 @@ function wireCanvasEdgeBuild() {
 
     // Charge after successful placement
     gs.bones -= cost;
-
     globalThis.Telemetry?.log('wall:place', { x: hover.x, y: hover.y, side: hover.side, cost });
 
   } else if (remove) {
-    // Remove (no refund; add one if you want)
+    // Remove (no refund here)
     toggleEdge(gs, hover.x, hover.y, hover.side);
     globalThis.Telemetry?.log('wall:remove', { x: hover.x, y: hover.y, side: hover.side });
-
-    // Example refund logic if you decide to support it later:
-    // const refund = (state.getCfg(gs).tuning.economy.wallRefundBones | 0) || 0;
-    // if (refund) gs.bones += refund;
   }
 
   gs.topologyVersion = (gs.topologyVersion || 0) + 1;
   UI.refreshHUD?.();
 });
-}
+
 
 function edgeHitTest(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
