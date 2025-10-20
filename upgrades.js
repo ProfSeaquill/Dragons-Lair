@@ -80,109 +80,30 @@ function flameTune(gs) {
 /** Cost function for going from level L -> L+1 */
 function statCostFor(gs, key, level) {
   const T = flameTune(gs);
-  const base = getDragonStatsBase();
-
-  const shapes = {
-    power: {
-      base: (typeof T.baseDamage     === 'number') ? T.baseDamage     : base.breathPower,
-      cap:  T.capDamage,   k: T.kDamage,   baseCost: T.costBasePower
-    },
-    rate:  {
-      base: (typeof T.fireRate       === 'number') ? T.fireRate       : base.fireRate,
-      cap:  T.capRate,     k: T.kRate,     baseCost: T.costBaseRate
-    },
-    range: {
-      base: (typeof T.baseRangeTiles === 'number') ? T.baseRangeTiles : (base.breathRange / GRID.tile),
-      cap:  T.capRangeTiles, k: T.kRange, baseCost: T.costBaseRange
-    },
-    burn:  {
-      base: (typeof T.burnDps        === 'number') ? T.burnDps        : base.burnDPS,
-      cap:  T.capBurnDps,  k: T.kBurnDps, baseCost: T.costBaseBurn
-    },
+  const baseMap = {
+    power: T.costBasePower ?? 20,
+    rate:  T.costBaseRate  ?? 25,
+    range: T.costBaseRange ?? 30,
+    burn:  T.costBaseBurn  ?? 22,
   };
-
-  const s = shapes[key];
-  if (!s) return 999999; // unknown stat key
-
-  const vNow = approachCap(s.base, s.cap, level,     s.k);
-  const vNext= approachCap(s.base, s.cap, level + 1, s.k);
-  const progress = (vNow - s.base) / Math.max(1e-6, (s.cap - s.base)); // 0..~1
-  // Optionally factor marginal gain (small near cap) if you like:
-  // const marginal = Math.max(1e-6, vNext - vNow);
-
-  return asymptoticCost({
-    baseCost: s.baseCost,
-    progress,
-    p: T.costP,
-    bumpPerLevel: T.costBumpPerLevel,
-    level
-  });
+  const baseCost = baseMap[key];
+  if (typeof baseCost !== 'number') return 999999;
+  return levelOnlyPrice(baseCost, level, 'stat', gs);
 }
 
 function abilityCostFor(gs, key, level) {
   const T = getCfg(gs)?.tuning || {};
-  const shapes = {
-    claw: {
-      baseDmg: 100,  capDmg: (T.claw?.capDamage ?? 1000),   kDmg: (T.claw?.kDamage ?? 0.25),
-      baseCd:  (T.claw?.baseCooldownSec ?? 10), minCd:(T.claw?.minCooldownSec ?? 5), kCd:(T.claw?.kCooldown ?? 0.25),
-      baseCost: 50
-    },
-    gust: {
-      basePush: 2, capPush:(T.gust?.capPushTiles ?? 15), kPush:(T.gust?.kPush ?? 0.35),
-      baseCd:(T.gust?.baseCooldownSec ?? 30), minCd:(T.gust?.minCooldownSec ?? 5), kCd:(T.gust?.kCooldown ?? 0.30),
-      baseCost: 100
-    },
-    roar: {
-      baseStun: 1.5, capStun:(T.roar?.capStunSec ?? 6.0), kStun:(T.roar?.kStun ?? 0.25),
-      baseCd:(T.roar?.baseCooldownSec ?? 60), minCd:(T.roar?.minCooldownSec ?? 15), kCd:(T.roar?.kCooldown ?? 0.25),
-      baseCost: 125
-    },
-    stomp: {
-      baseDmg: 20, capDmg:(T.stomp?.capDamage ?? 500), kDmg:(T.stomp?.kDamage ?? 0.25),
-      baseSlow:(0.80), floorSlow:(T.stomp?.floorSlowMult ?? 0.30), kSlow:(T.stomp?.kSlow ?? 0.30),
-      baseCd:(T.stomp?.baseCooldownSec ?? 30), minCd:(T.stomp?.minCooldownSec ?? 10), kCd:(T.stomp?.kCooldown ?? 0.30),
-      baseCost: 150
-    }
+  const baseMap = {
+    claw:  T.abilities?.costBaseClaw  ?? 50,
+    gust:  T.abilities?.costBaseGust  ?? 100,
+    roar:  T.abilities?.costBaseRoar  ?? 125,
+    stomp: T.abilities?.costBaseStomp ?? 150,
   };
-  const S = shapes[key]; if (!S) return 999999;
-
-  // “progress toward cap”: combine the stat that goes UP and the one(s) that go DOWN
-  // For “down” stats (cooldowns, slowMult), progress is measured toward the MIN.
-  let progUp = 0, progDown = 0;
-
-  if (key === 'claw') {
-    const nowD = approachCap(S.baseDmg, S.capDmg, level, S.kDmg);
-    const nowC = approachMin(S.baseCd, S.minCd, level, S.kCd);
-    progUp   = (nowD - S.baseDmg) / Math.max(1e-6, S.capDmg - S.baseDmg);
-    progDown = (S.baseCd - nowC) / Math.max(1e-6, S.baseCd - S.minCd);
-  } else if (key === 'gust') {
-    const nowP = approachCap(S.basePush, S.capPush, level, S.kPush);
-    const nowC = approachMin(S.baseCd, S.minCd, level, S.kCd);
-    progUp   = (nowP - S.basePush) / Math.max(1e-6, S.capPush - S.basePush);
-    progDown = (S.baseCd - nowC)   / Math.max(1e-6, S.baseCd - S.minCd);
-  } else if (key === 'roar') {
-    const nowS = approachCap(S.baseStun, S.capStun, level, S.kStun);
-    const nowC = approachMin(S.baseCd, S.minCd, level, S.kCd);
-    progUp   = (nowS - S.baseStun) / Math.max(1e-6, S.capStun - S.baseStun);
-    progDown = (S.baseCd - nowC)   / Math.max(1e-6, S.baseCd - S.minCd);
-  } else if (key === 'stomp') {
-    const nowD = approachCap(S.baseDmg, S.capDmg, level, S.kDmg);
-    const nowC = approachMin(S.baseCd, S.minCd, level, S.kCd);
-    const nowSlow = approachMin(S.baseSlow, S.floorSlow, level, S.kSlow);
-    const progSlow = (S.baseSlow - nowSlow) / Math.max(1e-6, S.baseSlow - S.floorSlow);
-    const progDmg  = (nowD - S.baseDmg) / Math.max(1e-6, S.capDmg - S.baseDmg);
-    const progCd   = (S.baseCd - nowC) / Math.max(1e-6, S.baseCd - S.minCd);
-    // take the strongest among the three improvements
-    progUp   = Math.max(progDmg, progSlow);
-    progDown = progCd;
-  }
-
-  const progress = Math.max(0, Math.min(1, Math.max(progUp, progDown))); // conservative
-  const p  = (getCfg(gs)?.tuning?.flame?.costP ?? 1.6);
-  const bl = (getCfg(gs)?.tuning?.flame?.costBumpPerLevel ?? 0.05);
-
-  return asymptoticCost({ baseCost: S.baseCost, progress, p, bumpPerLevel: bl, level });
+  const baseCost = baseMap[key];
+  if (typeof baseCost !== 'number') return 999999;
+  return levelOnlyPrice(baseCost, level, 'ability', gs);
 }
+
 
 
 /** Safe getters for current levels in both stores */
