@@ -35,11 +35,6 @@
       "costP": 1.5,
       "costBumpPerLevel": 0.05
 
-      
-    "pricing": {
-      "stat":    { "perLevelR": 0.20, "perLevelAdd": 0, "perLevelQ": 0 },
-      "ability": { "perLevelR": 0.20, "perLevelAdd": 0, "perLevelQ": 0 }
-    }
     },
 
     "claw":  { "baseCooldownSec": 5,  "minCooldownSec": 1,  "capDamage": 500,  "kCooldown": 0.25, "kDamage": 0.25 },
