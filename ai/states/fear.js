@@ -1,3 +1,4 @@
+// ai/states/fear.js
 import { CFG } from '../config.js';
 import { stepAlongDirection } from '../steering.js';
 import * as state from '../../state.js';
