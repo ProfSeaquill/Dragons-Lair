@@ -656,6 +656,9 @@ function spawnOne(gs, type) {
   const e = acquireEnemy(type, gs.wave | 0, (en) => {
     if (type === 'engineer') {
       en.tunneling = true;
+      (gs.effects || (gs.effects = [])).push(acquireEffect('tunnel', {
+  targetId: en.id, t: 0, dur: en.tunnelT
+}));
       en.tunnelT = FLAGS.engineerTravelTime;
       en.updateByCombat = true;           // let Combat own it while burrowed
     }
@@ -691,6 +694,10 @@ function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
   const e = acquireEnemy(type, gs.wave | 0, (en) => {
     if (type === 'engineer') {
       en.tunneling = true;
+      (gs.effects || (gs.effects = [])).push(acquireEffect('tunnel', {
+  targetId: en.id, t: 0, dur: en.tunnelT
+}));
+
       en.tunnelT = FLAGS.engineerTravelTime;
       en.updateByCombat = true;
     }
@@ -741,6 +748,10 @@ export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
     const e = acquireEnemy(type, gs.wave | 0, (en) => {
     if (type === 'engineer') {
       en.tunneling = true;
+      (gs.effects || (gs.effects = [])).push(acquireEffect('tunnel', {
+  targetId: en.id, t: 0, dur: en.tunnelT
+}));
+
       en.tunnelT = FLAGS.engineerTravelTime;
       en.updateByCombat = true;
     }
@@ -1570,7 +1581,20 @@ if (bombAccum >= 1.0) {
       if (efx.t >= (efx.dur || 0.35)) { gs.effects.splice(i, 1); continue; }
     }
 
-    // bombs are handled elsewhere; ignore here
+    // In the effects update loop:
+if (efx.type === 'tunnel') {
+  efx.t += dt;
+  // follow the engineer by id
+  const carrier = gs.enemies.find(x => x.id === efx.targetId);
+  if (carrier) {
+    efx.x = carrier.x; efx.y = carrier.y;
+    // auto-expire when engineer surfaces
+    if (!carrier.tunneling) efx.dead = true;
+  } else {
+    efx.dead = true;
+  }
+}
+
   }
 
   // 2) Enemy status (engineer tunneling, burn DoT, deaths, contact/attack)
