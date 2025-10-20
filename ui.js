@@ -368,7 +368,7 @@ function wireCanvasEdgeBuild() {
   gs.topologyVersion = (gs.topologyVersion || 0) + 1;
   UI.refreshHUD?.();
 });
-
+}
 
 function edgeHitTest(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
