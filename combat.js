@@ -1565,7 +1565,6 @@ if (bombAccum >= 1.0) {
         
         // --- snap to tile & face lair
         e.cx = spot.x; e.cy = spot.y; e.dir = 'W';
-        const t = state.GRID.tile;
         e.x = (e.cx + 0.5) * t;
         e.y = (e.cy + 0.5) * t;
         e.tileX = e.cx;
