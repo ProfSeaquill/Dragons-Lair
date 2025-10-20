@@ -200,14 +200,17 @@ function buildUpgradeRows(gs) {
 
   const abilityRows = ABILITY_UPGRADES.map(def => {
   const level = abilityLvl(gs, def.key);
+  const isMax = level >= ABILITY_MAX_LEVEL;
   return {
     key: def.key,
     title: def.title,
     level,
-    cost: abilityCostFor(gs, def.key, level),  // ← asymptotic cost
+    cost: isMax ? 0 : abilityCostFor(gs, def.key, level),
     desc: abilityLive[def.key] || '',
     max: undefined,
     isMax: false,
+    max: ABILITY_MAX_LEVEL,
+    isMax,
     type: def.type,
   };
 });
@@ -253,6 +256,8 @@ export const STAT_UPGRADES = [
   { key: 'range', title: 'Flame Range', base: 30, mult: 1.30, type: 'stat' },
   { key: 'burn',  title: 'Burn DoT',    base: 22, mult: 1.5, type: 'stat' },
 ];
+
+const ABILITY_MAX_LEVEL = 30;
 
 /** Build live description strings for the stat upgrades using current dragon stats */
 function buildFireDesc(gs) {
@@ -320,6 +325,10 @@ export function buyUpgrade(gs = GameState, key) {
   if (!def) return false;
 
   const level = (def.type === 'stat') ? statLvl(gs, key) : abilityLvl(gs, key);
+  if (def.type === 'ability' && level >= ABILITY_MAX_LEVEL) {
+    return false; // hard cap
+  }
+        
   const price = (def.type === 'stat')
     ? statCostFor(gs, key, level)
     : abilityCostFor(gs, key, level);
