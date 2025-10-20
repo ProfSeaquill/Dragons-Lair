@@ -1,7 +1,7 @@
 {
   "villager": {
     "hp": 12,
-    "speed": 1.0,
+    "speed": 1.14,
     "rate": 0.3,
     "damage": 2,
     "range": 1,
@@ -13,7 +13,7 @@
   },
   "squire": {
     "hp": 20,
-    "speed": 1.1,
+    "speed": 1.15,
     "rate": 0.3,
     "damage": 4,
     "range": 1,
@@ -25,7 +25,7 @@
   },
   "knight": {
     "hp": 60,
-    "speed": 1.8,
+    "speed": 2.0,
     "rate": 0.7,
     "damage": 5,
     "range": 1,
@@ -37,7 +37,7 @@
   },
   "hero": {
     "hp": 120,
-    "speed": 1.2,
+    "speed": 1.16,
     "rate": 1.0,
     "damage": 5,
     "range": 1,
@@ -67,7 +67,7 @@
     "range": 1,
     "gold": 15,
     "bones": 4,
-    "armor": 3,
+    "armor": 0,
     "shielded": false,
     "tags": ["miniboss"]
   },
@@ -79,7 +79,7 @@
     "range": 1,
     "gold": 50,
     "bones": 6,
-    "armor": 5,
+    "armor": 0,
     "shielded": false,
     "tags": ["boss"]
   }
