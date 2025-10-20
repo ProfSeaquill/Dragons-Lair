@@ -110,23 +110,23 @@ function abilityCostFor(gs, key, level) {
     claw: {
       baseDmg: 100,  capDmg: (T.claw?.capDamage ?? 1000),   kDmg: (T.claw?.kDamage ?? 0.25),
       baseCd:  (T.claw?.baseCooldownSec ?? 10), minCd:(T.claw?.minCooldownSec ?? 5), kCd:(T.claw?.kCooldown ?? 0.25),
-      baseCost: 100
+      baseCost: 50
     },
     gust: {
       basePush: 2, capPush:(T.gust?.capPushTiles ?? 15), kPush:(T.gust?.kPush ?? 0.35),
       baseCd:(T.gust?.baseCooldownSec ?? 30), minCd:(T.gust?.minCooldownSec ?? 5), kCd:(T.gust?.kCooldown ?? 0.30),
-      baseCost: 220
+      baseCost: 100
     },
     roar: {
       baseStun: 1.5, capStun:(T.roar?.capStunSec ?? 6.0), kStun:(T.roar?.kStun ?? 0.25),
       baseCd:(T.roar?.baseCooldownSec ?? 60), minCd:(T.roar?.minCooldownSec ?? 15), kCd:(T.roar?.kCooldown ?? 0.25),
-      baseCost: 400
+      baseCost: 125
     },
     stomp: {
       baseDmg: 20, capDmg:(T.stomp?.capDamage ?? 500), kDmg:(T.stomp?.kDamage ?? 0.25),
       baseSlow:(0.80), floorSlow:(T.stomp?.floorSlowMult ?? 0.30), kSlow:(T.stomp?.kSlow ?? 0.30),
       baseCd:(T.stomp?.baseCooldownSec ?? 30), minCd:(T.stomp?.minCooldownSec ?? 10), kCd:(T.stomp?.kCooldown ?? 0.30),
-      baseCost: 500
+      baseCost: 150
     }
   };
   const S = shapes[key]; if (!S) return 999999;
