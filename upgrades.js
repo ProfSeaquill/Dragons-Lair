@@ -185,14 +185,15 @@ function buildUpgradeRows(gs) {
 
   const statRows = STAT_UPGRADES.map(def => {
   const level = statLvl(gs, def.key);
+  const isMax = level >= CAP_LEVEL;
   return {
     key: def.key,
     title: def.title,
     level,
-    cost: statCostFor(gs, def.key, level),   // <— asymptotic
+    cost: isMax ? 0 : statCostFor(gs, def.key, level),
     desc: statLive[def.key] || '',
-    max: undefined,
-    isMax: false,
+    max: CAP_LEVEL,
+    isMax,
     type: def.type,
   };
 });
@@ -258,6 +259,7 @@ export const STAT_UPGRADES = [
 ];
 
 const ABILITY_MAX_LEVEL = 30;
+const CAP_LEVEL = 30;
 
 /** Build live description strings for the stat upgrades using current dragon stats */
 function buildFireDesc(gs) {
@@ -325,9 +327,8 @@ export function buyUpgrade(gs = GameState, key) {
   if (!def) return false;
 
   const level = (def.type === 'stat') ? statLvl(gs, key) : abilityLvl(gs, key);
-  if (def.type === 'ability' && level >= ABILITY_MAX_LEVEL) {
-    return false; // hard cap
-  }
+  if (level >= CAP_LEVEL) return false; // hard cap for upgrades
+  if (def.type === 'ability' && level >= ABILITY_MAX_LEVEL) return false; // hard cap for abilities
         
   const price = (def.type === 'stat')
     ? statCostFor(gs, key, level)
