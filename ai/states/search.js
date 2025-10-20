@@ -1,3 +1,5 @@
+// search.js
+
 import { CFG } from '../config.js';
 import { isDecisionNode, canAttackDragon, canSeeDragon } from '../perception.js';
 import { stepAlongDirection, followPath } from '../steering.js';
