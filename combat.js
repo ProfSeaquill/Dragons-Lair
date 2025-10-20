@@ -303,7 +303,7 @@ function wingGustPush(gs, tiles) {
     fx.y = (cy + 0.5) * t;
   }
 }
-
+}
 
 
 // Roar: stun + temporary behavior buff within range
@@ -693,7 +693,6 @@ if (typeof e.trailStrength === 'number') {
 }
 
 
-/* --- Dev / Playtest helpers --- */
 /* --- Dev / Playtest helpers --- */
 export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
   n = Math.max(1, n | 0);
