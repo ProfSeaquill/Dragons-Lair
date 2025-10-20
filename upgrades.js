@@ -25,19 +25,19 @@ function asymptoticCost({ baseCost, progress, p = 1.5, floor = 1, bumpPerLevel =
 }
 
 // ---- Price model: level-only (no stat coupling) ----
-// Cost(level) = baseCost * (1 + r * level) + add * level + q * level^2
-// Default matches your idea: base * (1 + level/5). (r = 0.2)
+// Cost(L) = baseCost * (1 + r*L) + add*L + q*L^2
 function levelOnlyPrice(baseCost, level, kind, gs) {
-  const P = (state.getCfg(gs)?.tuning?.pricing) || {};
+  const P   = (getCfg(gs)?.tuning?.pricing) || {};
   const cfg = (kind === 'ability') ? (P.ability || P.stat || {}) : (P.stat || {});
-  const r   = typeof cfg.perLevelR   === 'number' ? cfg.perLevelR   : 0.20; // ← 1/5 step
-  const add = typeof cfg.perLevelAdd === 'number' ? cfg.perLevelAdd : 0.0;
-  const q   = typeof cfg.perLevelQ   === 'number' ? cfg.perLevelQ   : 0.0;
+  const r   = (typeof cfg.perLevelR   === 'number') ? cfg.perLevelR   : 0.20; // ~Base*(1 + 0.2*L)
+  const add = (typeof cfg.perLevelAdd === 'number') ? cfg.perLevelAdd : 0.0;
+  const q   = (typeof cfg.perLevelQ   === 'number') ? cfg.perLevelQ   : 0.0;
 
-  const L = Math.max(0, level|0); // price shown for going L -> L+1
-  const val = baseCost * (1 + r * L) + add * L + q * L * L;
+  const L = Math.max(0, level | 0);                  // buying L -> L+1
+  const val = baseCost * (1 + r*L) + add*L + q*L*L;
   return Math.max(1, Math.round(val));
 }
+
 
 function flameTune(gs) {
   const t = getCfg(gs)?.tuning?.flame || {};
