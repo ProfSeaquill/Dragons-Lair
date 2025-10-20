@@ -20,7 +20,7 @@
       "capRate": 2.5,
       "capRangeTiles": 25,
       "capBurnDps": 25,
-      "capBurnDuration": 4,
+      "capBurnDuration": 2,
 
       "kDamage": 0.01,
       "kRate": 0.05,
