@@ -220,6 +220,8 @@ function wingGustPush(gs, tiles) {
   // ---- Enemies ----
   for (const e of gs.enemies) {
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
+    if (e.type === 'engineer' && e.tunneling) continue; // ← don't shove burrowers
+
 
     const dx0 = e.cx - ax, dy0 = e.cy - ay;
     const distMan = Math.abs(dx0) + Math.abs(dy0);
@@ -309,8 +311,9 @@ function wingGustPush(gs, tiles) {
 // Roar: stun + temporary behavior buff within range
 function roarAffect(gs, rs) {
   const a = dragonAnchor(gs);
-  for (const e of gs.enemies) {
+    for (const e of gs.enemies) {
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
+    if (e.type === 'engineer' && e.tunneling) continue; // ← roar doesn’t affect burrowers
     const distMan = Math.abs(e.cx - a.cx) + Math.abs(e.cy - a.cy);
     if (distMan <= rs.rangeTiles) {
       e.stunLeft     = Math.max(e.stunLeft || 0, rs.stunSec);
@@ -615,8 +618,16 @@ function makeEnemy(type, wave) {
     herding:   Number(B.herding)   || 0,
     curiosity: Number(B.curiosity) || 0,
   };
-  // (keep your special-name switch and engineer tunneling bits as you have now)
-  // ...
+  
+    // Engineer special: start underground, travel toward the lair, immune during this phase.
+  if (type === 'engineer') {
+    out.tunneling = true;
+    out.tunnelT = FLAGS.engineerTravelTime;  // seconds underground
+    // While tunneling, Combat drives them (and makes them immune to nearly everything).
+    out.updateByCombat = true;
+  }
+  
+ // (keep your special-name switch and engineer tunneling bits as you have now)
   return out;
 }
 
@@ -1446,7 +1457,47 @@ if (bombAccum >= 1.0) {
     fx.timer -= steps;
 
     if (fx.timer <= 0) {
-      gs.dragonHP = Math.max(0, gs.dragonHP - (fx.dmg | 0));
+      const tsize = state.GRID.tile || 32;
+      const bx = Math.floor((fx.x || 0) / tsize);
+      const by = Math.floor((fx.y || 0) / tsize);
+      const R = 2;                       // radius in tiles (Manhattan)
+
+      // 1) Damage enemies in radius
+      for (let j = gs.enemies.length - 1; j >= 0; j--) {
+        const en = gs.enemies[j];
+        const ex = Number.isInteger(en.tileX) ? en.tileX : (Number.isInteger(en.cx) ? en.cx : Math.floor((en.x||0)/tsize));
+        const ey = Number.isInteger(en.tileY) ? en.tileY : (Number.isInteger(en.cy) ? en.cy : Math.floor((en.y||0)/tsize));
+        if (!Number.isInteger(ex) || !Number.isInteger(ey)) continue;
+
+        const dMan = Math.abs(ex - bx) + Math.abs(ey - by);
+        if (dMan <= R) {
+          en.hp -= (fx.dmg | 0);
+          markHit(en, fx.dmg | 0);
+          if (en.hp <= 0) {
+            // mirror your death/reward logic
+            const eg = (typeof en.gold  === 'number') ? (en.gold  | 0) : 5;
+            const eb = (typeof en.bones === 'number') ? (en.bones | 0) : 1;
+            gs.gold  = (gs.gold  | 0) + eg;
+            gs.bones = (gs.bones | 0) + eb;
+            gs.enemies.splice(j, 1);
+            releaseEnemy(en);
+          }
+        }
+      }
+
+      // 2) Damage the dragon if any of its tiles are within radius
+      let hitDragon = false;
+      for (const c of state.dragonCells(gs)) {
+        const dMan = Math.abs(c.x - bx) + Math.abs(c.y - by);
+        if (dMan <= R) { hitDragon = true; break; }
+      }
+      if (hitDragon) {
+        gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - (fx.dmg | 0));
+      }
+
+      // (optional) add a blast FX here if you’ve got one in render
+
+      // Remove the bomb effect after detonation
       gs.effects.splice(i, 1);
     }
   }
@@ -1510,6 +1561,21 @@ if (bombAccum >= 1.0) {
         const spot = spots[0] || { x: exitCx, y: exitCy };
         e.cx = spot.x; e.cy = spot.y; e.dir = 'W';
         e.tunneling = false;
+
+        // --- snap to tile & face lair
+        e.cx = spot.x; e.cy = spot.y; e.dir = 'W';
+        const t = state.GRID.tile;
+        e.x = (e.cx + 0.5) * t;
+        e.y = (e.cy + 0.5) * t;
+        e.tileX = e.cx;
+        e.tileY = e.cy;
+
+        // --- exit tunneling, resume normal FSM control
+        e.tunneling = false;
+        e.updateByCombat = false;
+
+        // (optional) re-init FSM kinematics if needed
+        import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(()=>{});
 
         // Plant bomb at dragon perimeter (or center of nearest dragon cell)
         const PLACE_MODE = 'perimeter'; // 'perimeter' | 'center'
