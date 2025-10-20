@@ -192,7 +192,10 @@ drawFireSplash(ctx, gs);
 
   // -------- Corridor fire (traveling flame)
   drawFlameWaves(ctx, gs);
-
+  
+  // -------- Tunneling (engineer)
+  drawTunnelIndicators(ctx, gs);
+  
   // -------- Bombs (engineer)
   drawBombs(ctx, gs);
 
@@ -351,6 +354,9 @@ function drawEnemies(ctx, gs) {
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
   for (const e of gs.enemies) {
+    if (e.type === 'engineer' && e.tunneling) {
+      continue;
+    }
     const t = state.GRID.tile; // or your existing tile size ref
     const ex = (e.x != null) ? e.x : (e.cx + 0.5) * t;
     const ey = (e.y != null) ? e.y : (e.cy + 0.5) * t;
@@ -565,6 +571,33 @@ function drawFlameWaves(ctx, gs) {
 
       ctx.restore();
     }
+  }
+}
+
+
+/* --------- Tunneling ----------*/
+function drawTunnelIndicators(ctx, gs) {
+  if (!Array.isArray(gs.effects)) return;
+  const t = state.GRID.tile;
+
+  for (const fx of gs.effects) {
+    if (fx.type !== 'tunnel') continue;
+
+    const r = t * 0.48; // about the enemy body size
+    // Optional soft fill (very faint)
+    ctx.save();
+    ctx.globalAlpha = 0.14;
+    circle(ctx, fx.x, fx.y, r, '#c084fc', true);
+    ctx.restore();
+
+    // Dashed ring
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#c084fc';
+    ctx.globalAlpha = 0.85;
+    ring(ctx, fx.x, fx.y, r, ctx.strokeStyle);
+    ctx.restore();
   }
 }
 
