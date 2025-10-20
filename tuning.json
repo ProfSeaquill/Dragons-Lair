@@ -23,9 +23,9 @@
       "capBurnDuration": 4,
 
       "kDamage": 0.01,
-      "kRate": 0.18,
-      "kRange": 0.12,
-      "kBurnDps": 0.20,
+      "kRate": 0.05,
+      "kRange": 0.02,
+      "kBurnDps": 0.05,
       "kBurnDuration": 0.10,
 
       "costBasePower": 20,
