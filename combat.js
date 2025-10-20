@@ -1559,9 +1559,10 @@ if (bombAccum >= 1.0) {
           { x: exitCx,     y: exitCy + 1 },
         ]).filter(p => state.inBounds(p.x, p.y));
         const spot = spots[0] || { x: exitCx, y: exitCy };
-        e.cx = spot.x; e.cy = spot.y; e.dir = 'W';
-        e.tunneling = false;
-
+       
+        // Hoist tile size ONCE here:
+        const t = state.GRID.tile;
+        
         // --- snap to tile & face lair
         e.cx = spot.x; e.cy = spot.y; e.dir = 'W';
         const t = state.GRID.tile;
@@ -1579,7 +1580,6 @@ if (bombAccum >= 1.0) {
 
         // Plant bomb at dragon perimeter (or center of nearest dragon cell)
         const PLACE_MODE = 'perimeter'; // 'perimeter' | 'center'
-        const t  = state.GRID.tile;
         const dc = nearestDragonCell(gs, e.cx, e.cy);
 
         // Center of that dragon tile
