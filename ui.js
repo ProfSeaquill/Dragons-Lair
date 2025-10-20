@@ -341,6 +341,11 @@ function wireCanvasEdgeBuild() {
       return;
     }
 
+    if (place) {
+  if (edgeTouchesDragon(state.GameState, hover.x, hover.y, hover.side)) {
+    tell("Can't build on the dragon", '#f88');
+    return;
+  }
     // Attempt to place
     toggleEdge(gs, hover.x, hover.y, hover.side);
 
