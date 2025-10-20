@@ -19,7 +19,7 @@
       "capDamage": 130,
       "capRate": 2.5,
       "capRangeTiles": 25,
-      "capBurnDps": 180,
+      "capBurnDps": 25,
       "capBurnDuration": 4,
 
       "kDamage": 0.01,
