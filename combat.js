@@ -42,6 +42,7 @@ e.prevCY = undefined;
 e.vx = 0;
 e.vy = 0;
 e.dir = 'E';
+e.kb = null; // ← clear any leftover knockback state from the pool
 e.commitDir = null;
 e.commitSteps = 0;
 e.commitTilesLeft = 0;
@@ -149,6 +150,59 @@ function stepIfOpen(gs, x, y, dir) {
   return { x, y };
 }
 
+// Animate precomputed knockback path tile-by-tile.
+// e.kb = { path:[{x,y},...], seg:0, acc:0, durPerTile:0.08, tsize }
+function tickKnockback(e, dt) {
+  const kb = e.kb;
+  if (!kb || !kb.path || kb.path.length < 2) { e.kb = null; return; }
+
+  kb.acc += dt;
+
+  // commit whole-tile steps that elapsed
+  while (kb.acc >= kb.durPerTile && kb.seg < kb.path.length - 1) {
+    kb.acc -= kb.durPerTile;
+    kb.seg++;
+    const node = kb.path[kb.seg];
+    e.cx = node.x; e.cy = node.y;
+    e.tileX = node.x; e.tileY = node.y;
+  }
+
+  // finished?
+  if (kb.seg >= kb.path.length - 1) {
+    const last = kb.path[kb.path.length - 1];
+    const prev = kb.path[Math.max(0, kb.path.length - 2)];
+    const t = kb.tsize;
+
+    // snap to last tile center
+    e.x = (last.x + 0.5) * t;
+    e.y = (last.y + 0.5) * t;
+
+    // face generally toward EXIT so FSM resumes sensibly
+    const dx = state.EXIT.x - last.x, dy = state.EXIT.y - last.y;
+    e.dir = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'E' : 'W') : (dy >= 0 ? 'S' : 'N');
+    e.commitDir = null; e.commitSteps = 0; e.commitTilesLeft = 0;
+    e.isAttacking = false; e.pausedForAttack = false;
+
+    e.kb = null;
+    return;
+  }
+
+  // interpolate within current segment
+  const a = kb.path[kb.seg];
+  const b = kb.path[kb.seg + 1];
+  const u = Math.max(0, Math.min(1, kb.acc / kb.durPerTile));
+  const t = kb.tsize;
+
+  const ax = (a.x + 0.5) * t, ay = (a.y + 0.5) * t;
+  const bx = (b.x + 0.5) * t, by = (b.y + 0.5) * t;
+
+  e.x = ax + (bx - ax) * u;
+  e.y = ay + (by - ay) * u;
+
+  // keep facing coherent with motion
+  e.dir = (bx > ax) ? 'E' : (bx < ax) ? 'W' : (by > ay) ? 'S' : 'N';
+}
+
 // Push enemies that are within `tiles` of the dragon anchor.
 // Displacement falls off linearly with Manhattan distance:
 //   pushSteps = max(0, tiles - distMan)
@@ -191,28 +245,40 @@ function wingGustPush(gs, tiles) {
     }
 
     if (nx !== e.cx || ny !== e.cy) {
-      // --- sync all coordinate systems & steering hints ---
-      e.cx = nx; e.cy = ny;
-      e.tileX = nx; e.tileY = ny;
-      e.x = (nx + 0.5) * t; e.y = (ny + 0.5) * t;
-
-      // bias facing back toward EXIT so normal AI resumes sensibly
-      const dx = state.EXIT.x - nx, dy = state.EXIT.y - ny;
-      const toExit = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'E' : 'W') : (dy >= 0 ? 'S' : 'N');
-      const v = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] }[toExit];
-      e.prevCX = nx - v[0];
-      e.prevCY = ny - v[1];
-      e.dir = toExit;
-      e.dirX = v[0]; e.dirY = v[1];
-
-      // clear any movement commitments / attack pauses
-      e.commitDir = null;
-      e.commitSteps = 0;
-      e.commitTilesLeft = 0;
-      e.isAttacking = false;
-      e.pausedForAttack = false;
+  // Build the per-tile path we just traced
+  const path = [{ x: e.cx, y: e.cy }];
+  // Recreate the step sequence to fill the path:
+  {
+    const dx0 = e.cx - ax, dy0 = e.cy - ay;
+    const dir = (Math.abs(dx0) >= Math.abs(dy0)) ? (dx0 >= 0 ? 'E' : 'W')
+                                                 : (dy0 >= 0 ? 'S' : 'N');
+    let px = e.cx, py = e.cy;
+    const steps = Math.max(1, Math.abs(nx - e.cx) + Math.abs(ny - e.cy));
+    for (let k = 0; k < steps; k++) {
+      const step = stepIfOpen(gs, px, py, dir);
+      if (step.x === px && step.y === py) break;
+      if (state.isDragonCell(step.x, step.y, gs)) break;
+      px = step.x; py = step.y;
+      path.push({ x: px, y: py });
+      if (px === nx && py === ny) break;
     }
   }
+
+  if (path.length >= 2) {
+    e.kb = {
+      path,
+      seg: 0,
+      acc: 0,
+      durPerTile: 0.08,            // ← tune: 0.06 snappier, 0.12 chunkier
+      tsize: state.GRID.tile || 32
+    };
+    e.isAttacking = false;
+    e.pausedForAttack = false;
+    e.commitDir = null; e.commitSteps = 0; e.commitTilesLeft = 0;
+
+    markHit(e, 0.0001); // tiny tick just to show the HP bar flash
+  }
+}
 
   // ---- Bombs (optional, same falloff & walls) ----
   for (const fx of (gs.effects || [])) {
@@ -1257,6 +1323,11 @@ export const spawnWave = startWave;
  export function update(gs = state.GameState, dt) {
   const enemies = gs.enemies || (gs.enemies = []);
   gs.effects = gs.effects || []; // bombs
+
+  // Resolve knockback motion first so all subsequent systems see up-to-date positions
+for (const e of enemies) {
+  if (e && e.kb) tickKnockback(e, dt);
+}
 
      // ---- FSM time shim ----
   const __now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
