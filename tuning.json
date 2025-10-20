@@ -53,9 +53,9 @@
     },
 
     "waves": {
-      "count": { "base": 5, "cap": 202, "k": 0.07 },
+      "count": { "base": 5, "cap": 202, "k": 0.02 },
       "mixCurves": {
-        "villager": { "minWave": 1,  "base": 1.00, "cap": 0.55, "k": 0.07 },
+        "villager": { "minWave": 1,  "base": 1.00, "cap": 0.55, "k": 0.90 },
         "squire":   { "minWave": 2,  "base": 0.10, "cap": 0.20, "k": 0.20 },
         "knight":   { "minWave": 4,  "base": 0.10, "cap": 0.13, "k": 0.03 },
         "hero":     { "minWave": 11, "base": 0.05, "cap": 0.12, "k": 0.04 },
