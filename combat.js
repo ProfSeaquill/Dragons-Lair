@@ -137,6 +137,22 @@ function isAdjacentToDragon(gs, cx, cy) {
   return false;
 }
 
+function dragonPerimeterTiles(gs) {
+  const set = new Set();
+  const out = [];
+  const offsets = [[1,0],[-1,0],[0,1],[0,-1]];
+  for (const c of state.dragonCells(gs)) {
+    for (const [dx, dy] of offsets) {
+      const nx = c.x + dx, ny = c.y + dy;
+      if (!state.inBounds(nx, ny)) continue;
+      if (state.isDragonCell(nx, ny, gs)) continue;      // strictly outside
+      const k = state.tileKey(nx, ny);
+      if (!set.has(k)) { set.add(k); out.push({ x: nx, y: ny }); }
+    }
+  }
+  return out;
+}
+
 // Push one step along grid if the edge is open (no walls). Returns new (x,y).
 function stepIfOpen(gs, x, y, dir) {
   const side = (dir === 'E') ? 'E' : (dir === 'W') ? 'W' : (dir === 'S') ? 'S' : 'N';
@@ -637,7 +653,13 @@ function makeEnemy(type, wave) {
  * ========================= */
 
 function spawnOne(gs, type) {
-  const e = acquireEnemy(type, gs.wave | 0);
+  const e = acquireEnemy(type, gs.wave | 0, (en) => {
+    if (type === 'engineer') {
+      en.tunneling = true;
+      en.tunnelT = FLAGS.engineerTravelTime;
+      en.updateByCombat = true;           // let Combat own it while burrowed
+    }
+  });
   e.cx = state.ENTRY.x;
   e.cy = state.ENTRY.y;
   e.dir = 'E';
@@ -666,7 +688,13 @@ if (typeof e.trailStrength === 'number') {
 }
 
 function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
-  const e = acquireEnemy(type, gs.wave | 0);
+  const e = acquireEnemy(type, gs.wave | 0, (en) => {
+    if (type === 'engineer') {
+      en.tunneling = true;
+      en.tunnelT = FLAGS.engineerTravelTime;
+      en.updateByCombat = true;
+    }
+  });
   e.id = (++__ENEMY_ID);
   e.groupId = groupId | 0;
   e.routeSeed = e.routeSeed ?? ((Math.random() * 1e9) | 0);
@@ -710,8 +738,13 @@ export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
   const t = state.GRID.tile;
 
   for (let i = 0; i < n; i++) {
-    const e = acquireEnemy(type, gs.wave | 0);
-
+    const e = acquireEnemy(type, gs.wave | 0, (en) => {
+    if (type === 'engineer') {
+      en.tunneling = true;
+      en.tunnelT = FLAGS.engineerTravelTime;
+      en.updateByCombat = true;
+    }
+  });
     // spawn at entry, facing east
     e.cx = state.ENTRY.x;
     e.cy = state.ENTRY.y;
@@ -1552,13 +1585,9 @@ if (bombAccum >= 1.0) {
     if (e.type === 'engineer' && e.tunneling) {
       e.tunnelT -= dt;
       if (e.tunnelT <= 0) {
-        const spots = shuffle([
-          { x: exitCx - 1, y: exitCy },
-          { x: exitCx + 1, y: exitCy },
-          { x: exitCx,     y: exitCy - 1 },
-          { x: exitCx,     y: exitCy + 1 },
-        ]).filter(p => state.inBounds(p.x, p.y));
-        const spot = spots[0] || { x: exitCx, y: exitCy };
+        const perim = dragonPerimeterTiles(gs);
+shuffle(perim);
+const spot = perim[0] || { x: exitCx, y: exitCy }; // absolute fallback; will be adjusted below
        
         // Hoist tile size ONCE here:
         const t = state.GRID.tile;
