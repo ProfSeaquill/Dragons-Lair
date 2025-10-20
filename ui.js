@@ -203,11 +203,19 @@ function renderUpgradesPanel() {
     name.textContent = `${info.title} (Lv ${info.level})`;
     small.textContent = info.desc || '';
     buy.className = 'btn';
-    buy.textContent = `Buy ${info.cost}g`;
-    buy.disabled = (state.GameState.gold | 0) < (info.cost | 0);
+    if (info.isMax) {
+      buy.textContent = 'MAX';
+      buy.disabled = true;
+      buy.title = `Max level${info.max ? ` (${info.max})` : ''} reached`;
+    } else {
+      buy.textContent = `Buy ${info.cost}g`;
+      buy.disabled = (state.GameState.gold | 0) < (info.cost | 0);
+      buy.title = '';
+    }
 
     buy.addEventListener('click', () => {
-  window.dispatchEvent(new CustomEvent('dl-upgrade-buy', {
+  if (info.isMax) return; // safety
+      window.dispatchEvent(new CustomEvent('dl-upgrade-buy', {
     detail: { id: info.key, title: info.title, cost: info.cost }
   }));
 });
