@@ -583,7 +583,9 @@ function drawTunnelIndicators(ctx, gs) {
   for (const fx of gs.effects) {
     if (fx.type !== 'tunnel') continue;
 
-    const r = t * 0.48; // about the enemy body size
+    const time = (performance.now?.() ?? Date.now()) * 0.001;
+    const r = t * (0.46 + 0.03 * (1 + Math.sin(time * 4)) * 0.5);
+    
     // Optional soft fill (very faint)
     ctx.save();
     ctx.globalAlpha = 0.14;
