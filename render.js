@@ -581,7 +581,8 @@ function drawTunnelIndicators(ctx, gs) {
   const t = state.GRID.tile;
 
   for (const fx of gs.effects) {
-    if (fx.type !== 'tunnel') continue;
+  if (fx.type !== 'tunnel' || fx.dead) continue;
+
 
     const time = (performance.now?.() ?? Date.now()) * 0.001;
     const r = t * (0.46 + 0.03 * (1 + Math.sin(time * 4)) * 0.5);
