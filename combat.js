@@ -653,16 +653,24 @@ function makeEnemy(type, wave) {
  * ========================= */
 
 function spawnOne(gs, type) {
-  const e = acquireEnemy(type, gs.wave | 0, (en) => {
-    if (type === 'engineer') {
-      en.tunneling = true;
-      (gs.effects || (gs.effects = [])).push(acquireEffect('tunnel', {
-  targetId: en.id, t: 0, dur: en.tunnelT
-}));
-      en.tunnelT = FLAGS.engineerTravelTime;
-      en.updateByCombat = true;           // let Combat own it while burrowed
-    }
-  });
+  const e = acquireEnemy(type, gs.wave | 0);
+e.id = (++__ENEMY_ID);
+
+if (type === 'engineer') {
+  e.tunneling = true;
+  e.tunnelT = FLAGS.engineerTravelTime;
+  e.updateByCombat = true;
+
+  const perim = dragonPerimeterTiles(gs);
+  shuffle(perim);
+  const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
+  e._tunnelDestCell = { x: spot.x, y: spot.y };
+
+  (gs.effects || (gs.effects = [])).push(
+    acquireEffect('tunnel', { targetId: e.id, t: 0, dur: e.tunnelT })
+  );
+}
+
   e.cx = state.ENTRY.x;
   e.cy = state.ENTRY.y;
   e.dir = 'E';
@@ -691,18 +699,27 @@ if (typeof e.trailStrength === 'number') {
 }
 
 function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
-  const e = acquireEnemy(type, gs.wave | 0, (en) => {
-    if (type === 'engineer') {
-      en.tunneling = true;
-      (gs.effects || (gs.effects = [])).push(acquireEffect('tunnel', {
-  targetId: en.id, t: 0, dur: en.tunnelT
-}));
+  const e = acquireEnemy(type, gs.wave | 0);
+e.id = (++__ENEMY_ID);
 
-      en.tunnelT = FLAGS.engineerTravelTime;
-      en.updateByCombat = true;
-    }
-  });
-  e.id = (++__ENEMY_ID);
+if (type === 'engineer') {
+  // mark tunneling first
+  e.tunneling = true;
+  e.tunnelT = FLAGS.engineerTravelTime;
+  e.updateByCombat = true;
+
+  // pick and store a perimeter destination NOW (so we can animate toward it)
+  const perim = dragonPerimeterTiles(gs);
+  shuffle(perim);
+  const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
+  e._tunnelDestCell = { x: spot.x, y: spot.y };
+
+  // create the visual that follows THIS id
+  (gs.effects || (gs.effects = [])).push(
+    acquireEffect('tunnel', { targetId: e.id, t: 0, dur: e.tunnelT })
+  );
+}
+
   e.groupId = groupId | 0;
   e.routeSeed = e.routeSeed ?? ((Math.random() * 1e9) | 0);
   e.cx = state.ENTRY.x;
@@ -745,17 +762,24 @@ export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
   const t = state.GRID.tile;
 
   for (let i = 0; i < n; i++) {
-    const e = acquireEnemy(type, gs.wave | 0, (en) => {
-    if (type === 'engineer') {
-      en.tunneling = true;
-      (gs.effects || (gs.effects = [])).push(acquireEffect('tunnel', {
-  targetId: en.id, t: 0, dur: en.tunnelT
-}));
+    const e = acquireEnemy(type, gs.wave | 0);
+e.id = (++__ENEMY_ID);
 
-      en.tunnelT = FLAGS.engineerTravelTime;
-      en.updateByCombat = true;
-    }
-  });
+if (type === 'engineer') {
+  e.tunneling = true;
+  e.tunnelT = FLAGS.engineerTravelTime;
+  e.updateByCombat = true;
+
+  const perim = dragonPerimeterTiles(gs);
+  shuffle(perim);
+  const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
+  e._tunnelDestCell = { x: spot.x, y: spot.y };
+
+  (gs.effects || (gs.effects = [])).push(
+    acquireEffect('tunnel', { targetId: e.id, t: 0, dur: e.tunnelT })
+  );
+}
+
     // spawn at entry, facing east
     e.cx = state.ENTRY.x;
     e.cy = state.ENTRY.y;
@@ -1583,7 +1607,6 @@ if (bombAccum >= 1.0) {
 
     // In the effects update loop:
 if (efx.type === 'tunnel') {
-  efx.t += dt;
   // follow the engineer by id
   const carrier = gs.enemies.find(x => x.id === efx.targetId);
   if (carrier) {
@@ -1606,26 +1629,88 @@ if (efx.type === 'tunnel') {
     updateEnemyDistance(e, gs);
 
     // Engineers: tunneling -> pop near dragon -> plant bomb
-    if (e.type === 'engineer' && e.tunneling) {
-      e.tunnelT -= dt;
-      if (e.tunnelT <= 0) {
-        const perim = dragonPerimeterTiles(gs);
-shuffle(perim);
-const spot = perim[0] || { x: exitCx, y: exitCy }; // absolute fallback; will be adjusted below
-       
-        // Hoist tile size ONCE here:
-        const t = state.GRID.tile;
-        
-        // --- snap to tile & face lair
-        e.cx = spot.x; e.cy = spot.y; e.dir = 'W';
-        e.x = (e.cx + 0.5) * t;
-        e.y = (e.cy + 0.5) * t;
-        e.tileX = e.cx;
-        e.tileY = e.cy;
+   // Engineers: tunneling → smoothly move underground toward stored perimeter → surface & plant
+if (e.type === 'engineer' && e.tunneling) {
+  const tsize = state.GRID.tile || 32;
 
-        // --- exit tunneling, resume normal FSM control
-        e.tunneling = false;
-        e.updateByCombat = false;
+  // Ensure a destination picked at spawn (fallback here if missing)
+  if (!e._tunnelDestCell) {
+    const perim = dragonPerimeterTiles(gs);
+    shuffle(perim);
+    e._tunnelDestCell = perim[0] || { x: exitCx, y: exitCy };
+  }
+
+  // Cache start/dest in pixels for lerp
+  if (!e._tunnelStartPx) {
+    e._tunnelStartPx = { x: e.x, y: e.y };
+    e._tunnelDestPx  = {
+      x: (e._tunnelDestCell.x + 0.5) * tsize,
+      y: (e._tunnelDestCell.y + 0.5) * tsize
+    };
+    e._tunnelTotal = Math.max(0.001, e.tunnelT);
+    e._tunnelElapsed = 0;
+  }
+
+  // Advance timers
+  const step = Math.min(dt, e.tunnelT);
+  e.tunnelT -= step;
+  e._tunnelElapsed = Math.min(e._tunnelTotal, (e._tunnelElapsed || 0) + step);
+
+  // Interpolate position underground (so the ring moves)
+  const u = Math.max(0, Math.min(1, e._tunnelElapsed / e._tunnelTotal));
+  e.x = e._tunnelStartPx.x + (e._tunnelDestPx.x - e._tunnelStartPx.x) * u;
+  e.y = e._tunnelStartPx.y + (e._tunnelDestPx.y - e._tunnelStartPx.y) * u;
+
+  // Keep coarse tile coords roughly in sync (not strictly needed while immune)
+  e.cx = Math.floor(e.x / tsize);
+  e.cy = Math.floor(e.y / tsize);
+  e.tileX = e.cx; e.tileY = e.cy;
+
+  // Surface & plant when done
+  if (e.tunnelT <= 0) {
+    const t = tsize;
+    const spot = e._tunnelDestCell;
+
+    // snap to destination tile center and face west (toward lair)
+    e.cx = spot.x; e.cy = spot.y; e.dir = 'W';
+    e.x = (e.cx + 0.5) * t;
+    e.y = (e.cy + 0.5) * t;
+    e.tileX = e.cx;
+    e.tileY = e.cy;
+
+    // Exit tunneling; hand control back to FSM
+    e.tunneling = false;
+    e.updateByCombat = false;
+
+    // re-init FSM if needed
+    import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(()=>{});
+
+    // Plant bomb at dragon perimeter, leaning toward engineer
+    const dc = nearestDragonCell(gs, e.cx, e.cy);
+    const cx = (dc.x + 0.5) * t;
+    const cy = (dc.y + 0.5) * t;
+
+    // place along the line from dragon center to engineer
+    const ex = (e.cx + 0.5) * t;
+    const ey = (e.cy + 0.5) * t;
+    const dx = ex - cx, dy = ey - cy;
+    const L  = Math.hypot(dx, dy) || 1;
+    const halfTile = t * 0.5;
+    const bx = cx + (dx / L) * halfTile;
+    const by = cy + (dy / L) * halfTile;
+
+    gs.effects.push(acquireEffect('bomb', {
+      x: bx, y: by, timer: FLAGS.engineerBombTimer, dmg: FLAGS.engineerBombDmg
+    }));
+
+    // cleanup tunneling cache
+    e._tunnelStartPx = e._tunnelDestPx = null;
+    e._tunnelDestCell = null;
+  }
+
+  // While tunneling, skip normal surface logic this frame
+  continue;
+}
 
         // (optional) re-init FSM kinematics if needed
         import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(()=>{});
