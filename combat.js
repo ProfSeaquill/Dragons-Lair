@@ -1631,7 +1631,30 @@ if (efx.dead) { gs.effects.splice(i, 1); continue; }
 
     updateEnemyDistance(e, gs);
 
-    
+    // Engineers: above-ground grace → then start tunneling
+if (e.type === 'engineer' && !e.tunneling) {
+  if (e.surfaceGraceT > 0) {
+    e.surfaceGraceT -= dt;
+  } else if (!e._tunnelArmed) {
+    // Arm tunneling once
+    e._tunnelArmed = true;
+    e.tunneling = true;
+    e.updateByCombat = true;
+
+    // choose a perimeter destination now so path is deterministic
+    if (!e._tunnelDestCell) {
+      const perim = dragonPerimeterTiles(gs);
+      shuffle(perim);
+      e._tunnelDestCell = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
+    }
+
+    // create the tracking ring effect
+    (gs.effects || (gs.effects = [])).push(acquireEffect('tunnel', {
+      targetId: e.id, t: 0
+    }));
+  }
+}
+
    // Engineers: tunneling → smoothly move underground toward stored perimeter → surface & plant
 if (e.type === 'engineer' && e.tunneling) {
   const tsize = state.GRID.tile || 32;
