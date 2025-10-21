@@ -1605,18 +1605,22 @@ if (bombAccum >= 1.0) {
       if (efx.t >= (efx.dur || 0.35)) { gs.effects.splice(i, 1); continue; }
     }
 
-    // In the effects update loop:
+
 if (efx.type === 'tunnel') {
-  // follow the engineer by id
-  const carrier = gs.enemies.find(x => x.id === efx.targetId);
-  if (carrier) {
-    efx.x = carrier.x; efx.y = carrier.y;
-    // auto-expire when engineer surfaces
-    if (!carrier.tunneling) efx.dead = true;
+  // efx follows the burrowed engineer by id
+  const carrier = (gs.enemies || []).find(x => x.id === efx.targetId);
+  if (carrier && carrier.tunneling) {
+    efx.x = carrier.x;
+    efx.y = carrier.y;
   } else {
+    // Engineer surfaced or no longer exists → kill the effect
     efx.dead = true;
   }
 }
+
+// After all type-specific updates, cull dead effects:
+if (efx.dead) { gs.effects.splice(i, 1); continue; }
+
 
   }
 
