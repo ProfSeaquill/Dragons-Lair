@@ -43,6 +43,14 @@ e.vx = 0;
 e.vy = 0;
 e.dir = 'E';
 e.kb = null; // ← clear any leftover knockback state from the pool
+// --- engineer / tunneling state (must be hard-reset when pulled from the pool)
+e.tunneling = false;
+e.updateByCombat = false;
+e._tunnelStartPx = null;
+e._tunnelDestPx  = null;
+e._tunnelDestCell = null;
+e._tunnelTotal = 0;
+e._tunnelElapsed = 0;
 e.commitDir = null;
 e.commitSteps = 0;
 e.commitTilesLeft = 0;
@@ -657,18 +665,16 @@ function spawnOne(gs, type) {
 e.id = (++__ENEMY_ID);
 
 if (type === 'engineer') {
-  e.tunneling = true;
-  e.tunnelT = FLAGS.engineerTravelTime;
-  e.updateByCombat = true;
+  e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
+e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
+
 
   const perim = dragonPerimeterTiles(gs);
   shuffle(perim);
   const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
   e._tunnelDestCell = { x: spot.x, y: spot.y };
 
-  (gs.effects || (gs.effects = [])).push(
-    acquireEffect('tunnel', { targetId: e.id, t: 0, dur: e.tunnelT })
-  );
+
 }
 
   e.cx = state.ENTRY.x;
@@ -703,10 +709,9 @@ function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
 e.id = (++__ENEMY_ID);
 
 if (type === 'engineer') {
-  // mark tunneling first
-  e.tunneling = true;
-  e.tunnelT = FLAGS.engineerTravelTime;
-  e.updateByCombat = true;
+ e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
+ e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
+
 
   // pick and store a perimeter destination NOW (so we can animate toward it)
   const perim = dragonPerimeterTiles(gs);
@@ -714,10 +719,6 @@ if (type === 'engineer') {
   const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
   e._tunnelDestCell = { x: spot.x, y: spot.y };
 
-  // create the visual that follows THIS id
-  (gs.effects || (gs.effects = [])).push(
-    acquireEffect('tunnel', { targetId: e.id, t: 0, dur: e.tunnelT })
-  );
 }
 
   e.groupId = groupId | 0;
@@ -766,17 +767,15 @@ export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
 e.id = (++__ENEMY_ID);
 
 if (type === 'engineer') {
-  e.tunneling = true;
-  e.tunnelT = FLAGS.engineerTravelTime;
-  e.updateByCombat = true;
+  e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
+  e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
+
 
   const perim = dragonPerimeterTiles(gs);
   shuffle(perim);
   const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
   e._tunnelDestCell = { x: spot.x, y: spot.y };
 
-  (gs.effects || (gs.effects = [])).push(
-    acquireEffect('tunnel', { targetId: e.id, t: 0, dur: e.tunnelT })
   );
 }
 
