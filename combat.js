@@ -1628,7 +1628,7 @@ if (efx.type === 'tunnel') {
 
     updateEnemyDistance(e, gs);
 
-    // Engineers: tunneling -> pop near dragon -> plant bomb
+    
    // Engineers: tunneling → smoothly move underground toward stored perimeter → surface & plant
 if (e.type === 'engineer' && e.tunneling) {
   const tsize = state.GRID.tile || 32;
@@ -1712,34 +1712,7 @@ if (e.type === 'engineer' && e.tunneling) {
   continue;
 }
 
-        // (optional) re-init FSM kinematics if needed
-        import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(()=>{});
-
-        // Plant bomb at dragon perimeter (or center of nearest dragon cell)
-        const PLACE_MODE = 'perimeter'; // 'perimeter' | 'center'
-        const dc = nearestDragonCell(gs, e.cx, e.cy);
-
-        // Center of that dragon tile
-        const cx = (dc.x + 0.5) * t;
-        const cy = (dc.y + 0.5) * t;
-
-        let bx = cx, by = cy;
-        if (PLACE_MODE === 'perimeter') {
-          // Place along the line from dragon center toward the engineer, at the tile edge
-          const ex = (e.cx + 0.5) * t;
-          const ey = (e.cy + 0.5) * t;
-          const dx = ex - cx, dy = ey - cy;
-          const L  = Math.hypot(dx, dy) || 1;
-          const halfTile = t * 0.5;
-          bx = cx + (dx / L) * halfTile;
-          by = cy + (dy / L) * halfTile;
-        }
-
-        gs.effects.push(acquireEffect('bomb', { x: bx, y: by, timer: FLAGS.engineerBombTimer, dmg: FLAGS.engineerBombDmg }));
-
-      }
-    }
-
+       
     // Burn DoT (burn always ticks; shield only blocks direct fire)
     if (e.burnLeft > 0 && e.burnDps > 0) {
       const tick = Math.min(dt, e.burnLeft);
