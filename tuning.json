@@ -38,7 +38,7 @@
     },
 
     "claw":  { "baseCooldownSec": 5,  "minCooldownSec": 1,  "capDamage": 500,  "kCooldown": 0.25, "kDamage": 0.25 },
-    "gust":  { "baseCooldownSec": 10, "minCooldownSec": 5,  "capPushTiles": 10, "kCooldown": 0.30, "kPush": 0.35 },
+    "gust":  { "baseCooldownSec": 10, "minCooldownSec": 5,  "capPushTiles": 12, "kCooldown": 0.30, "kPush": 0.35 },
     "roar":  { "baseCooldownSec": 10, "minCooldownSec": 5,  "capStunSec": 6,   "kCooldown": 0.25, "kStun": 0.25 },
     "stomp": { "baseCooldownSec": 10, "minCooldownSec": 5,  "capDamage": 50, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
 
