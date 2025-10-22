@@ -7,6 +7,19 @@ import * as state from './state.js';
 // DEBUG toggle
 window.__logFlame = window.__logFlame ?? true;
 
+function edgeTouchesDragon(gs, x, y, side) {
+  // edge between (x,y) and its neighbor on `side`
+  if (state.isDragonCell(x, y, gs)) return true;
+  switch (side) {
+    case 'N': return state.isDragonCell(x, y - 1, gs);
+    case 'S': return state.isDragonCell(x, y + 1, gs);
+    case 'E': return state.isDragonCell(x + 1, y, gs);
+    case 'W': return state.isDragonCell(x - 1, y, gs);
+  }
+  return false;
+}
+
+
 // ===== Phase 9: render scratch + caches =====
 const SCR = {
   rect: { x:0, y:0, w:0, h:0 },       // generic rect scratch
