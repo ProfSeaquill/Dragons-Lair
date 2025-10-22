@@ -1724,10 +1724,9 @@ if (e.type === 'engineer' && e.tunneling) {
     const halfTile = t * 0.5;
     const bx = cx + (dx / L) * halfTile;
     const by = cy + (dy / L) * halfTile;
-
-    gs.effects.push(acquireEffect('bomb', {
-      x: bx, y: by, timer: FLAGS.engineerBombTimer, dmg: FLAGS.engineerBombDmg
-    }));
+    (gs.effects || (gs.effects = [])).push(
+  acquireEffect('bomb', { x: bx, y: by, timer: FLAGS.engineerBombTimer, dmg: FLAGS.engineerBombDmg })
+);
 
     // cleanup tunneling cache
     e._tunnelStartPx = e._tunnelDestPx = null;
