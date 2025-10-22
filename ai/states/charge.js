@@ -35,7 +35,7 @@ export function update(e, gs, dt) {
     const sx = Number.isInteger(e.cx) ? e.cx : (e.tileX | 0);
     const sy = Number.isInteger(e.cy) ? e.cy : (e.tileY | 0);
     const pathObjs = computeShortestPath(gs, sx, sy, state.dragonCells(gs));
-    e.path = Array.isArray(pathObjs) ? pathObjs.map(p => [p.x, p.y]) : null;
+    e.path = Array.isArray(pathObjs) ? pathObjs : null;   // keep {x,y}
     e._topoOnPath = (gs.topologyVersion | 0);
   }
 
