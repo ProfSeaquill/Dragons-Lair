@@ -7,17 +7,6 @@ import * as state from './state.js';
 // DEBUG toggle
 window.__logFlame = window.__logFlame ?? true;
 
-function edgeTouchesDragon(gs, x, y, side) {
-  // edge between (x,y) and its neighbor on `side`
-  if (state.isDragonCell(x, y, gs)) return true;
-  switch (side) {
-    case 'N': return state.isDragonCell(x, y - 1, gs);
-    case 'S': return state.isDragonCell(x, y + 1, gs);
-    case 'E': return state.isDragonCell(x + 1, y, gs);
-    case 'W': return state.isDragonCell(x - 1, y, gs);
-  }
-  return false;
-}
 
 
 // ===== Phase 9: render scratch + caches =====
@@ -268,18 +257,6 @@ function drawEdgeWallsAsBones(ctx, gs) {
     for (let x = 0; x < state.GRID.cols; x++) {
       const rec = state.ensureCell(gs, x, y);
       const x0 = x * t, y0 = y * t, x1 = x0 + t, y1 = y0 + t;
-
-      if (rec.N && !edgeTouchesDragon(gs, x, y, 'N')) boneEdge(ctx, x0, y0, x1, y0);
-      if (rec.W && !edgeTouchesDragon(gs, x, y, 'W')) boneEdge(ctx, x0, y0, x0, y1);
-
-      // avoid double-drawing shared edges, but still respect dragon exclusion
-      if (x === state.GRID.cols - 1 && rec.E && !edgeTouchesDragon(gs, x, y, 'E')) {
-        boneEdge(ctx, x1, y0, x1, y1);
-      }
-      if (y === state.GRID.rows - 1 && rec.S && !edgeTouchesDragon(gs, x, y, 'S')) {
-        boneEdge(ctx, x0, y1, x1, y1);
-      }
-    }
   }
 }
 
