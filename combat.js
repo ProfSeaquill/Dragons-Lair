@@ -44,6 +44,9 @@ e.vy = 0;
 e.dir = 'E';
 e.kb = null; // ← clear any leftover knockback state from the pool
 // --- engineer / tunneling state (must be hard-reset when pulled from the pool)
+e._tunnelArmed   = false;   // ← crucial: pooled engineers must re-arm
+e.surfaceGraceT  = 0;       // will be set at spawn for engineers
+e.tunnelT        = 0;       // will be set at spawn for engineers
 e.tunneling = false;
 e.updateByCombat = false;
 e._tunnelStartPx = null;
