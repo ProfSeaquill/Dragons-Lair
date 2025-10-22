@@ -645,10 +645,10 @@ function makeEnemy(type, wave) {
   
     // Engineer special: start underground, travel toward the lair, immune during this phase.
   if (type === 'engineer') {
-    out.tunneling = true;
-    out.tunnelT = FLAGS.engineerTravelTime;  // seconds underground
-    // While tunneling, Combat drives them (and makes them immune to nearly everything).
-    out.updateByCombat = true;
+    out.tunneling = false;             // ← start above ground
+  out.surfaceGraceT = 1.5;           // ← seconds before going underground
+  out.tunnelT = FLAGS.engineerTravelTime;
+  out.updateByCombat = false;        // ← FSM runs until they burrow
   }
   
  // (keep your special-name switch and engineer tunneling bits as you have now)
@@ -776,7 +776,6 @@ if (type === 'engineer') {
   const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
   e._tunnelDestCell = { x: spot.x, y: spot.y };
 
-  );
 }
 
     // spawn at entry, facing east
@@ -1738,8 +1737,8 @@ if (e.type === 'engineer' && e.tunneling) {
 }
 
        
-    // Burn DoT (burn always ticks; shield only blocks direct fire)
-    if (e.burnLeft > 0 && e.burnDps > 0) {
+    // Burn DoT (burn always ticks; shield only blocks direct fire; burrowed enemies don't burn)
+    if (e.burnLeft > 0 && e.burnDps > 0 && !(e.type === 'engineer' && e.tunneling)) {
       const tick = Math.min(dt, e.burnLeft);
       e.burnLeft -= tick;
       e.hp -= e.burnDps * tick;
