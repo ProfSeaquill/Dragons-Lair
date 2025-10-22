@@ -331,26 +331,26 @@ function boot() {
 
       state.applyConfig(state.GameState, cfg);
 
+
 function sealDragonNorthSouth(gs) {
   for (const c of state.dragonCells(gs)) {
-    const here = state.ensureCell(gs, c.x, c.y);
-    // block north & south on the dragon tile
-    here.N = true;
-    here.S = true;
-
-    // mirror on neighbors so edges are consistent
+    // Block the tile ABOVE the dragon on its SOUTH edge
     if (state.inBounds(c.x, c.y - 1)) {
       state.ensureCell(gs, c.x, c.y - 1).S = true;
     }
+    // Block the tile BELOW the dragon on its NORTH edge
     if (state.inBounds(c.x, c.y + 1)) {
       state.ensureCell(gs, c.x, c.y + 1).N = true;
     }
   }
+  // Invalidate & rebuild topology so pathfinding respects the new walls
+  gs.topologyVersion = (gs.topologyVersion | 0) + 1;
+  buildJunctionGraph(gs);
 }
 
+// After applyConfig(...):
 sealDragonNorthSouth(state.GameState);
-// then (re)build so topology/pathing respects the new walls
-buildJunctionGraph(state.GameState);
+
       
       const cfgNow = state.getCfg(state.GameState);
       console.log('[A after applyConfig]', {
