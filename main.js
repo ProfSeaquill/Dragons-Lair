@@ -332,24 +332,22 @@ function boot() {
       state.applyConfig(state.GameState, cfg);
 
 
-function sealDragonNorthSouth(gs) {
-  for (const c of state.dragonCells(gs)) {
-    // Block the tile ABOVE the dragon on its SOUTH edge
-    if (state.inBounds(c.x, c.y - 1)) {
-      state.ensureCell(gs, c.x, c.y - 1).S = true;
-    }
-    // Block the tile BELOW the dragon on its NORTH edge
-    if (state.inBounds(c.x, c.y + 1)) {
-      state.ensureCell(gs, c.x, c.y + 1).N = true;
-    }
-  }
-  // Invalidate & rebuild topology so pathfinding respects the new walls
-  gs.topologyVersion = (gs.topologyVersion | 0) + 1;
-  buildJunctionGraph(gs);
+function installPermanentBones(gs = state.GameState) {
+  // [x, y, side]
+  const PERMA = [
+    [21,  6, 'N'], [22,  6, 'N'], [23,  6, 'N'],
+    [21, 11, 'N'], [22, 11, 'N'], [23, 11, 'N'],
+    [21, 10, 'W'], [21,  6, 'W'],
+  ];
+  for (const [x, y, side] of PERMA) state.setEdgeWall(gs, x, y, side, true);
+  gs.topologyVersion = (gs.topologyVersion|0) + 1;  // force recompute
 }
 
-// After applyConfig(...):
-sealDragonNorthSouth(state.GameState);
+// After config load + before the game loop starts, do:
+state.applyConfig(state.GameState, cfg);
+installPermanentBones(state.GameState);
+buildJunctionGraph(state.GameState); // so AI/pathing see the walls immediately
+
 
       
       const cfgNow = state.getCfg(state.GameState);
