@@ -257,8 +257,17 @@ function drawEdgeWallsAsBones(ctx, gs) {
     for (let x = 0; x < state.GRID.cols; x++) {
       const rec = state.ensureCell(gs, x, y);
       const x0 = x * t, y0 = y * t, x1 = x0 + t, y1 = y0 + t;
+
+      if (rec.N) boneEdge(ctx, x0, y0, x1, y0);
+      if (rec.W) boneEdge(ctx, x0, y0, x0, y1);
+
+      // avoid double-drawing shared edges
+      if (x === state.GRID.cols - 1 && rec.E) boneEdge(ctx, x1, y0, x1, y1);
+      if (y === state.GRID.rows - 1 && rec.S) boneEdge(ctx, x0, y1, x1, y1);
+    }
   }
 }
+
 
 
 function drawHoverEdgeAsBone(ctx, gs) {
