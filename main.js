@@ -100,6 +100,7 @@ function computeTorchLights(gs) {
   if (Array.isArray(gs.enemies)) {
     for (const e of gs.enemies) {
       if (!ensureTorchBearer(e, gs)) continue;
+      if (e.tunneling) continue;
       const p = enemyPixel(e, t);
       if (!p) continue;
       lights.push({
@@ -526,26 +527,30 @@ for (const enemy of gs.enemies) {
   if (UI && typeof UI.refreshHUD === 'function') UI.refreshHUD();
 
   // --- Effects update (tick & cleanup) for non-flameWave effects only
-  {
-    const arr = gs.effects || [];
-    for (const fx of arr) {
-      if (!fx || fx.type === 'flameWave') continue; // skip; handled in 2c
-      if (fx.t == null) fx.t = 0;
-      if (fx.dur == null) fx.dur = 0.6;
-      fx.t += dt;
-      if (fx.t >= fx.dur) fx.dead = true;
-    }
-    {
-  let w = 0;
-  for (let i = 0; i < arr.length; i++) {
-    const fx = arr[i];
-    if (fx && !fx.dead) arr[w++] = fx;
+ {
+  const arr = gs.effects || [];
+  for (const fx of arr) {
+    if (!fx || fx.type === 'flameWave') continue;     // handled earlier
+
+    // ⛔ Do NOT auto-expire these; they are lifetime-managed elsewhere
+    if (fx.type === 'tunnel' || fx.type === 'bomb') continue;
+
+    if (fx.t == null) fx.t = 0;
+    if (fx.dur == null) fx.dur = 0.6;
+    fx.t += dt;
+    if (fx.t >= fx.dur) fx.dead = true;
   }
-  arr.length = w;
-  gs.effects = arr;
+  {
+    let w = 0;
+    for (let i = 0; i < arr.length; i++) {
+      const fx = arr[i];
+      if (fx && !fx.dead) arr[w++] = fx;
+    }
+    arr.length = w;
+    gs.effects = arr;
+  }
 }
 
-  }
 
   // --- Phase 7: autosave ---
 {
