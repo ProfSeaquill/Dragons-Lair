@@ -1,3 +1,4 @@
+//ai/fsm.js
 import { CFG } from './config.js';
 import * as S_search from './states/search.js';
 import * as S_decision from './states/decision.js';
