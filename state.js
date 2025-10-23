@@ -4,7 +4,7 @@
 export const GRID = { cols: 24, rows: 16, tile: 32 };
 
 export const ENTRY = { x: 0, y: Math.floor(GRID.rows / 2) };
-export const EXIT  = { x: GRID.cols - 1, y: Math.floor(GRID.rows / 2) };
+export const EXIT  = { x: GRID.cols - 2, y: Math.floor(GRID.rows / 2) };
 
 // near the top of state.js
 export const DRAGON_BASE = {
