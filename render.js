@@ -399,7 +399,10 @@ function drawEnemies(ctx, gs) {
 
 function drawDragonAndMouthFire(ctx, gs) {
   const p = centerOf(state.EXIT.x, state.EXIT.y);
-  const size = Math.round(state.GRID.tile * 3);
+  const tilesWide  = state.DRAGON_HITBOX?.w ?? 3;
+const tilesHigh  = state.DRAGON_HITBOX?.h ?? 3;
+// Use the larger dimension so the sprite covers the footprint
+const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
   const half = size / 2;
 
   // Dragon sprite
