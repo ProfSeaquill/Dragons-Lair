@@ -161,12 +161,6 @@ ctx.clearRect(0, 0, width, height);
 if (caveReady) {
   // If your art exactly matches GRID size, this is a perfect 1:1 draw
   ctx.drawImage(caveImg, 0, 0, width, height);
-} else {
-  // fallback: your existing procedural cave background
-  ctx.save();
-  ctx.fillStyle = getCavePattern(ctx);
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
 }
 
 // Optional: keep vignette to add depth even on the painted backdrop
@@ -411,11 +405,7 @@ function drawDragonAndMouthFire(ctx, gs) {
   // Dragon sprite
   if (dragonReady) {
     ctx.drawImage(dragonImg, p.x - half, p.y - half, size, size);
-  } else {
-    // fallback placeholder
-    circle(ctx, p.x, p.y, Math.max(6, state.GRID.tile * 0.35), '#b33', true);
-    ring(ctx, p.x, p.y, Math.max(6, state.GRID.tile * 0.35) + 3, '#f88');
-  }
+  } 
 }
 
 
