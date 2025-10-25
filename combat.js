@@ -1160,32 +1160,36 @@ function makePlanFromConfig(gs, waveRec) {
   const MIN_COUNT       = 1,     MAX_COUNT       = 1000;
 
   // roll delays forward so groups without explicit delay_ms get spaced automatically
-  let rollingDelay = 0;
+let rollingDelay = 0;
 
-  return {
-    startedAt: now,
-    groups: waveRec.groups.map((g, idx) => {
-      const intervalMs = clampMs((g.interval_ms ?? defaultIntervalMs), MIN_INTERVAL_MS, MAX_INTERVAL_MS);
+return {
+  startedAt: now,
+  groups: waveRec.groups.map((g, idx) => {
+    const intervalMs = clampMs((g.interval_ms ?? defaultIntervalMs), MIN_INTERVAL_MS, MAX_INTERVAL_MS);
 
-      // If delay_ms is provided in JSON, honor it absolutely (relative to now).
-      // If omitted, apply a cumulative group gap after each prior group.
-      const delayMs = (g.delay_ms == null)
-        ? rollingDelay
-        : clampMs(g.delay_ms, MIN_DELAY_MS, MAX_DELAY_MS);
+    // If delay_ms is provided, honor it; else serialize after prior group's duration + groupGap.
+    const delayMs = (g.delay_ms == null)
+      ? rollingDelay
+      : clampMs(g.delay_ms, MIN_DELAY_MS, MAX_DELAY_MS);
 
-      // Advance rolling delay for the *next* group only if this group had no explicit delay.
-      if (g.delay_ms == null) rollingDelay += defaultGroupGapMs;
+    const count = clampInt(g.count ?? 1, MIN_COUNT, MAX_COUNT);
 
-      return {
-        type: String(g.type || 'villager'),
-        remaining: clampInt(g.count ?? 1, MIN_COUNT, MAX_COUNT),
-        interval:  intervalMs,
-        nextAt:    now + delayMs,
-        groupId:   0
-      };
-    })
-  };
-}
+    // If this group didn't specify a delay, advance rollingDelay by its actual duration plus the default group gap.
+    if (g.delay_ms == null) {
+      const groupDurMs = Math.max(0, count - 1) * intervalMs;
+      rollingDelay += groupDurMs + defaultGroupGapMs;
+    }
+
+    return {
+      type: String(g.type || 'villager'),
+      remaining: count,
+      interval:  intervalMs,
+      nextAt:    now + delayMs,
+      groupId:   0
+    };
+  })
+};
+
 
 
 // ===== Wave mix (asymptotic shares) =========================================
@@ -1360,34 +1364,41 @@ console.log('[D4 shapes]', {
     console.debug('[waves] fallback mix used', { wave, count, weights, len: list.length });
   }
 
+
 // === Build grouped plan ===
-// use the earlier `gaps` and `intervalMs` we already defined above
 const groupGapMs = Math.max(0, Math.round(((gaps?.groupGap ?? FLAGS.groupGap) || 2.0) * 1000));
 const gMin = Math.max(1, (gaps?.min ?? FLAGS.groupMin) | 0);
 const gMax = Math.max(gMin, (gaps?.max ?? FLAGS.groupMax) | 0);
 
-
-// Deterministically chunk `list` into squads of [gMin..gMax]
+// Deterministically chunk `list` into squads of [gMin..gMax], then
+// schedule each group to START AFTER the previous one finishes.
 const groups = [];
-let idx = 0, delay = 0;
+let idx = 0;
+let cursor = now; // absolute start time for the next group
+
 while (idx < list.length) {
   const remaining = list.length - idx;
-  const size = Math.min(remaining, (groups.length % 2 === 0 ? gMax : gMin)); // alternates gMax/gMin; no RNG
+  const size = Math.min(remaining, (groups.length % 2 === 0 ? gMax : gMin));
   const slice = list.slice(idx, idx + size);
+
   groups.push({
     type: '__mixed__',
     remaining: slice.length,
-    interval: intervalMs,      // intra-group gap between members
-    nextAt: now + delay,       // inter-group gap
+    interval: intervalMs, // ms between members within this group
+    nextAt: cursor,       // absolute start time for this group
     groupId: 0,
     __types: slice
   });
+
   idx += size;
-  if (idx < list.length) delay += groupGapMs; // pause between squads
+
+  // Group finishes after its (size-1) internal intervals; then add groupGap.
+  const groupDurMs = Math.max(0, (slice.length - 1)) * intervalMs;
+  cursor += groupDurMs + groupGapMs;
 }
 
 return { startedAt: now, groups };
-}
+
 
 
 
