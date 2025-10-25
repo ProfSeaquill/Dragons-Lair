@@ -1,4 +1,4 @@
-// steering.js
+// ai/steering.js
 import * as state from '../state.js'; // <-- add this import (path correct from ai/steering.js)
 
 // Helper: can we move from (cx,cy) across `side`?
