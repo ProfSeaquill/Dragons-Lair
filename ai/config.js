@@ -1,3 +1,4 @@
+//ai/config.js
 export const CFG = {
   // Search & Decisions
   DECISION_THINK_TIME: 0.6,       // kept for legacy; junction micro-delay overrides it
