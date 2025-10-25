@@ -1601,95 +1601,68 @@ if (T) {
 
 
  // --- JSON-configured spawning (only path) ---
-if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
-  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-  console.debug('spawn loop gate', { spawning: R.spawning, hasPlan: !!_jsonPlan, groups: _jsonPlan?.groups?.length, now });
+{
+  const plan = _jsonPlan; // snapshot for this frame
+  if (R.spawning && plan && Array.isArray(plan.groups)) {
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    console.debug('spawn loop gate', { spawning: R.spawning, hasPlan: !!plan, groups: plan.groups?.length, now });
 
-// Spawn Loop
-  for (let i = 0; i < _jsonPlan.groups.length; i++) {
-    const G = _jsonPlan.groups[i];
-    if (G.remaining <= 0) continue;
-    if (now < G.nextAt) continue;
+    // Spawn Loop
+    for (let i = 0; i < plan.groups.length; i++) {
+      const G = plan.groups[i];
+      if (G.remaining <= 0) continue;
+      if (now < G.nextAt) continue;
 
-    // First spawn in this JSON group → assign a groupId and reset leader
-if (!G.groupId) {
-  R.groupId++;
-  G.groupId = R.groupId;
-  R.groupLeaderId = null;
-  G._spawned = 0; // track position within the group for torchbearer
-}
+      if (!G.groupId) {
+        R.groupId++;
+        G.groupId = R.groupId;
+        R.groupLeaderId = null;
+        G._spawned = 0;
+      }
 
-
-      // Optional: warn once if type missing in cfg
       const hasCfg = !!(state.getCfg?.(gs)?.enemies?.[G.type]);
       if (!hasCfg && !_warnedTypesThisWave.has(G.type)) {
         console.warn('[waves.json] Unknown enemy type in wave', (gs.wave|0), '→', G.type);
         _warnedTypesThisWave.add(G.type);
       }
 
-    // Choose type (derived plans use a per-spawn sequence)
-    const nextType =
-      Array.isArray(G.__types) && G.__types.length ? G.__types.shift() : G.type;
+      const nextType = Array.isArray(G.__types) && G.__types.length ? G.__types.shift() : G.type;
 
-    console.debug('spawning: before', {
-     wave: gs.wave|0,
-     groupIdx: i,
-     groupId: G.groupId,
-     nextType,
-     remainingBefore: G.remaining,
-     now,
-     nextAt: G.nextAt,
-   });
+      const e = spawnOneIntoGroup(gs, nextType, G.groupId, R.groupLeaderId);
 
-    // Spawn one member of this JSON group
-const e = spawnOneIntoGroup(gs, nextType, G.groupId, R.groupLeaderId);
+      G._spawned = (G._spawned | 0) + 1;
+      if (G._spawned === 1) e.torchBearer = true;
 
-// Torchbearer: the very first member of the group, always
-G._spawned = (G._spawned | 0) + 1;
-if (G._spawned === 1) {
-  e.torchBearer = true;
-}
+      if (R.groupLeaderId == null) {
+        if (G.leaderType && e.type === G.leaderType) {
+          R.groupLeaderId = e.id;
+          e.leader = true;
+          e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
+          e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
+          e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
+        } else if (!G.leaderType) {
+          R.groupLeaderId = e.id;
+          e.leader = true;
+          e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
+          e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
+          e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
+        }
+      }
 
-    console.debug('spawning: after', {
-     enemyId: e?.id,
-     type: e?.type,
-     pushedToEnemies: Array.isArray(gs.enemies) && gs.enemies.includes(e),
-   });
-    
-    // Leader: if we planned a leaderType, crown them when *that type* spawns.
-// Fallback: if no leaderType was specified, first spawn becomes leader.
-if (R.groupLeaderId == null) {
-  if (G.leaderType) {
-    if (e.type === G.leaderType) {
-      R.groupLeaderId = e.id;
-      e.leader = true;
-      e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
-      e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
-      e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
+      e.followLeaderId = R.groupLeaderId;
+
+      G.remaining -= 1;
+      G.nextAt = (G.interval > 0) ? (now + G.interval) : (now + 1e9);
     }
-  } else {
-    // no planned leader → first spawn is leader
-    R.groupLeaderId = e.id;
-    e.leader = true;
-    e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
-    e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
-    e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
+
+    const anyLeft = plan.groups.some(g => g.remaining > 0);
+    if (!anyLeft) {
+      _jsonPlan = null;     // clear AFTER finishing with `plan`
+      R.spawning = false;
+    }
   }
 }
 
-// Follow assignment (independents still override elsewhere)
-e.followLeaderId = R.groupLeaderId;
-
-G.remaining -= 1;
-G.nextAt = (G.interval > 0) ? (now + G.interval) : (now + 1e9);
-
-  // When all JSON groups are depleted, stop spawning
-  const anyLeft = _jsonPlan.groups.some(g => g.remaining > 0);
-  if (!anyLeft) {
-    _jsonPlan = null;
-    R.spawning = false;
-  }
-}
 
 
 // --- Bomb timers (tick at 1 Hz, real time; outside enemy loop) ---
