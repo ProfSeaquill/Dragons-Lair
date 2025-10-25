@@ -1091,19 +1091,19 @@ export function startWave(gs = state.GameState) {
   gs.enemies = gs.enemies || [];
   gs.effects = gs.effects || [];
 
-  const waveIdx0 = Math.max(0, ((gs.wave | 0) - 1));
  // NEW: accept waves[] either at top-level or under tuning.waves
 // Prefer explicit per-wave plan if present, else derive from tuning.waves
-const waveRec = Array.isArray(cfgWaves) ? cfgWaves[waveIdx0] : null;
-if (waveRec && Array.isArray(waveRec.groups)) {
-  _jsonPlan = makePlanFromConfig(gs, waveRec);
-} else {
-  _jsonPlan = makePlanDerived(gs); // ← builds from tuning.waves in tuning.json
-  if (!_jsonPlan || !Array.isArray(_jsonPlan.groups)) {
-    console.warn('[waves] No per-wave plan and no tuning.waves; spawns disabled.');
-    _jsonPlan = { startedAt: (performance?.now?.() ?? Date.now()), groups: [] };
+  const waveIdx0 = Math.max(0, ((gs.wave | 0) - 1));
+  const perWaveArr = state.getCfg?.(gs)?.waves;
+
+// Prefer explicit per-wave config if present; otherwise derive from tuning.waves
+  const waveRec = Array.isArray(perWaveArr) ? perWaveArr[waveIdx0] : null;
+
+  if (waveRec && Array.isArray(waveRec.groups)) {
+    _jsonPlan = makePlanFromConfig(gs, waveRec);
+  } else {
+    _jsonPlan = makePlanDerived(gs); // grouped plan from tuning.waves
   }
-}
 
 
 
