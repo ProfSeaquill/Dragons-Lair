@@ -1251,19 +1251,23 @@ function getGroupPolicy(gs, FLAGS) {
   const W  = TW(gs) || {};
   const GP = (W && W.groupPolicy) || {};
 
-  const priority = GP.priority || {};           // type -> number (lower = earlier)
-  const caps     = GP.caps || {};               // type -> max per group
+  const priority = GP.priority || {};
+  const caps     = GP.caps || {};
   const forceLeaderFrom = Array.isArray(GP.forceLeaderFrom) ? GP.forceLeaderFrom.slice() : [];
   const independent = Array.isArray(GP.independent) ? GP.independent.slice() : [];
   const independentSet = new Set(independent);
 
+  const leaderPlace = GP.leaderPlace || {};
+  const defaultLeaderPlace = leaderPlace['*'] || 'front';
+
   const prioOf = (t) => {
     const v = priority[t];
-    return Number.isFinite(v) ? v : 1000;      // unknowns go to back
+    return Number.isFinite(v) ? v : 1000;
   };
   const capOf = (t) => (typeof caps[t] === 'number' ? Math.max(0, caps[t]|0) : Infinity);
+  const leaderPlaceOf = (t) => (leaderPlace[t] || defaultLeaderPlace);
 
-  return { prioOf, capOf, forceLeaderFrom, independentSet };
+  return { prioOf, capOf, forceLeaderFrom, independentSet, leaderPlaceOf };
 }
 
 // Largest remainder: fractional shares → integer counts summing to total
@@ -1385,24 +1389,23 @@ console.log('[D4 shapes]', {
   }
 
 
-// === Build grouped plan (numeric priorities + caps) ===
+// === Build grouped plan (numeric priorities + caps + leader placement) ===
 const groupGapMs = Math.max(0, Math.round(((gaps?.groupGap ?? FLAGS.groupGap) || 2.0) * 1000));
 const gMin = Math.max(1, (gaps?.min ?? FLAGS.groupMin) | 0);
 const gMax = Math.max(gMin, (gaps?.max ?? FLAGS.groupMax) | 0);
 
-const { prioOf, capOf, forceLeaderFrom } = getGroupPolicy(gs, FLAGS);
+const { prioOf, capOf, forceLeaderFrom, leaderPlaceOf } = getGroupPolicy(gs, FLAGS);
 
 // Build a pool: type -> remaining count
 const pool = new Map();
 for (const t of list) pool.set(t, (pool.get(t) || 0) + 1);
 
-// Deterministic scan order (stable across runs)
+// Deterministic scan order
 const scanOrder = Array.from(pool.keys()).sort((a,b)=>a.localeCompare(b));
 
 const groups = [];
 let cursor = now;
 
-// helper: try to take one unit of a given type (respecting pool & per-group caps)
 function tryTake(type, takenMap) {
   const left = (pool.get(type) || 0);
   if (left <= 0) return false;
@@ -1422,34 +1425,46 @@ while (true) {
   const taken = new Map();
   const buffer = [];
 
-  // 1) Seed leader if possible
+  // 1) Choose a leader TYPE for this group (if any is available in the pool)
   let leaderType = null;
   for (const lt of forceLeaderFrom) {
-    if (tryTake(lt, taken)) { leaderType = lt; buffer.push(lt); break; }
+    if ((pool.get(lt) || 0) > 0) { leaderType = lt; break; }
   }
 
-  // 2) Fill remaining slots while cycling types to keep variety (respect caps)
+  // 2) Ensure the leader is included (if chosen), but don't decide its position yet
+  if (leaderType) tryTake(leaderType, taken) && buffer.push(leaderType);
+
+  // 3) Fill remaining slots cycling types with caps
   while (buffer.length < want) {
     let progressed = false;
     for (const t of scanOrder) {
       if (buffer.length >= want) break;
       if (tryTake(t, taken)) { buffer.push(t); progressed = true; }
     }
-    if (!progressed) break; // no more legal picks (caps blocked)
+    if (!progressed) break;
   }
-
   if (buffer.length === 0) break;
 
-  // 3) Order by numeric priority; leader (if chosen) stays first
-  const head = leaderType ? [buffer[0]] : [];
-  const rest = leaderType ? buffer.slice(1) : buffer.slice(0);
+  // 4) Sort by numeric priority (leader isn’t pinned yet)
+  buffer.sort((a, b) => (prioOf(a) - prioOf(b)) || a.localeCompare(b));
 
-  rest.sort((a, b) => {
-    const pa = prioOf(a), pb = prioOf(b);
-    return (pa - pb) || a.localeCompare(b);
-  });
+  // 5) Place the leader according to leaderPlace (front/back/priority)
+  if (leaderType) {
+    const where = leaderPlaceOf(leaderType); // 'front' | 'back' | 'priority'
+    if (where === 'front') {
+      // move first occurrence of leaderType to index 0
+      const i = buffer.indexOf(leaderType);
+      if (i > 0) { buffer.splice(i, 1); buffer.unshift(leaderType); }
+    } else if (where === 'back') {
+      // move first occurrence of leaderType to end
+      const i = buffer.indexOf(leaderType);
+      if (i >= 0 && i !== buffer.length - 1) {
+        buffer.splice(i, 1); buffer.push(leaderType);
+      }
+    } // 'priority' leaves ordering alone
+  }
 
-  const slice = leaderType ? head.concat(rest) : rest;
+  const slice = buffer.slice();
 
   groups.push({
     type: '__mixed__',
@@ -1457,7 +1472,8 @@ while (true) {
     interval: intervalMs,
     nextAt: cursor,
     groupId: 0,
-    __types: slice
+    __types: slice,
+    leaderType: leaderType || null    // <— carry leader type to the spawn loop
   });
 
   const groupDurMs = Math.max(0, (slice.length - 1)) * intervalMs;
@@ -1589,10 +1605,13 @@ if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
     if (now < G.nextAt) continue;
 
     // First spawn in this JSON group → assign a groupId and reset leader
-    if (!G.groupId) {
-      R.groupId++;
-      G.groupId = R.groupId;
-      R.groupLeaderId = null;
+if (!G.groupId) {
+  R.groupId++;
+  G.groupId = R.groupId;
+  R.groupLeaderId = null;
+  G._spawned = 0; // track position within the group for torchbearer
+}
+
 
       // Optional: warn once if type missing in cfg
       const hasCfg = !!(state.getCfg?.(gs)?.enemies?.[G.type]);
@@ -1617,7 +1636,13 @@ if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
    });
 
     // Spawn one member of this JSON group
-    const e = spawnOneIntoGroup(gs, nextType, G.groupId, R.groupLeaderId);
+const e = spawnOneIntoGroup(gs, nextType, G.groupId, R.groupLeaderId);
+
+// Torchbearer: the very first member of the group, always
+G._spawned = (G._spawned | 0) + 1;
+if (G._spawned === 1) {
+  e.torchBearer = true;
+}
 
     console.debug('spawning: after', {
      enemyId: e?.id,
@@ -1625,20 +1650,29 @@ if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
      pushedToEnemies: Array.isArray(gs.enemies) && gs.enemies.includes(e),
    });
     
-    if (R.groupLeaderId == null) {
+    // Leader: if we planned a leaderType, crown them when *that type* spawns.
+// Fallback: if no leaderType was specified, first spawn becomes leader.
+if (R.groupLeaderId == null) {
+  if (G.leaderType) {
+    if (e.type === G.leaderType) {
       R.groupLeaderId = e.id;
       e.leader = true;
-      e.torchBearer = true;
-     e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
+      e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
+      e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
+      e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
+    }
+  } else {
+    // no planned leader → first spawn is leader
+    R.groupLeaderId = e.id;
+    e.leader = true;
+    e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
     e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
     e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
-    }
-    e.followLeaderId = R.groupLeaderId;
-
-    G.remaining -= 1;
-    G.nextAt = (G.interval > 0) ? (now + G.interval) : (now + 1e9); // one-shot if no interval
   }
+}
 
+// Follow assignment (independents still override elsewhere)
+e.followLeaderId = R.groupLeaderId;
   // When all JSON groups are depleted, stop spawning
   const anyLeft = _jsonPlan.groups.some(g => g.remaining > 0);
   if (!anyLeft) {
