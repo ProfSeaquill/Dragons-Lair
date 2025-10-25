@@ -1412,6 +1412,7 @@ export function previewWaveList(arg) {
   const waveIdx0 = Math.max(0, wave - 1);
   const waveRec = Array.isArray(cfgArg?.waves) ? cfgArg.waves[waveIdx0] : null;
 
+  // If there is an explicit per-wave config, expand all its groups fully.
   if (waveRec && Array.isArray(waveRec.groups)) {
     const out = [];
     for (const g of waveRec.groups) {
@@ -1422,9 +1423,22 @@ export function previewWaveList(arg) {
     return out;
   }
 
-  // derive (matches makePlanDerived)
-  return makePlanDerived(gsArg).groups[0].__types.slice();
+  // Otherwise, derive the *full* plan from tuning.waves and flatten ALL groups.
+  const plan = makePlanDerived(gsArg);
+  const out = [];
+  for (const G of (plan?.groups || [])) {
+    if (Array.isArray(G.__types) && G.__types.length) {
+      out.push(...G.__types);
+    } else {
+      // fallback if a group has a single type/count
+      const t = String(G.type || 'villager');
+      const n = Math.max(0, G.remaining | 0);
+      for (let i = 0; i < n; i++) out.push(t);
+    }
+  }
+  return out;
 }
+
 
 export function previewWaveCounts(arg) {
   const list = previewWaveList(arg);
