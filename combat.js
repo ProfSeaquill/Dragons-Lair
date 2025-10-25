@@ -1092,10 +1092,14 @@ export function startWave(gs = state.GameState) {
   gs.effects = gs.effects || [];
 
   const waveIdx0 = Math.max(0, ((gs.wave | 0) - 1));
-  const cfgWaves = state.getCfg?.(gs)?.waves;
+ // NEW: accept waves[] either at top-level or under tuning.waves
+const cfg = state.getCfg?.(gs);
+const wavesArr =
+  Array.isArray(cfg?.waves) ? cfg.waves
+: Array.isArray(cfg?.tuning?.waves) ? cfg.tuning.waves
+: null;
 
-// JSON-or-bust: use cfg.waves for this wave; complain if missing
-const waveRec = Array.isArray(cfgWaves) ? cfgWaves[waveIdx0] : null;
+const waveRec = Array.isArray(wavesArr) ? wavesArr[waveIdx0] : null;
 if (waveRec && Array.isArray(waveRec.groups)) {
   _jsonPlan = makePlanFromConfig(gs, waveRec);
 } else {
