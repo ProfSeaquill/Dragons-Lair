@@ -1086,6 +1086,8 @@ export function startWave(gs = state.GameState) {
   _warnedTypesThisWave = new Set();
 
   if (R.waveActive || R.spawning) return false; // simple re-entrancy guard
+  // --- DEBUG: is config here yet?
+console.log('[DBG startWave] cfgLoaded?', !!gs.cfgLoaded, 'hasCfg?', !!state.getCfg?.(gs));
 
   // ensure containers
   gs.enemies = gs.enemies || [];
@@ -1341,18 +1343,19 @@ function makePlanDerived(gs) {
   const now  = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   const wave = (gs.wave | 0) || 1;
 
-  console.log('[D makePlanDerived pre]', state.getCfg(gs)?.tuning, state.getCfg(gs)?.tuning?.waves);
-
-  console.log('[D2 ids]', { gsIsGameState: gs === state.GameState, hasGsCfg: !!gs.cfg, hasGameCfg: !!state.GameState.cfg });
-
-console.log('[D3 cfg objects equal]', state.getCfg(gs) === state.getCfg(state.GameState));
-
-console.log('[D4 shapes]', {
-  tW_type: typeof state.getCfg(gs)?.tuning?.waves,
-  tW_isArray: Array.isArray(state.getCfg(gs)?.tuning?.waves),
-  topW_type: typeof state.getCfg(gs)?.waves,
-  topW_isArray: Array.isArray(state.getCfg(gs)?.waves)
+  // --- DEBUG: what does the config shape look like?
+const __cfg = state.getCfg?.(gs);
+const __tw  = __cfg?.tuning?.waves;
+console.log('[DBG makePlanDerived:shape]', {
+  wave,
+  hasCfg: !!__cfg,
+  tuning_waves_type: typeof __tw,
+  tuning_waves_isArray: Array.isArray(__tw),
+  has_mixCurves: !!__tw?.mixCurves,
+  mixCurves_keys: __tw?.mixCurves && Object.keys(__tw.mixCurves),
+  mixOptions: __tw?.mixOptions,
 });
+
 
 
   // IMPORTANT: use TW(gs) so we tolerate any config shape
@@ -1367,15 +1370,19 @@ console.log('[D4 shapes]', {
   // Build list from curves
   let list = buildWaveListFromCurves(gs, wave, W, FLAGS);
 
-  console.debug('[waves] derived raw', {
+  // --- DEBUG: see first 30 entries of the list
+console.log('[DBG list from curves]', Array.isArray(list) ? list.slice(0,30) : list);
+
+// If it failed or is empty, show why before fallback
+if (!Array.isArray(list) || !list.length) {
+  console.warn('[DBG curves → empty; will fallback]', {
+    hasMixCurves: !!W.mixCurves,
+    mixCurves: W.mixCurves,
+    mixOptions: W.mixOptions,
     wave,
-    W_present: !!W,
-    count_cfg: W?.count,
-    mixCurves_keys: W?.mixCurves ? Object.keys(W.mixCurves) : '(none)',
-    mixOptions: W?.mixOptions,
-    cadence: W?.cadence,
-    list_len: Array.isArray(list) ? list.length : 'not-array'
   });
+}
+
 
   // If the curve build failed or returned empty, fall back
   if (!Array.isArray(list) || list.length === 0) {
