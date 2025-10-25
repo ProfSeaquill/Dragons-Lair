@@ -1246,6 +1246,26 @@ function _computeSharesForWave(wave, mixCurves = {}, opts = {}) {
   return new Map(clipped);
 }
 
+
+function getGroupPolicy(gs, FLAGS) {
+  const W  = TW(gs) || {};
+  const GP = (W && W.groupPolicy) || {};
+
+  const priority = GP.priority || {};           // type -> number (lower = earlier)
+  const caps     = GP.caps || {};               // type -> max per group
+  const forceLeaderFrom = Array.isArray(GP.forceLeaderFrom) ? GP.forceLeaderFrom.slice() : [];
+  const independent = Array.isArray(GP.independent) ? GP.independent.slice() : [];
+  const independentSet = new Set(independent);
+
+  const prioOf = (t) => {
+    const v = priority[t];
+    return Number.isFinite(v) ? v : 1000;      // unknowns go to back
+  };
+  const capOf = (t) => (typeof caps[t] === 'number' ? Math.max(0, caps[t]|0) : Infinity);
+
+  return { prioOf, capOf, forceLeaderFrom, independentSet };
+}
+
 // Largest remainder: fractional shares → integer counts summing to total
 function _apportion(total, sharesMap) {
   const entries = Array.from(sharesMap.entries());
@@ -1365,40 +1385,86 @@ console.log('[D4 shapes]', {
   }
 
 
-// === Build grouped plan ===
+// === Build grouped plan (numeric priorities + caps) ===
 const groupGapMs = Math.max(0, Math.round(((gaps?.groupGap ?? FLAGS.groupGap) || 2.0) * 1000));
 const gMin = Math.max(1, (gaps?.min ?? FLAGS.groupMin) | 0);
 const gMax = Math.max(gMin, (gaps?.max ?? FLAGS.groupMax) | 0);
 
-// Deterministically chunk `list` into squads of [gMin..gMax], then
-// schedule each group to START AFTER the previous one finishes.
-const groups = [];
-let idx = 0;
-let cursor = now; // absolute start time for the next group
+const { prioOf, capOf, forceLeaderFrom } = getGroupPolicy(gs, FLAGS);
 
-while (idx < list.length) {
-  const remaining = list.length - idx;
-  const size = Math.min(remaining, (groups.length % 2 === 0 ? gMax : gMin));
-  const slice = list.slice(idx, idx + size);
+// Build a pool: type -> remaining count
+const pool = new Map();
+for (const t of list) pool.set(t, (pool.get(t) || 0) + 1);
+
+// Deterministic scan order (stable across runs)
+const scanOrder = Array.from(pool.keys()).sort((a,b)=>a.localeCompare(b));
+
+const groups = [];
+let cursor = now;
+
+// helper: try to take one unit of a given type (respecting pool & per-group caps)
+function tryTake(type, takenMap) {
+  const left = (pool.get(type) || 0);
+  if (left <= 0) return false;
+  const used = takenMap.get(type) || 0;
+  if (used >= capOf(type)) return false;
+  pool.set(type, left - 1);
+  takenMap.set(type, used + 1);
+  return true;
+}
+
+while (true) {
+  // stop when pool empty
+  let totalLeft = 0; for (const v of pool.values()) totalLeft += v;
+  if (totalLeft <= 0) break;
+
+  const want = Math.min(totalLeft, (groups.length % 2 === 0 ? gMax : gMin));
+  const taken = new Map();
+  const buffer = [];
+
+  // 1) Seed leader if possible
+  let leaderType = null;
+  for (const lt of forceLeaderFrom) {
+    if (tryTake(lt, taken)) { leaderType = lt; buffer.push(lt); break; }
+  }
+
+  // 2) Fill remaining slots while cycling types to keep variety (respect caps)
+  while (buffer.length < want) {
+    let progressed = false;
+    for (const t of scanOrder) {
+      if (buffer.length >= want) break;
+      if (tryTake(t, taken)) { buffer.push(t); progressed = true; }
+    }
+    if (!progressed) break; // no more legal picks (caps blocked)
+  }
+
+  if (buffer.length === 0) break;
+
+  // 3) Order by numeric priority; leader (if chosen) stays first
+  const head = leaderType ? [buffer[0]] : [];
+  const rest = leaderType ? buffer.slice(1) : buffer.slice(0);
+
+  rest.sort((a, b) => {
+    const pa = prioOf(a), pb = prioOf(b);
+    return (pa - pb) || a.localeCompare(b);
+  });
+
+  const slice = leaderType ? head.concat(rest) : rest;
 
   groups.push({
     type: '__mixed__',
     remaining: slice.length,
-    interval: intervalMs, // ms between members within this group
-    nextAt: cursor,       // absolute start time for this group
+    interval: intervalMs,
+    nextAt: cursor,
     groupId: 0,
     __types: slice
   });
 
-  idx += size;
-
-  // Group finishes after its (size-1) internal intervals; then add groupGap.
   const groupDurMs = Math.max(0, (slice.length - 1)) * intervalMs;
   cursor += groupDurMs + groupGapMs;
 }
 
 return { startedAt: now, groups };
-}
 
 
 
@@ -1562,6 +1628,7 @@ if (R.spawning && _jsonPlan && Array.isArray(_jsonPlan.groups)) {
     if (R.groupLeaderId == null) {
       R.groupLeaderId = e.id;
       e.leader = true;
+      e.torchBearer = true;
      e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
     e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
     e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
