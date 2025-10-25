@@ -1977,4 +1977,3 @@ if (R.waveActive && !_jsonPlan && enemies.length === 0) {
   gs.wave = (gs.wave | 0) + 1;
 }
 }
-}
