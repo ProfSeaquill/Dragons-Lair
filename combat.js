@@ -1152,8 +1152,8 @@ function makePlanFromConfig(gs, waveRec) {
   const defaultGroupGapMs = Math.max(0,  Math.round((gaps.groupGap || FLAGS.groupGap) * 1000));
 
   // local helpers so we don't leak globals
-  const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, (v|0)));
-  const clampMs  = (v, lo, hi) => Math.max(lo, Math.min(hi, (v|0)));
+ const _clampIntL = (v, lo, hi) => Math.max(lo, Math.min(hi, (v|0)));
+const _clampMsL  = (v, lo, hi) => Math.max(lo, Math.min(hi, (v|0)));
 
   const MIN_INTERVAL_MS = 16,    MAX_INTERVAL_MS = 60000;
   const MIN_DELAY_MS    = 0,     MAX_DELAY_MS    = 120000;
@@ -1165,14 +1165,14 @@ let rollingDelay = 0;
 return {
   startedAt: now,
   groups: waveRec.groups.map((g, idx) => {
-    const intervalMs = clampMs((g.interval_ms ?? defaultIntervalMs), MIN_INTERVAL_MS, MAX_INTERVAL_MS);
+    const intervalMs = _clampMsL((g.interval_ms ?? defaultIntervalMs), MIN_INTERVAL_MS, MAX_INTERVAL_MS);
 
     // If delay_ms is provided, honor it; else serialize after prior group's duration + groupGap.
     const delayMs = (g.delay_ms == null)
       ? rollingDelay
-      : clampMs(g.delay_ms, MIN_DELAY_MS, MAX_DELAY_MS);
+      : _clampMsL(g.delay_ms, MIN_DELAY_MS, MAX_DELAY_MS);
 
-    const count = clampInt(g.count ?? 1, MIN_COUNT, MAX_COUNT);
+    const count = _clampIntL(g.count ?? 1, MIN_COUNT, MAX_COUNT);
 
     // If this group didn't specify a delay, advance rollingDelay by its actual duration plus the default group gap.
     if (g.delay_ms == null) {
