@@ -56,11 +56,34 @@
     "waves": {
       "count": { "base": 5, "cap": 160, "k": 0.02 },
       "mixCurves": {
-        "villager": { "minWave": 1,  "base": 1.00, "cap": 0.55, "k": 0.90 },
-        "squire":   { "minWave": 2,  "base": 0.10, "cap": 0.20, "k": 0.20 },
-        "knight":   { "minWave": 4,  "base": 0.10, "cap": 0.13, "k": 0.03 },
-        "hero":     { "minWave": 11, "base": 0.05, "cap": 0.12, "k": 0.04 },
-        "engineer": { "minWave": 21, "base": 0.03, "cap": 0.05, "k": 0.04 }
+        "villager": { "minWave": 1,  "base": 1.00, "cap": 0.45, "k": 0.70 },
+        "squire":   { "minWave": 2,  "base": 0.10, "cap": 0.40, "k": 0.30 },
+        "knight":   { "minWave": 4,  "base": 0.10, "cap": 0.15, "k": 0.30 },
+        "hero":     { "minWave": 11, "base": 0.05, "cap": 0.10, "k": 0.30 },
+        "engineer": { "minWave": 21, "base": 0.03, "cap": 0.05, "k": 0.30 },
+
+        "groupPolicy": {
+          "priority": {
+            "hero": 1,
+            "knight": 2,
+            "squire": 3,
+            "villager": 4,
+            "engineer": 5,
+            "kingsguard": 6,
+            "boss": 7
+  },
+      "caps": {
+        "engineer": 1,
+        "hero": 1,
+        "kingsguard": 1,
+        "boss": 1
+        "knight": 2,
+  },
+          
+  "forceLeaderFrom": ["kingsguard","boss","knight","hero"],
+  "independent": ["engineer","knight"]
+}
+
       },
 
       "groups": {
