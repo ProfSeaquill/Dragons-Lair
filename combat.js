@@ -1081,7 +1081,6 @@ function markHit(e, amount = 0) {
 
 
 export function startWave(gs = state.GameState) {
-  console.log('[C combat.startWave]', state.getCfg(state.GameState)?.tuning?.waves);
 
   _warnedTypesThisWave = new Set();
 
@@ -1107,26 +1106,13 @@ console.log('[DBG startWave] cfgLoaded?', !!gs.cfgLoaded, 'hasCfg?', !!state.get
     _jsonPlan = makePlanDerived(gs); // grouped plan from tuning.waves
   }
 
+if (!_jsonPlan || !Array.isArray(_jsonPlan.groups) || _jsonPlan.groups.length === 0) {
+  console.warn('[waves] plan missing/empty; aborting startWave');
+  R.spawning = false;
+  R.waveActive = false;
+  return false;
+}
 
-
-    // add this:
-  console.debug('wave plan', {
-    wave: gs.wave|0,
-    groups: _jsonPlan?.groups?.map(g => ({
-      type: g.type,
-      remaining: g.remaining,
-      interval: g.interval,
-      hasTypesSeq: Array.isArray(g.__types)
-    }))
-  });
-
-  console.debug('wave plan detail', _jsonPlan?.groups?.map(g => ({
-  type: g.type,
-  remaining: g.remaining,
-  nextAt: g.nextAt,
-  interval: g.interval,
-  hasSeq: Array.isArray(g.__types) && g.__types.length
-})));
 
   R.groupId = 0;
   R.groupLeaderId = null;
