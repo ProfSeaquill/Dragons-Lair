@@ -1398,7 +1398,7 @@ while (idx < list.length) {
 }
 
 return { startedAt: now, groups };
-
+}
 
 
 
