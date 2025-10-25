@@ -1333,12 +1333,12 @@ console.log('[D4 shapes]', {
     console.debug('[waves] fallback mix used', { wave, count, weights, len: list.length });
   }
 
-  // === Build grouped plan ===
-const gaps = (typeof tunedSpawnParams === 'function') ? tunedSpawnParams(gs) : null;
-const intervalMs = Math.max(16, Math.round(((gaps?.spawnGap ?? FLAGS.spawnGap) || 0.45) * 1000));
+// === Build grouped plan ===
+// use the earlier `gaps` and `intervalMs` we already defined above
 const groupGapMs = Math.max(0, Math.round(((gaps?.groupGap ?? FLAGS.groupGap) || 2.0) * 1000));
 const gMin = Math.max(1, (gaps?.min ?? FLAGS.groupMin) | 0);
 const gMax = Math.max(gMin, (gaps?.max ?? FLAGS.groupMax) | 0);
+
 
 // Deterministically chunk `list` into squads of [gMin..gMax]
 const groups = [];
