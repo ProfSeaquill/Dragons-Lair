@@ -1481,7 +1481,7 @@ while (true) {
 }
 
 return { startedAt: now, groups };
-
+}
 
 
 function clampInt(v, lo, hi) {
