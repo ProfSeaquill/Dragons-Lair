@@ -66,10 +66,10 @@
       "groupPolicy": {
         "priority": {
           "hero": 1,
-          "knight": 2,
-          "squire": 3,
-          "villager": 4,
-          "engineer": 5,
+          "squire": 2,
+          "villager": 3,
+          "engineer": 4,
+          "knight": 5,
           "kingsguard": 6,
           "boss": 7
         },
@@ -93,10 +93,10 @@
       },
 
       "groups": {
-        "min": 6,
+        "min": 4,
         "max": 10,
-        "spawnGap": 0.45,
-        "groupGap": 4.0
+        "spawnGap": 0.25,
+        "groupGap": 3.7
       },
 
       "mixOptions": { "floor": 0.0, "ceil": 0.8, "unlockFill": "renorm" },
