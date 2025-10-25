@@ -407,6 +407,7 @@ export const GameState = {
   distFromEntry: makeScalarField(GRID.cols, GRID.rows, Infinity),
   distToExit:    makeScalarField(GRID.cols, GRID.rows, Infinity),
   successTrail:  makeScalarField(GRID.cols, GRID.rows, 0),
+  groupRoutes: new Map(), // Map<groupId:number, Map<junctionId:string, dir:'N'|'E'|'S'|'W'>>
 
   // RNG / misc
   seed: 0,
