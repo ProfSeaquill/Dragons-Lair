@@ -1094,17 +1094,19 @@ export function startWave(gs = state.GameState) {
   const waveIdx0 = Math.max(0, ((gs.wave | 0) - 1));
  // NEW: accept waves[] either at top-level or under tuning.waves
 const cfg = state.getCfg?.(gs);
-const wavesArr =
-  Array.isArray(cfg?.waves) ? cfg.waves
-: Array.isArray(cfg?.tuning?.waves) ? cfg.tuning.waves
-: null;
+const topArray     = Array.isArray(cfg?.waves) ? cfg.waves : null;
+const tuningArray  = Array.isArray(cfg?.tuning?.waves) ? cfg.tuning.waves : null;
 
-const waveRec = Array.isArray(wavesArr) ? wavesArr[waveIdx0] : null;
+const waveRec = topArray
+  ? topArray[waveIdx0]
+  : (tuningArray ? tuningArray[waveIdx0] : null);
+
 if (waveRec && Array.isArray(waveRec.groups)) {
+  // explicit JSON groups → use exactly what’s in the file
   _jsonPlan = makePlanFromConfig(gs, waveRec);
 } else {
-  console.warn('[waves.json] Missing wave config for wave', waveIdx0 + 1, '— no spawns this wave.');
-  _jsonPlan = { startedAt: (performance?.now?.() ?? Date.now()), groups: [] };
+  // no per-wave array → derive a grouped plan from tuning.waves (object)
+  _jsonPlan = makePlanDerived(gs);
 }
 
 
