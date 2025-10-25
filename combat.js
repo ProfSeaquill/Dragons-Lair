@@ -1094,8 +1094,15 @@ export function startWave(gs = state.GameState) {
   const waveIdx0 = Math.max(0, ((gs.wave | 0) - 1));
   const cfgWaves = state.getCfg?.(gs)?.waves;
 
-  // Always derive from tuning.json → tuning.waves
-_jsonPlan = makePlanDerived(gs);
+// JSON-or-bust: use cfg.waves for this wave; complain if missing
+const waveRec = Array.isArray(cfgWaves) ? cfgWaves[waveIdx0] : null;
+if (waveRec && Array.isArray(waveRec.groups)) {
+  _jsonPlan = makePlanFromConfig(gs, waveRec);
+} else {
+  console.warn('[waves.json] Missing wave config for wave', waveIdx0 + 1, '— no spawns this wave.');
+  _jsonPlan = { startedAt: (performance?.now?.() ?? Date.now()), groups: [] };
+}
+
 
     // add this:
   console.debug('wave plan', {
@@ -1139,6 +1146,7 @@ function makePlanFromConfig(gs, waveRec) {
   // sensible defaults if the JSON omits interval/delay
   const gaps = tunedSpawnParams(gs); // seconds
   const defaultIntervalMs = Math.max(16, Math.round((gaps.spawnGap || FLAGS.spawnGap) * 1000));
+  const defaultGroupGapMs = Math.max(0,  Math.round((gaps.groupGap || FLAGS.groupGap) * 1000));
 
   // local helpers so we don't leak globals
   const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, (v|0)));
@@ -1148,15 +1156,31 @@ function makePlanFromConfig(gs, waveRec) {
   const MIN_DELAY_MS    = 0,     MAX_DELAY_MS    = 120000;
   const MIN_COUNT       = 1,     MAX_COUNT       = 1000;
 
+  // roll delays forward so groups without explicit delay_ms get spaced automatically
+  let rollingDelay = 0;
+
   return {
     startedAt: now,
-    groups: waveRec.groups.map(g => ({
-      type: String(g.type || 'villager'),
-      remaining: clampInt(g.count ?? 1, MIN_COUNT, MAX_COUNT),
-      interval:  clampMs((g.interval_ms ?? defaultIntervalMs), MIN_INTERVAL_MS, MAX_INTERVAL_MS),
-      nextAt:    now + clampMs((g.delay_ms ?? 0), MIN_DELAY_MS, MAX_DELAY_MS),
-      groupId: 0
-    }))
+    groups: waveRec.groups.map((g, idx) => {
+      const intervalMs = clampMs((g.interval_ms ?? defaultIntervalMs), MIN_INTERVAL_MS, MAX_INTERVAL_MS);
+
+      // If delay_ms is provided in JSON, honor it absolutely (relative to now).
+      // If omitted, apply a cumulative group gap after each prior group.
+      const delayMs = (g.delay_ms == null)
+        ? rollingDelay
+        : clampMs(g.delay_ms, MIN_DELAY_MS, MAX_DELAY_MS);
+
+      // Advance rolling delay for the *next* group only if this group had no explicit delay.
+      if (g.delay_ms == null) rollingDelay += defaultGroupGapMs;
+
+      return {
+        type: String(g.type || 'villager'),
+        remaining: clampInt(g.count ?? 1, MIN_COUNT, MAX_COUNT),
+        interval:  intervalMs,
+        nextAt:    now + delayMs,
+        groupId:   0
+      };
+    })
   };
 }
 
