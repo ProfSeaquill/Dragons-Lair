@@ -738,17 +738,17 @@ if (type === 'engineer') {
   e.tileY = e.cy;
 }
 
-  // force torch for special roles; they can overwrite leader visually, but we keep the first as leader
-  if (e.type === 'hero' || e.type === 'kingsguard' || e.type === 'boss') {
-    e.torchBearer = true;
-    e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
-    e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
-    e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
-  }
-
   // Each member follows the current group leader (set after the first spawn)
   e.followLeaderId = currentLeaderId ?? null;
+  // Independent types roam on their own (don’t tail the leader)
+try {
+  const { independentSet } = getGroupPolicy(gs, FLAGS);
+  if (independentSet && independentSet.has(e.type)) {
+    e.followLeaderId = null;
+  }
+} catch (_) { /* safe if helper not yet loaded */ }
 
+  
   initializeSpawnPrevAndCommit(e);
   import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
   (gs.enemies || (gs.enemies = [])).push(e);
