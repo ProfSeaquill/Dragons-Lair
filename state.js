@@ -68,6 +68,12 @@ export function healDragon(gs) {
   return { healed, reason: 'ok' };
 }
 
+// Build-mode gate: allow editing only when no living enemies exist
+export function canEditMaze(gs = GameState) {
+  const alive = Array.isArray(gs.enemies) && gs.enemies.some(e => e && !e.dead);
+  return !alive && !gs.gameOver; // true only between waves
+}
+
 // --- TEST HOOKS (used only by tests) ---
 export const __testHooks = Object.create(null);
 
