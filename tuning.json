@@ -62,6 +62,14 @@
         "hero":     { "minWave": 11, "base": 0.05, "cap": 0.12, "k": 0.04 },
         "engineer": { "minWave": 21, "base": 0.03, "cap": 0.05, "k": 0.04 }
       },
+
+      "groups": {
+  "min": 6,
+  "max": 10,
+  "spawnGap": 0.45,
+  "groupGap": 2.0
+}
+
       "mixOptions": { "floor": 0.0, "ceil": 0.8, "unlockFill": "renorm" },
       "cadence": { "bossEvery": 10, "kingsguardEvery": 5 }
     }
