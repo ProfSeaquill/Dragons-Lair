@@ -292,11 +292,18 @@ function renderUpgradesPanel() {
 function renderGridHelp(gs) {
   const el = document.querySelector('.gridHelp');
   if (!el) return;
+
+  if (!state.canEditMaze(gs)) {
+    el.textContent = 'Build disabled during waves.';
+    return;
+  }
+
   const cost = ((getCfg(gs)?.tuning?.economy?.wallCostBones ?? state.COSTS.edgeWall) | 0);
   el.textContent =
     `Build Mode: Click a TILE EDGE to add a wall (${cost} bone). ` +
     `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
 }
+
 
 // ---------- Canvas Edge Build Mode ----------
 function wireCanvasEdgeBuild() {
@@ -307,21 +314,40 @@ function wireCanvasEdgeBuild() {
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
 
   cv.addEventListener('mousemove', (e) => {
-    const hover = edgeHitTest(cv, e);
-    state.GameState.uiHoverEdge = hover; // for render highlight
-    if (hover) {
-      const hasWall = edgeHasWall(state.GameState, hover.x, hover.y, hover.side);
-      const verb = hasWall ? 'Remove' : 'Place';
-      const cost = hasWall ? `(+${state.COSTS.edgeRefund} bones)` : `(${state.COSTS.edgeWall} bones)`;
-      tell(`${verb} wall: (${hover.x},${hover.y}) ${hover.side} ${cost}`, '#9cf');
-    }
-  });
+  const gs = state.GameState;
+
+  // Hide the hover + do nothing while a wave is active
+  if (!state.canEditMaze(gs)) {
+    gs.uiHoverEdge = null;
+    return;
+  }
+
+  const hover = edgeHitTest(cv, e);
+  gs.uiHoverEdge = hover; // for render highlight
+  if (hover) {
+    const hasWall = edgeHasWall(gs, hover.x, hover.y, hover.side);
+    const verb = hasWall ? 'Remove' : 'Place';
+    const cost = hasWall
+      ? `(+${state.COSTS.edgeRefund} bones)`
+      : `(${state.COSTS.edgeWall} bones)`;
+    tell(`${verb} wall: (${hover.x},${hover.y}) ${hover.side} ${cost}`, '#9cf');
+  }
+});
+
 
   cv.addEventListener('mouseleave', () => {
     state.GameState.uiHoverEdge = null;
   });
 
   cv.addEventListener('mousedown', (e) => {
+  const gs = state.GameState;
+
+  // Hard UI guard: no edits during waves
+  if (!state.canEditMaze(gs)) {
+    tell('You can only place/remove walls between waves.', '#f88');
+    return;
+  }
+
   const hover = edgeHitTest(cv, e);
   if (!hover) return;
 
@@ -329,7 +355,6 @@ function wireCanvasEdgeBuild() {
   const remove = (e.button === 2);
   if (!place && !remove) return;
 
-  const gs = state.GameState;
   const hasWall = edgeHasWall(gs, hover.x, hover.y, hover.side);
   if (place && hasWall) return;
   if (remove && !hasWall) return;
@@ -337,7 +362,7 @@ function wireCanvasEdgeBuild() {
   if (place) {
     const cost = ((state.getCfg(gs)?.tuning?.economy?.wallCostBones ?? state.COSTS.edgeWall) | 0);
     if ((gs.bones | 0) < cost) {
-      UI.tell?.('Not enough bones'); 
+      tell('Not enough bones'); 
       return;
     }
     if (edgeTouchesDragon(gs, hover.x, hover.y, hover.side)) {
@@ -351,7 +376,7 @@ function wireCanvasEdgeBuild() {
     // If placement was rejected (e.g., would fully block entry↔exit), don't charge
     const placed = edgeHasWall(gs, hover.x, hover.y, hover.side);
     if (!placed) {
-      UI.tell?.("Can't block entry ↔ exit");
+      tell("Can't block entry ↔ exit");
       return;
     }
 
@@ -366,9 +391,10 @@ function wireCanvasEdgeBuild() {
   }
 
   gs.topologyVersion = (gs.topologyVersion || 0) + 1;
-  UI.refreshHUD?.();
+  // Use the local helper to avoid TDZ issues with UI export
+  refreshHUD?.();
 });
-}
+
 
 function edgeHitTest(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
