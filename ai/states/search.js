@@ -37,6 +37,12 @@ if (canSeeDragon(gs, tx, ty) && !canAttackDragon(gs, e)) return 'charge';
       // landed on the junction we wanted; trigger decision micro-delay
       return 'decision';
     }
+
+    if (e.backtrackPath && e.backtrackPath[0]) {
+  const p = e.backtrackPath[0];
+  const T = state.GameState.successTrail;
+  if (T?.[p.y]?.[p.x] != null) T[p.y][p.x] += 0.15;
+}
     return null;
   }
 
