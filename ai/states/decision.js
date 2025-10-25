@@ -44,6 +44,14 @@ export function update(e, gs, dt) {
   const id = junctionId(e.tileX|0, e.tileY|0);
   const node = topo.jxns.get(id);
 
+  // Setup group route memo for this wave
+function _ensureGroupMemo(gs, gid) {
+  if (!gs.groupRoutes) gs.groupRoutes = new Map();
+  let m = gs.groupRoutes.get(gid);
+  if (!m) { m = new Map(); gs.groupRoutes.set(gid, m); }
+  return m;
+}
+
   // If not a mapped node (e.g., degree==2), just return to search
   if (!node) { e.speedMul = 1; return 'search'; }
 
@@ -68,6 +76,13 @@ export function update(e, gs, dt) {
     return 'search';
   }
 
+  // If in a group and a leader has declared a choice at this junction, prefer it
+let leaderDir = null;
+if (e.groupId) {
+  const memo = _ensureGroupMemo(gs, e.groupId);
+  leaderDir = memo.get(id) || null;
+}
+
   // Score exits: prefer untried; otherwise by prior outcomes
   // Build candidates from node.exits (skip deadend-locked)
   const cand = [];
@@ -87,6 +102,12 @@ export function update(e, gs, dt) {
     return 'search';
   }
 
+  // Leader suggestion, if present, becomes top candidate (unless it was hard-marked deadend)
+let leaderPreferred = null;
+if (leaderDir) {
+  leaderPreferred = cand.find(c => c.ex.dir === leaderDir) || null;
+}
+
   // Curiosity limiter (wave-level cap)
   const alive = (gs.enemiesAlive ?? gs.activeEnemies?.length ?? 1);
   gs._straysCap = Math.max(1, Math.ceil(CFG.STRAYS_CAP_FRACTION * alive));
@@ -98,25 +119,31 @@ export function update(e, gs, dt) {
 
   // Choose
   cand.sort((a,b) => b.score - a.score);
-  let chosen = cand[0];
+let chosen = cand[0];
 
-  // Allow divergence only if cap not reached
+// Curiosity probability is per-enemy and damped by herding (and roar buff if present)
+const baseCur = Math.max(0, Math.min(1, e.behavior?.curiosity ?? 0.10));
+const herdMul = Math.max(0, e.behavior?.herding ?? 1);
+const roarHerd = Number.isFinite(e.herdingBuff) ? e.herdingBuff : 1;
+const pCuriosity = baseCur / Math.max(1e-6, herdMul * roarHerd);
+
+// If leader suggested a direction, followers prefer it unless curiosity triggers
+if (leaderPreferred && chosen.ex.dir !== leaderPreferred.ex.dir) {
   const allowStray = gs._straysActive < gs._straysCap;
-  if (allowStray && Math.random() < 0.15 && cand.length > 1) {
-    chosen = cand[1]; // gentle divergence to second-best
+  const strayRoll = Math.random() < pCuriosity;
+  if (!(allowStray && strayRoll && cand.length > 1)) {
+    chosen = leaderPreferred; // follow leader
+  } else {
+    // mark as stray and set timer
     if (!e.isStray) { e.isStray = true; gs._straysActive++; }
     e.strayUntil = now + CFG.STRAY_TIMEOUT_MS;
   }
-
-  // Commit distance by tile type (junction here)
-  e.commitTilesLeft = CFG.COMMIT_BY_TILETYPE.junction | 0;
-
-  // Program edge path for crisp node-to-node travel
-  e.path = chosen.ex.path ? chosen.ex.path.slice() : null;
-
-  // Remember we must resolve this choice on arrival
-  e.pendingOutcome = { fromId:id, dir: chosen.ex.dir, toId: chosen.ex.to || null };
-
-  e.speedMul = 1;
-  return 'search';
+} else {
+  // No leader suggestion: normal curiosity to second-best (your original behavior)
+  const allowStray = gs._straysActive < gs._straysCap;
+  if (allowStray && Math.random() < pCuriosity && cand.length > 1) {
+    chosen = cand[1];
+    if (!e.isStray) { e.isStray = true; gs._straysActive++; }
+    e.strayUntil = now + CFG.STRAY_TIMEOUT_MS;
+  }
 }
