@@ -90,8 +90,17 @@
        "min": 6,
        "max": 10,
        "spawnGap": 0.45,
-       "groupGap": 4.0
+       "groupGap": 4.0,
      },
+
+      "leaderPlace": {
+        "hero": "front",
+        "knight": "front",
+        "engineer": "back",
+        "kingsguard": "back",
+        "boss": "back",
+        "*": "front"
+      },
 
       "mixOptions": { "floor": 0.0, "ceil": 0.8, "unlockFill": "renorm" },
       "cadence": { "bossEvery": 10, "kingsguardEvery": 5 }
