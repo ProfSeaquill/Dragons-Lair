@@ -1,3 +1,4 @@
+// ai/memory.js
 import { CFG } from './config.js';
 
 export function initMemory(e) {
