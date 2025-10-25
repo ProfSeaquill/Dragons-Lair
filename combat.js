@@ -1333,18 +1333,35 @@ console.log('[D4 shapes]', {
     console.debug('[waves] fallback mix used', { wave, count, weights, len: list.length });
   }
 
-  return {
-    startedAt: now,
-    groups: [{
-      type: '__mixed__',
-      remaining: list.length,
-      interval: intervalMs,
-      nextAt: now,
-      groupId: 0,
-      __types: list
-    }]
-  };
+  // === Build grouped plan ===
+const gaps = (typeof tunedSpawnParams === 'function') ? tunedSpawnParams(gs) : null;
+const intervalMs = Math.max(16, Math.round(((gaps?.spawnGap ?? FLAGS.spawnGap) || 0.45) * 1000));
+const groupGapMs = Math.max(0, Math.round(((gaps?.groupGap ?? FLAGS.groupGap) || 2.0) * 1000));
+const gMin = Math.max(1, (gaps?.min ?? FLAGS.groupMin) | 0);
+const gMax = Math.max(gMin, (gaps?.max ?? FLAGS.groupMax) | 0);
+
+// Deterministically chunk `list` into squads of [gMin..gMax]
+const groups = [];
+let idx = 0, delay = 0;
+while (idx < list.length) {
+  const remaining = list.length - idx;
+  const size = Math.min(remaining, (groups.length % 2 === 0 ? gMax : gMin)); // alternates gMax/gMin; no RNG
+  const slice = list.slice(idx, idx + size);
+  groups.push({
+    type: '__mixed__',
+    remaining: slice.length,
+    interval: intervalMs,      // intra-group gap between members
+    nextAt: now + delay,       // inter-group gap
+    groupId: 0,
+    __types: slice
+  });
+  idx += size;
+  if (idx < list.length) delay += groupGapMs; // pause between squads
 }
+
+return { startedAt: now, groups };
+}
+
 
 
 function clampInt(v, lo, hi) {
