@@ -1126,6 +1126,8 @@ if (!_jsonPlan || !Array.isArray(_jsonPlan.groups) || _jsonPlan.groups.length ==
   ensureSuccessTrail(gs);
   // Reset the global stray counter used by the curiosity limiter.
   gs._straysActive = 0;
+  // NEW: clear per-wave, per-group junction choices
+  gs.groupRoutes = new Map();
 
   return true;
 }
