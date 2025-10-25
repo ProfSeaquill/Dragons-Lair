@@ -377,6 +377,9 @@ export const GameState = {
   autoStart: false,
   topologyVersion: 0,   // bumped whenever walls/topology change
 
+  // tracks when we're in a wave
+  phase: 'build', // 'build' | 'wave'
+  
   // Visual-only dragon breath (mouth burst / sprite timing)
   dragonFX: { attacking: false, t: 0, dur: 0.5 },
 
