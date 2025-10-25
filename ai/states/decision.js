@@ -1,3 +1,4 @@
+// ai/states/decision.js
 import { CFG } from '../config.js';
 import { getJxnMem, recordOutcome, pushJunction, planBacktrackTo } from '../memory.js';
 import { junctionId } from '../topology.js';
