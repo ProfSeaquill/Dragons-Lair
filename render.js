@@ -178,8 +178,10 @@ drawVignette(ctx);
 
   // -------- Bone edge walls + hover preview
   drawEdgeWallsAsBones(ctx, gs);
+  // Only show hover while building
+if (state.canEditMaze(gs)) {
   drawHoverEdgeAsBone(ctx, gs);
-
+}
   // -------- Enemies / Dragon / Mouth fire / Heat shimmer
   drawEnemies(ctx, gs);
   drawDragonAndMouthFire(ctx, gs);
