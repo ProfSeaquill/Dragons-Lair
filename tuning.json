@@ -16,7 +16,7 @@
       "enemyHpScaleAtMax": 100,
       "efficiencyAtMax": 0.9,
 
-      "capDamage": 130,
+      "capDamage": 190,
       "capRate": 2.5,
       "capRangeTiles": 25,
       "capBurnDps": 25,
