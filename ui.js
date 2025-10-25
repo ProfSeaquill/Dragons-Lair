@@ -422,7 +422,6 @@ function edgeHitTest(canvas, evt) {
   return { x: cx, y: cy, side };
 }
 
-// (removed) local edgeHasWall: use imported one from pathing.js
 
 function edgeTouchesDragon(gs, x, y, side) {
   // side is 'N','S','E','W' for the edge on cell (x,y)
