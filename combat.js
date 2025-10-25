@@ -1619,7 +1619,6 @@ if (!G.groupId) {
         console.warn('[waves.json] Unknown enemy type in wave', (gs.wave|0), '→', G.type);
         _warnedTypesThisWave.add(G.type);
       }
-    }
 
     // Choose type (derived plans use a per-spawn sequence)
     const nextType =
@@ -1673,6 +1672,10 @@ if (R.groupLeaderId == null) {
 
 // Follow assignment (independents still override elsewhere)
 e.followLeaderId = R.groupLeaderId;
+
+G.remaining -= 1;
+G.nextAt = (G.interval > 0) ? (now + G.interval) : (now + 1e9);
+
   // When all JSON groups are depleted, stop spawning
   const anyLeft = _jsonPlan.groups.some(g => g.remaining > 0);
   if (!anyLeft) {
