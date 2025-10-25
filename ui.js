@@ -394,6 +394,7 @@ function wireCanvasEdgeBuild() {
   // Use the local helper to avoid TDZ issues with UI export
   refreshHUD?.();
 });
+}
 
 
 function edgeHitTest(canvas, evt) {
