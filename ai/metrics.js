@@ -1,5 +1,3 @@
-
-
 // ai/metrics.js
 
 export function updateEnemyDistance(e, gs) {
