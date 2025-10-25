@@ -1,5 +1,6 @@
-// Optional: only if you relied on updateEnemyDistance for HUD/logic.
-// Default impl uses Manhattan distance; swap for path length if you want.
+
+
+// ai/metrics.js
 
 export function updateEnemyDistance(e, gs) {
   if (!gs.exit) return;
