@@ -407,6 +407,7 @@ function startWave() {
   if (!state.GameState.cfgLoaded) return; // don’t start waves before tuning exists
   console.log('[B startWave guard]', state.getCfg(state.GameState)?.tuning?.waves);
   const gs = state.GameState;
+  gs.phase = 'wave';            // ← lock wall building
   gs.__torchWaveId = (gs.__torchWaveId || 0) + 1;
   gs.__firstTorchGiven = false;
   // --- NEW: if someone calls main.startWave directly, ensure topology & trail exist.
@@ -445,6 +446,16 @@ function update(dt) {
     gs.time.dt = dt;
     if (typeof gs.time.since !== 'function') gs.time.since = (t) => __now - t;
   }
+
+  // End-of-wave detection (simple + robust):
+  const anyAlive = gs.enemies && gs.enemies.length > 0;
+  const cooldownMs = 400; // tiny grace after start to avoid flicker
+  const justStarted = (performance.now() - waveJustStartedAt) < cooldownMs;
+
+  if (!anyAlive && !justStarted) {
+    gs.phase = 'build';         // ← unlock building
+  }
+  
   // (nice-to-have:) expose tile size for AI that relies on it
   if (gs.tileSize == null) gs.tileSize = state.GRID.tile;
 
