@@ -5,8 +5,12 @@ export const CFG = {
   COMMIT_TILES: 3,
 
   // Junction-only memory (new)
-  JXN_THINK_MS_MIN: 100,
-  JXN_THINK_MS_MAX: 300,
+  get JXN_THINK_MS_MIN() {
+    return state.getCfg(state.GameState)?.tuning?.ai?.jxnDelayMsMin ?? 100;
+  },
+  get JXN_THINK_MS_MAX() {
+    return state.getCfg(state.GameState)?.tuning?.ai?.jxnDelayMsMax ?? 300;
+  },
   COMMIT_BY_TILETYPE: { junction:3, room:3, corridor:0, deadend:0 },
 
   // Outcome scoring (deadend < loop < room < corridor < dragon)
