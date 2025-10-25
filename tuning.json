@@ -67,7 +67,7 @@
        "min": 6,
        "max": 10,
        "spawnGap": 0.45,
-       "groupGap": 2.0
+       "groupGap": 4.0
      },
 
       "mixOptions": { "floor": 0.0, "ceil": 0.8, "unlockFill": "renorm" },
