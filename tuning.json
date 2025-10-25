@@ -56,11 +56,11 @@
       "count": { "base": 5, "cap": 160, "k": 0.02 },
 
       "mixCurves": {
-        "villager": { "minWave": 1,  "base": 1.00, "cap": 0.45, "k": 0.70 },
-        "squire":   { "minWave": 2,  "base": 0.10, "cap": 0.40, "k": 0.30 },
-        "knight":   { "minWave": 4,  "base": 0.10, "cap": 0.15, "k": 0.30 },
-        "hero":     { "minWave": 11, "base": 0.05, "cap": 0.10, "k": 0.30 },
-        "engineer": { "minWave": 21, "base": 0.03, "cap": 0.05, "k": 0.30 }
+        "villager": { "minWave": 1,  "base": 1.00, "cap": 0.30, "k": 0.60 },
+        "squire":   { "minWave": 2,  "base": 0.10, "cap": 0.35, "k": 0.90 },
+        "knight":   { "minWave": 4,  "base": 0.10, "cap": 0.15, "k": 0.50 },
+        "hero":     { "minWave": 11, "base": 0.05, "cap": 0.10, "k": 0.80 },
+        "engineer": { "minWave": 21, "base": 0.03, "cap": 0.08, "k": 0.30 }
       },
 
       "groupPolicy": {
