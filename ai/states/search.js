@@ -11,8 +11,8 @@ export function enter(e, gs) { e.speedMul = 1; }
 
 export function update(e, gs, dt) {
   // Charge if dragon is seen
-const tx = (e.tileX|0), ty = (e.tileY|0);
-if (canSeeDragon(gs, tx, ty) && !canAttackDragon(gs, e)) return 'charge';
+  const tx = (e.tileX|0), ty = (e.tileY|0);
+  if (canSeeDragon(gs, tx, ty) && !canAttackDragon(gs, e)) return 'charge';
 
   const speed = (typeof e.speed === 'number' ? e.speed : e.speedBase);
   const tile = gs.tileSize || state.GRID.tile;
@@ -28,7 +28,6 @@ if (canSeeDragon(gs, tx, ty) && !canAttackDragon(gs, e)) return 'charge';
   // 2) Consume any backtrack plan
   if (e.backtrackPath && e.backtrackPath.length) {
     const prevLen = e.backtrackPath.length;
-    // temporarily swap to use followPath
     const save = e.path;
     e.path = e.backtrackPath;
     followPath(e, dt, tile, speed);
@@ -41,20 +40,65 @@ if (canSeeDragon(gs, tx, ty) && !canAttackDragon(gs, e)) return 'charge';
     }
 
     if (e.backtrackPath && e.backtrackPath[0]) {
-  const p = e.backtrackPath[0];
-  const T = state.GameState.successTrail;
-  if (T?.[p.y]?.[p.x] != null) T[p.y][p.x] += 0.15;
-}
+      const p = e.backtrackPath[0];
+      const T = state.GameState.successTrail;
+      if (T?.[p.y]?.[p.x] != null) T[p.y][p.x] += 0.15;
+    }
     return null;
   }
 
-  // 3) Normal forward motion with commit
-  if (e.commitTilesLeft > 0) {
-    // optional: decrement only at centers
-    if ((e.x % tile === 0) && (e.y % tile === 0)) e.commitTilesLeft--;
+  // 3) Normal forward motion with commit (robust)
+  // 3a) If we’re on a decision node and not committed, go decide.
+  if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && (e.commitTilesLeft|0) <= 0) {
+    return 'decision';
   }
-  if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && e.commitTilesLeft <= 0) return 'decision';
 
+  // 3b) If we’re still committed, but the edge in front is blocked, drop the commit and decide.
+  if ((e.commitTilesLeft|0) > 0 && Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
+    const side = sideOf(e.dir);
+    if (!state.isOpen(gs, e.tileX, e.tileY, side)) {
+      e.commitTilesLeft = 0;
+      return 'decision';
+    }
+  }
+
+  // 3c) Step forward (your steering handles pixel motion); afterwards, update tile coords.
+  //     We’ll decrement commit when the tile index changes (less brittle than pixel-center checks).
+  const prevTX = e.tileX|0, prevTY = e.tileY|0;
   stepAlongDirection(e, dt, tile, speed);
+
+  // If your stepAlongDirection doesn’t refresh tileX/tileY each frame, ensure they’re synced:
+  if (!Number.isInteger(e.tileX) || !Number.isInteger(e.tileY)) {
+    e.tileX = Math.floor((e.x||0) / tile);
+    e.tileY = Math.floor((e.y||0) / tile);
+  }
+
+  // 3d) Commit accounting: decrement when we actually ENTER a new tile.
+  if ((e.commitTilesLeft|0) > 0) {
+    const nowTX = e.tileX|0, nowTY = e.tileY|0;
+    if (nowTX !== prevTX || nowTY !== prevTY) {
+      e.commitTilesLeft = Math.max(0, (e.commitTilesLeft|0) - 1);
+    }
+  }
+
+  // 3e) If we arrived at a decision node and our commit has just run out, go decide next.
+  if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && (e.commitTilesLeft|0) <= 0) {
+    return 'decision';
+  }
+
+  // 3f) Stuck watchdog: if our pixel position barely changes for a while, reset commit & rethink.
+  {
+    const dx = (e.x || 0) - (e._sx || e.x || 0);
+    const dy = (e.y || 0) - (e._sy || e.y || 0);
+    const moved = (dx*dx + dy*dy);
+    if (moved < 0.01) e._stuckT = (e._stuckT || 0) + dt; else e._stuckT = 0;
+    e._sx = e.x; e._sy = e.y;
+    if ((e._stuckT || 0) > 0.6) {
+      e._stuckT = 0;
+      e.commitTilesLeft = 0;
+      return 'decision';
+    }
+  }
+
   return null;
 }
