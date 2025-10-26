@@ -1,20 +1,29 @@
-//ai/config.js
+// ai/config.js
+import * as state from '../state.js';
+
+function _cfg(gs) {
+  try { return state.getCfg?.(gs) || null; } catch { return null; }
+}
+
 export const CFG = {
   // Search & Decisions
-  DECISION_THINK_TIME: 0.6,       // kept for legacy; junction micro-delay overrides it
+  DECISION_THINK_TIME: 0.6, // legacy; not used when junction micro-delay is present
   COMMIT_TILES: 3,
 
-  // Junction-only memory (new)
+  // Junction-only micro-delay pulled from tuning.json if present
   get JXN_THINK_MS_MIN() {
-    return state.getCfg(state.GameState)?.tuning?.ai?.jxnDelayMsMin ?? 100;
+    const t = _cfg(state.GameState)?.tuning?.ai;
+    return (t && Number.isFinite(t.jxnDelayMsMin)) ? t.jxnDelayMsMin : 100;
   },
   get JXN_THINK_MS_MAX() {
-    return state.getCfg(state.GameState)?.tuning?.ai?.jxnDelayMsMax ?? 300;
+    const t = _cfg(state.GameState)?.tuning?.ai;
+    return (t && Number.isFinite(t.jxnDelayMsMax)) ? t.jxnDelayMsMax : 300;
   },
-  COMMIT_BY_TILETYPE: { junction:3, room:3, corridor:0, deadend:0 },
+
+  COMMIT_BY_TILETYPE: { junction: 3, room: 3, corridor: 0, deadend: 0 },
 
   // Outcome scoring (deadend < loop < room < corridor < dragon)
-  OUTCOME_SCORE: { deadend:-2, loop:-1, room:0, corridor:+1, dragon:+3 },
+  OUTCOME_SCORE: { deadend: -2, loop: -1, room: 0, corridor: +1, dragon: +3 },
 
   // Group dynamics
   STRAIGHT_BONUS: 0.20,
@@ -30,5 +39,5 @@ export const CFG = {
   LOS_MAX_TILES: 8,
 
   // Priority (higher beats lower)
-  PRI: { search:0, fear:1, decision:2, charge:3, attack:4 },
+  PRI: { search: 0, fear: 1, decision: 2, charge: 3, attack: 4 },
 };
