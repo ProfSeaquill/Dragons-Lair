@@ -1,5 +1,4 @@
 // ai/states/search.js
-
 import { CFG } from '../config.js';
 import { isDecisionNode, canAttackDragon, canSeeDragon } from '../perception.js';
 import { stepAlongDirection, followPath } from '../steering.js';
@@ -11,23 +10,31 @@ export function enter(e, gs) { e.speedMul = 1; }
 
 export function update(e, gs, dt) {
   // Charge if dragon is seen
-  const tx = (e.tileX|0), ty = (e.tileY|0);
+  const tx = (e.tileX | 0), ty = (e.tileY | 0);
   if (canSeeDragon(gs, tx, ty) && !canAttackDragon(gs, e)) return 'charge';
 
   const speed = (typeof e.speed === 'number' ? e.speed : e.speedBase);
   const tile = gs.tileSize || state.GRID.tile;
 
-  // 1) Consume any forward planned edge path (from decision)
+  // 1) Consume any forward planned path (from decision)
   if (e.path && e.path.length) {
     followPath(e, dt, tile, speed);
+
+    // If followPath discovered a block, pivot immediately into decision
+    if (e._blockedForward) {
+      e._blockedForward = false;
+      return 'decision';
+    }
+
     // If we just arrived on a decision node, let decision record outcome & pick next
-    if (isDecisionNode(gs, e.tileX|0, e.tileY|0) && e.commitTilesLeft <= 0) return 'decision';
+    if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && (e.commitTilesLeft | 0) <= 0) {
+      return 'decision';
+    }
     return null;
   }
 
   // 2) Consume any backtrack plan
   if (e.backtrackPath && e.backtrackPath.length) {
-    const prevLen = e.backtrackPath.length;
     const save = e.path;
     e.path = e.backtrackPath;
     followPath(e, dt, tile, speed);
@@ -48,13 +55,14 @@ export function update(e, gs, dt) {
   }
 
   // 3) Normal forward motion with commit (robust)
+
   // 3a) If we’re on a decision node and not committed, go decide.
-  if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && (e.commitTilesLeft|0) <= 0) {
+  if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && (e.commitTilesLeft | 0) <= 0) {
     return 'decision';
   }
 
   // 3b) If we’re still committed, but the edge in front is blocked, drop the commit and decide.
-  if ((e.commitTilesLeft|0) > 0 && Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
+  if ((e.commitTilesLeft | 0) > 0 && Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
     const side = sideOf(e.dir);
     if (!state.isOpen(gs, e.tileX, e.tileY, side)) {
       e.commitTilesLeft = 0;
@@ -62,27 +70,31 @@ export function update(e, gs, dt) {
     }
   }
 
-  // 3c) Step forward (your steering handles pixel motion); afterwards, update tile coords.
-  //     We’ll decrement commit when the tile index changes (less brittle than pixel-center checks).
-  const prevTX = e.tileX|0, prevTY = e.tileY|0;
+  // 3c) Step forward; if blocked this frame, trigger decision immediately.
+  const prevTX = e.tileX | 0, prevTY = e.tileY | 0;
   stepAlongDirection(e, dt, tile, speed);
 
-  // If your stepAlongDirection doesn’t refresh tileX/tileY each frame, ensure they’re synced:
+  if (e._blockedForward) {
+    e._blockedForward = false; // consume the flag
+    return 'decision';
+  }
+
+  // Ensure tile indices exist (defensive)
   if (!Number.isInteger(e.tileX) || !Number.isInteger(e.tileY)) {
-    e.tileX = Math.floor((e.x||0) / tile);
-    e.tileY = Math.floor((e.y||0) / tile);
+    e.tileX = Math.floor((e.x || 0) / tile);
+    e.tileY = Math.floor((e.y || 0) / tile);
   }
 
   // 3d) Commit accounting: decrement when we actually ENTER a new tile.
-  if ((e.commitTilesLeft|0) > 0) {
-    const nowTX = e.tileX|0, nowTY = e.tileY|0;
+  if ((e.commitTilesLeft | 0) > 0) {
+    const nowTX = e.tileX | 0, nowTY = e.tileY | 0;
     if (nowTX !== prevTX || nowTY !== prevTY) {
-      e.commitTilesLeft = Math.max(0, (e.commitTilesLeft|0) - 1);
+      e.commitTilesLeft = Math.max(0, (e.commitTilesLeft | 0) - 1);
     }
   }
 
   // 3e) If we arrived at a decision node and our commit has just run out, go decide next.
-  if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && (e.commitTilesLeft|0) <= 0) {
+  if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && (e.commitTilesLeft | 0) <= 0) {
     return 'decision';
   }
 
@@ -90,7 +102,7 @@ export function update(e, gs, dt) {
   {
     const dx = (e.x || 0) - (e._sx || e.x || 0);
     const dy = (e.y || 0) - (e._sy || e.y || 0);
-    const moved = (dx*dx + dy*dy);
+    const moved = (dx * dx + dy * dy);
     if (moved < 0.01) e._stuckT = (e._stuckT || 0) + dt; else e._stuckT = 0;
     e._sx = e.x; e._sy = e.y;
     if ((e._stuckT || 0) > 0.6) {
