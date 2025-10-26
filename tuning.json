@@ -100,8 +100,7 @@
       },
 
       "mixOptions": { "floor": 0.0, "ceil": 0.8, "unlockFill": "renorm" },
-      "cadence": { "bossEvery": 10, "kingsguardEvery": 5 }
-
+      "cadence": { "bossEvery": 10, "kingsguardEvery": 5 },
       "ai": { "jxnDelayMsMin": 100, "jxnDelayMsMax": 300 }
     }
   }
