@@ -147,3 +147,20 @@ if (leaderPreferred && chosen.ex.dir !== leaderPreferred.ex.dir) {
     e.strayUntil = now + CFG.STRAY_TIMEOUT_MS;
   }
 }
+// Publish the leader’s final choice at this junction & lay a faint trail.
+  if (e.leader && e.groupId) {
+    const memo = _ensureGroupMemo(gs, e.groupId);
+    memo.set(id, chosen.ex.dir);
+
+    // Optional: success-trail nudge along the chosen corridor
+    if (Array.isArray(chosen.ex.path)) {
+      const T = state.GameState && state.GameState.successTrail;
+      if (T) {
+        for (const p of chosen.ex.path) {
+          if (T[p.y] && typeof T[p.y][p.x] === 'number') {
+            T[p.y][p.x] += 0.35;
+          }
+        }
+      }
+    }
+  }
