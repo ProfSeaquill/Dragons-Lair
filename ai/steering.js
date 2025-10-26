@@ -12,7 +12,6 @@ function ensureFinite(n, fallback) {
 
 function ensurePos(px, py, tileSize, cx, cy) {
   const t = ensureFinite(tileSize, 32);
-  // If px/py are not finite, snap to tile center (or (cx,cy) if provided)
   if (!Number.isFinite(px) || !Number.isFinite(py)) {
     const x = Number.isFinite(cx) ? cx : 0;
     const y = Number.isFinite(cy) ? cy : 0;
@@ -22,12 +21,11 @@ function ensurePos(px, py, tileSize, cx, cy) {
 }
 
 function vecFromDir(e) {
-  let dx = e.dirX|0, dy = e.dirY|0;
+  let dx = e.dirX | 0, dy = e.dirY | 0;
   if (!dx && !dy) {
     const d = e.dir || 'E';
     dx = (d === 'E') ? 1 : (d === 'W') ? -1 : 0;
     dy = (d === 'S') ? 1 : (d === 'N') ? -1 : 0;
-    // persist so the next frame has vectors ready
     e.dirX = dx; e.dirY = dy;
   }
   return { dx, dy };
@@ -38,7 +36,7 @@ export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
   const gs = state.GameState;
   const t  = ensureFinite(tileSize, state.GRID.tile || 32);
   const sp = ensureFinite(speedTilesPerSec, ensureFinite(e.speed, e.speedBase ?? 2.5));
-  const pxPerSec = ensureFinite(sp * t, (e.pxPerSec ?? 80)); // last-resort px/sec fallback
+  const pxPerSec = ensureFinite(sp * t, (e.pxPerSec ?? 80));
 
   // Ensure tile indices exist
   if (!Number.isInteger(e.tileX) || !Number.isInteger(e.tileY)) {
@@ -50,7 +48,7 @@ export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
   const pos = ensurePos(e.x, e.y, t, e.tileX, e.tileY);
   e.x = pos.x; e.y = pos.y;
 
-  // Intended direction (persist vectors)
+  // Intended direction
   const { dx, dy } = vecFromDir(e);
 
   // Determine the edge we would cross
@@ -60,7 +58,7 @@ export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
   if (dx === 0 && dy ===  1) side = 'S';
   if (dx === 0 && dy === -1) side = 'N';
 
-  const cx = e.tileX|0, cy = e.tileY|0;
+  const cx = e.tileX | 0, cy = e.tileY | 0;
   const step = ensureFinite(pxPerSec * ensureFinite(dt, 0.016), 0);
   let nx = e.x + dx * step;
   let ny = e.y + dy * step;
@@ -84,10 +82,11 @@ export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
   }
 
   if (crossing && side && !canCross(gs, cx, cy, side)) {
-    // Clamp to boundary - ε, drop commit, and let FSM rethink.
+    // Clamp to boundary - ε, drop commit, and signal the FSM to replan.
     if (boundaryX != null) nx = boundaryX + (dx === 1 ? -0.001 : 0.001);
     if (boundaryY != null) ny = boundaryY + (dy === 1 ? -0.001 : 0.001);
     e.commitTilesLeft = 0;
+    e._blockedForward = true; // <-- key: one-frame flag consumed by search.update
   }
 
   // Integrate & refresh tile coords
@@ -99,8 +98,8 @@ export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
 
 // Choose a primary axis toward a tile target (grid coords)
 export function setDirToward(e, fromX, fromY, toX, toY) {
-  const dx = Math.sign((toX|0) - (fromX|0));
-  const dy = Math.sign((toY|0) - (fromY|0));
+  const dx = Math.sign((toX | 0) - (fromX | 0));
+  const dy = Math.sign((toY | 0) - (fromY | 0));
   e.dirX = dx !== 0 ? dx : 0;
   e.dirY = (dx !== 0) ? 0 : dy;
   e.dir  = (e.dirX === 1) ? 'E' : (e.dirX === -1) ? 'W' : (e.dirY === 1) ? 'S' : 'N';
@@ -124,13 +123,13 @@ export function followPath(e, dt, tileSize, speedTilesPerSec) {
   e.x = pos.x; e.y = pos.y;
 
   const head = e.path[0];
-  const nx = Array.isArray(head) ? (head[0]|0) : (head.x|0);
-  const ny = Array.isArray(head) ? (head[1]|0) : (head.y|0);
+  const nx = Array.isArray(head) ? (head[0] | 0) : (head.x | 0);
+  const ny = Array.isArray(head) ? (head[1] | 0) : (head.y | 0);
 
   // Already there? pop and return.
-  if ((e.tileX|0) === nx && (e.tileY|0) === ny) { e.path.shift(); return; }
+  if ((e.tileX | 0) === nx && (e.tileY | 0) === ny) { e.path.shift(); return; }
 
-  const cx = e.tileX|0, cy = e.tileY|0;
+  const cx = e.tileX | 0, cy = e.tileY | 0;
   let side = null;
   if (nx === cx + 1 && ny === cy) side = 'E';
   else if (nx === cx - 1 && ny === cy) side = 'W';
@@ -140,6 +139,7 @@ export function followPath(e, dt, tileSize, speedTilesPerSec) {
     // Non-4-neighbor (bad path); drop it and let FSM replan.
     e.path = null;
     e.commitTilesLeft = 0;
+    e._blockedForward = true; // force quick replan
     return;
   }
 
@@ -147,6 +147,7 @@ export function followPath(e, dt, tileSize, speedTilesPerSec) {
   if (!state.isOpen(state.GameState, cx, cy, side)) {
     e.path = null;
     e.commitTilesLeft = 0;
+    e._blockedForward = true; // force quick replan
     return;
   }
 
