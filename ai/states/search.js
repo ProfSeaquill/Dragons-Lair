@@ -5,6 +5,8 @@ import { isDecisionNode, canAttackDragon, canSeeDragon } from '../perception.js'
 import { stepAlongDirection, followPath } from '../steering.js';
 import * as state from '../../state.js';
 
+const sideOf = (dir) => (dir === 'E' ? 'E' : dir === 'W' ? 'W' : dir === 'S' ? 'S' : 'N');
+
 export function enter(e, gs) { e.speedMul = 1; }
 
 export function update(e, gs, dt) {
