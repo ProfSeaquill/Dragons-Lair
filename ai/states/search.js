@@ -27,9 +27,7 @@ export function update(e, gs, dt) {
     }
 
     // If we just arrived on a decision node, let decision record outcome & pick next
-    if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && (e.commitTilesLeft | 0) <= 0) {
-      return 'decision';
-    }
+    if ((!e.path || e.path.length === 0) && isDecisionNode(gs, e.tileX|0, e.tileY|0)) return 'decision';
     return null;
   }
 
