@@ -1,0 +1,43 @@
+// ai/bosses.js — boss naming + behavior registry + helpers
+
+import { BOSS_NAMES, BOSS_ORDER } from '../story.js';
+
+const DefaultBossAI = {
+  onSpawn(e, gs) { /* no-op for now */ },
+  update(e, dt, gs) { /* generic boss behavior for now */ },
+  onDeath(e, gs) { /* no-op */ },
+};
+
+// Add per-boss overrides here over time, keyed by your BOSS_ORDER/BOSS_NAMES keys.
+const BEHAVIOR = Object.create(null);
+// Example stub you can flesh out later:
+// BEHAVIOR["kingsguard"] = {
+//   onSpawn(e, gs) { e.armor = (e.armor ?? 0) + 2; },
+//   update(e, dt, gs) { /* shield bash, etc. */ },
+//   onDeath(e, gs) { /* drop unique loot maybe */ },
+// };
+
+export function getBossKeyForWave(waveNum, cadence) {
+  // Boss waves are those divisible by cadence.bossEvery (e.g. 10, 20, 30…)
+  if (!cadence || !cadence.bossEvery) return null;
+  if (waveNum % cadence.bossEvery !== 0) return null;
+
+  // 10→index0, 20→index1, etc. Wrap if there are fewer bosses than cycles.
+  const idx = Math.floor(waveNum / cadence.bossEvery) - 1;
+  if (!BOSS_ORDER?.length) return null;
+  return BOSS_ORDER[idx % BOSS_ORDER.length];
+}
+
+export function attachBossIdentityAndAI(e, bossKey) {
+  if (!bossKey) return e;
+  e.isBoss = true;
+  e.bossKey = bossKey;
+  e.name = (BOSS_NAMES && BOSS_NAMES[bossKey]) || `Boss (${bossKey})`;
+  e.aiBoss = BEHAVIOR[bossKey] || DefaultBossAI;
+  if (e.aiBoss.onSpawn) e.aiBoss.onSpawn(e, e.gs);
+  return e;
+}
+
+export function tickBossAI(e, dt, gs) {
+  if (e?.isBoss && e.aiBoss?.update) e.aiBoss.update(e, dt, gs);
+}
