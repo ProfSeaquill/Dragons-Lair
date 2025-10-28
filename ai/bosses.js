@@ -1,6 +1,6 @@
 // ai/bosses.js — boss naming + behavior registry + helpers
 
-import { BOSS_NAMES, BOSS_ORDER } from '../story.js';
+import { BOSS_SCHEDULE} from '../story.js';
 
 const DefaultBossAI = {
   onSpawn(e, gs) { /* no-op for now */ },
