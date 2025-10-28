@@ -7,17 +7,17 @@
 // Public API
 // =========================
 export const BOSS_SCHEDULE = {
-  10: 'mordred',
-  20: 'kay',
-  30: 'palamedes',
-  40: 'gawain',
-  50: 'percival',
-  60: 'bors',
-  70: 'tristan',
-  80: 'galahad',
-  90: 'bedivere',
-  100: 'lancelot',
-  101: 'arthur',
+  10: 'sir mordred',
+  20: 'sir kay',
+  30: 'sir palamedes',
+  40: 'sir gawain',
+  50: 'sir percival',
+  60: 'sir bors',
+  70: 'sir tristan',
+  80: 'sir galahad',
+  90: 'sir bedivere',
+  100: 'sir lancelot',
+  101: 'king arthur',
 };
 
 export function isBossLevel(wave) {
