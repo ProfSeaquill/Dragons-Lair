@@ -112,6 +112,30 @@ function ensureKinematics(e, gs) {
 export function stepEnemyFSM(gs, e, dt) {
     ensureKinematics(e, gs);
 
+  // If the forward link is no longer traversable, drop the commit now
+{
+  const topo = gs.topology;
+  if (topo && Number.isInteger(e.tileX) && Number.isInteger(e.tileY) && (e.commitTilesLeft|0) > 0) {
+    const cell = topo.grid?.[e.tileY]?.[e.tileX];
+    if (cell) {
+      const dx = e.dirX | 0, dy = e.dirY | 0;
+      const canGo =
+        (dx ===  1 && cell.E) ||
+        (dx === -1 && cell.W) ||
+        (dy ===  1 && cell.S) ||
+        (dy === -1 && cell.N);
+      if (!canGo) {
+        e.commitTilesLeft = 0; // trigger decision next
+        // trace once per offender:
+        if (!e._loggedBlocked) {
+          console.debug('[fsm] forward blocked; dropping commit for', e.id ?? '(no-id)', { x:e.tileX, y:e.tileY, dx, dy });
+          e._loggedBlocked = true;
+        }
+      }
+    }
+  }
+}
+
     // --- apply slow to the effective speed ---
   // Keep e.speedBase as tiles/sec canonical; derive e.speed every frame.
 // fsm.js — inside stepEnemyFSM, right after ensureKinematics(...)
