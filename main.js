@@ -256,11 +256,15 @@ function boot() {
   window.addEventListener('dl-start-wave', () => { startWave(); });
 
   // --- FSM time bootstrap (exists even before the first frame) ---
-  {
-    const gs = state.GameState;
-    if (!gs.time) gs.time = { now: performance.now() / 1000, dt: 0, t: 0 };
-    gs.tileSize = state.GRID.tile;
-  }
+{
+  const nowSec = (typeof performance !== 'undefined' && performance.now)
+    ? performance.now() / 1000
+    : Date.now() / 1000;
+  const gs = state.GameState;
+  if (!gs.time) gs.time = { now: nowSec, dt: 0, t: 0, since: (t) => nowSec - t };
+  gs.tileSize = state.GRID.tile;
+}
+
 
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
   Debug.init();
@@ -438,14 +442,27 @@ function startWave() {
 function update(dt) {
   const gs = state.GameState;
 
-    // ---- FSM time shim ----
-  const __now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-  if (!gs.time) gs.time = { now: __now, dt, since: (t) => __now - t };
-  else {
+    // ---- FSM time shim (seconds everywhere) ----
+{
+  const __now = (typeof performance !== 'undefined' && performance.now)
+    ? performance.now() / 1000    // seconds
+    : Date.now() / 1000;          // seconds (fallback)
+
+  if (!gs.time) {
+    gs.time = {
+      now: __now,
+      dt,
+      since: (t) => __now - t,    // returns seconds
+    };
+  } else {
     gs.time.now = __now;
-    gs.time.dt = dt;
-    if (typeof gs.time.since !== 'function') gs.time.since = (t) => __now - t;
+    gs.time.dt  = dt;
+    if (typeof gs.time.since !== 'function') {
+      gs.time.since = (t) => __now - t; // seconds
+    }
   }
+}
+
 
   // End-of-wave detection (simple + robust):
   const anyAlive = gs.enemies && gs.enemies.length > 0;
