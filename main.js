@@ -442,6 +442,14 @@ function startWave() {
 function update(dt) {
   const gs = state.GameState;
 
+  // Topology auto-rebuild on version bumps from wall edits
+if (gs._topoSeen !== gs.topologyVersion) {
+  buildJunctionGraph(gs);
+  gs._topoSeen = gs.topologyVersion;
+  // quick trace:
+  console.debug('[topology] rebuilt on version', gs._topoSeen);
+}
+
     // ---- FSM time shim (seconds everywhere) ----
 {
   const __now = (typeof performance !== 'undefined' && performance.now)
