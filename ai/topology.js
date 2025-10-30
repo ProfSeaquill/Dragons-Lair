@@ -41,18 +41,16 @@ export function floodFrom(gs, starts) {
 }
 
 export function ensureFreshTopology(gs) {
-  const tv = (gs.topologyVersion | 0);
-  const have = gs.topology;
-  const cur = have ? (have.version | 0) : -1;
+  const want = gs.topologyVersion | 0;
+  const cur  = gs.topology;
+  if (cur && (cur.version | 0) === want) return cur;   // already fresh
 
-  if (!have || cur < tv) {
-    // Rebuild synchronously, but DO NOT force callers to early-return their updates
-    const topo = buildJunctionGraph(gs);
-    topo.version = tv;                 // ← important: pin builder result to the flag
-    gs.topology = topo;
-    // no return value required; callers continue their logic this frame
-  }
+  const topo = buildJunctionGraph(gs);  // your existing builder
+  topo.version = want;                  // mirror the flag only
+  gs.topology = topo;
+  return topo;
 }
+
 
 // Connectivity check: is ENTRY reachable from EXIT given current edge walls?
 export function isEntryConnectedToExit(gs, entry = state.ENTRY, exit = state.EXIT) {
