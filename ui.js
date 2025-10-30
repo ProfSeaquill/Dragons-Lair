@@ -2,7 +2,6 @@
 import * as state from './state.js';
 import { toggleEdge, edgeHasWall } from './grid/walls.js';
 import { getUpgradeInfo, listUpgrades } from './upgrades.js';
-import { getCfg } from './state.js';
 
 // ---------- DOM helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -390,7 +389,7 @@ function wireCanvasEdgeBuild() {
     globalThis.Telemetry?.log('wall:remove', { x: hover.x, y: hover.y, side: hover.side });
   }
 
-  gs.topologyVersion = (gs.topologyVersion || 0) + 1;
+  bumpTopology
   // Use the local helper to avoid TDZ issues with UI export
   refreshHUD?.();
 });
