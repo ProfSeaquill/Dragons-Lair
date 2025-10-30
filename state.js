@@ -485,9 +485,9 @@ export function setEdgeWall(gs, x, y, side, hasWall) {
 
   const there = ensureCell(gs, nx, ny);
   here[side] = !!hasWall;
-  there[opp] = !!hasWall;
-  bumpTopology
-  return true;
+there[opp] = !!hasWall;
+return true; // no bump here; caller (toggleEdge/applyMaze) decides
+
 }
 
 // --- Maze presets: serialize/apply just the walls (no gold/wave changes) ---
@@ -603,14 +603,17 @@ export function loadState() {
 
     Object.assign(GameState, loaded);
     
-    // Rehydrate cellWalls as a Map if needed
+   // Rehydrate cellWalls as a Map if needed
 if (Array.isArray(loaded.cellWalls)) {
   GameState.cellWalls = new Map(loaded.cellWalls);
+  bumpTopology(GameState, 'loadState:rehydrate-array');
 } else if (!(GameState.cellWalls instanceof Map)) {
   GameState.cellWalls = new Map();
-  bumpTopology(GameState, 'loadState:rehydrate');
-
+  bumpTopology(GameState, 'loadState:rehydrate-empty');
+} else {
+  bumpTopology(GameState, 'loadState'); // safe single bump
 }
+
 
     return true;
   } catch (err) {
