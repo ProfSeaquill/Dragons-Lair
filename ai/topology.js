@@ -40,14 +40,17 @@ export function floodFrom(gs, starts) {
   return dist;
 }
 
-// ai/topology.js — add this near your other exports
 export function ensureFreshTopology(gs) {
-  if (!gs) return;
-  const have = gs.topology?.version | 0;
-  const want = gs.topologyVersion | 0;
-  if (have !== want) {
-    // your existing builder:
-    buildJunctionGraph(gs);
+  const tv = (gs.topologyVersion | 0);
+  const have = gs.topology;
+  const cur = have ? (have.version | 0) : -1;
+
+  if (!have || cur < tv) {
+    // Rebuild synchronously, but DO NOT force callers to early-return their updates
+    const topo = buildJunctionGraph(gs);
+    topo.version = tv;                 // ← important: pin builder result to the flag
+    gs.topology = topo;
+    // no return value required; callers continue their logic this frame
   }
 }
 
