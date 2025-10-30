@@ -26,8 +26,6 @@ export function update(e, gs, dt) {
       return 'decision';
     }
 
-    // If we just arrived on a decision node, let decision record outcome & pick next
-    if ((!e.path || e.path.length === 0) && isDecisionNode(gs, e.tileX|0, e.tileY|0)) return 'decision';
     return null;
   }
 
@@ -94,20 +92,6 @@ export function update(e, gs, dt) {
   // 3e) If we arrived at a decision node and our commit has just run out, go decide next.
   if (isDecisionNode(gs, e.tileX | 0, e.tileY | 0) && (e.commitTilesLeft | 0) <= 0) {
     return 'decision';
-  }
-
-  // 3f) Stuck watchdog: if our pixel position barely changes for a while, reset commit & rethink.
-  {
-    const dx = (e.x || 0) - (e._sx || e.x || 0);
-    const dy = (e.y || 0) - (e._sy || e.y || 0);
-    const moved = (dx * dx + dy * dy);
-    if (moved < 0.01) e._stuckT = (e._stuckT || 0) + dt; else e._stuckT = 0;
-    e._sx = e.x; e._sy = e.y;
-    if ((e._stuckT || 0) > 0.6) {
-      e._stuckT = 0;
-      e.commitTilesLeft = 0;
-      return 'decision';
-    }
   }
 
   return null;
