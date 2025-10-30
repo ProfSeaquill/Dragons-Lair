@@ -8,6 +8,7 @@ import { initMemory } from './memory.js';
 import * as state from '../state.js';
 import * as S_attack from './states/attack.js';
 import { isDecisionNode, canSeeDragon, canAttackDragon } from './perception.js';
+import { ensureFreshTopology } from './topology.js';
 
 
 // --- Safety helpers ---
@@ -112,6 +113,9 @@ function ensureKinematics(e, gs) {
 export function stepEnemyFSM(gs, e, dt) {
     ensureKinematics(e, gs);
 
+  // keep junction graph in sync with wall edits
+  ensureFreshTopology(gs);
+  
   // If the forward link is no longer traversable, drop the commit now
 {
   const topo = gs.topology;
