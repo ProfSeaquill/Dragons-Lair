@@ -7,7 +7,7 @@ import { bindUI, UI } from './ui.js';
 import * as render from './render.js';
 import { stepEnemyFSM } from './ai/fsm.js';
 import { updateEnemyDistance } from './ai/metrics.js';
-import { buildJunctionGraph } from './ai/topology.js';
+import { buildJunctionGraph, ensureFreshTopology } from './ai/topology.js';
 import { initLighting } from './lighting-webgl.js';
 import { buyUpgrade } from './upgrades.js';
 
@@ -444,6 +444,7 @@ function startWave() {
 }
 
 function update(dt) {
+  ensureFreshTopology(GameState);
   const gs = state.GameState;
 
   // Topology auto-rebuild on version bumps from wall edits
