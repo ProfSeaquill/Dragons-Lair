@@ -20,6 +20,36 @@ let __ENEMY_ID = 0;
 const ENEMY_POOL = new Map();   // type -> array of recycled enemies
 const EFFECT_POOL = new Map();  // kind -> array of recycled effects
 
+// Resolve '__mixed__' into a concrete type using tuning.waves.mixCurves.
+function __resolveMixedType(gs, t) {
+  if (t !== '__mixed__') return t;
+
+  const cfg    = (window.state && window.state.getCfg) ? window.state.getCfg(gs) : (gs.cfg || null);
+  const curves = cfg?.tuning?.waves?.mixCurves;
+  if (!curves) return 'villager';
+
+  const wave = (gs.wave | 0) || 1;
+  const weights = [];
+
+  for (const [k, v] of Object.entries(curves)) {
+    const min = (v.minWave|0) || 1;
+    if (wave < min) continue;
+
+    const base = +v.base || 0;
+    const cap  = +v.cap  || 0;
+    const K    = (typeof v.k === 'number') ? v.k : 0.5; // same shape you logged
+    const w    = cap + (base - cap) * Math.exp(-K * Math.max(0, wave - min));
+    if (w > 0) weights.push([k, w]);
+  }
+
+  if (!weights.length) return 'villager';
+  let sum = 0; for (const [,w] of weights) sum += w;
+  let r = Math.random() * sum;
+  for (const [k,w] of weights) { r -= w; if (r <= 0) return k; }
+  return weights[0][0];
+}
+
+
 function acquireEnemy(type, wave, initFn) {
   const pool = ENEMY_POOL.get(type);
   let e = (pool && pool.length) ? pool.pop() : makeEnemy(type, wave);
@@ -1606,15 +1636,20 @@ if (T) {
         G.groupId = R.groupId;
         R.groupLeaderId = null;
         G._spawned = 0;
+        // One-time resolve of any '__mixed__' in the queued sequence
+        if (Array.isArray(G.__types) && !G.__typesResolved) {
+          G.__types = G.__types.map(t => t === '__mixed__' ? __resolveMixedType(gs, t) : t);
+          G.__typesResolved = true;
+        }
       }
 
-      const hasCfg = !!(state.getCfg?.(gs)?.enemies?.[G.type]);
-      if (!hasCfg && !_warnedTypesThisWave.has(G.type)) {
-        console.warn('[waves.json] Unknown enemy type in wave', (gs.wave|0), '→', G.type);
-        _warnedTypesThisWave.add(G.type);
+      let nextType = Array.isArray(G.__types) && G.__types.length ? G.__types.shift() : G.type;
+      nextType = __resolveMixedType(gs, nextType);
+      const hasCfg = !!(state.getCfg?.(gs)?.enemies?.[nextType]);
+      if (!hasCfg && !_warnedTypesThisWave.has(nextType)) {
+        console.warn('[waves] Unknown enemy type in wave', (gs.wave|0), '→', nextType);
+        _warnedTypesThisWave.add(nextType);
       }
-
-      const nextType = Array.isArray(G.__types) && G.__types.length ? G.__types.shift() : G.type;
 
       const e = spawnOneIntoGroup(gs, nextType, G.groupId, R.groupLeaderId);
 
