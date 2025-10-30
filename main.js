@@ -250,7 +250,6 @@ lighting.render(sceneCanvas, lights, ambient);
 
 // ---------- Boot ----------
 function boot() {
-  state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
 
   // lock Start until config is loaded
   const startBtn = document.getElementById('startBtn');
@@ -298,7 +297,6 @@ function boot() {
 
   window.addEventListener('dl-load', () => {
     if (state.loadState()) {
-      state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
       UI.refreshHUD?.();
       UI.tell?.('Loaded', '#8f8');
     } else {
@@ -341,22 +339,20 @@ function boot() {
 
 
 function installPermanentBones(gs = state.GameState) {
-  // [x, y, side]
   const PERMA = [
     [21,  6, 'N'], [22,  6, 'N'], [23,  6, 'N'],
     [21, 11, 'N'], [22, 11, 'N'], [23, 11, 'N'],
     [21, 10, 'W'], [21,  6, 'W'],
   ];
   for (const [x, y, side] of PERMA) state.setEdgeWall(gs, x, y, side, true);
-  gs.topologyVersion = (gs.topologyVersion|0) + 1;  // force recompute
+  state.bumpTopology(gs, 'permanent-walls');  // single bump after batch
 }
+
 
 // After config load + before the game loop starts, do:
 state.applyConfig(state.GameState, cfg);
 installPermanentBones(state.GameState);
-buildJunctionGraph(state.GameState); // so AI/pathing see the walls immediately
-
-
+ensureFreshTopology(state.GameState); // one assignment if needed
       
       const cfgNow = state.getCfg(state.GameState);
       console.log('[A after applyConfig]', {
@@ -420,9 +416,7 @@ function startWave() {
   gs.__firstTorchGiven = false;
   // --- NEW: if someone calls main.startWave directly, ensure topology & trail exist.
   // If combat.startWave runs next, its calls are idempotent.
-  if (!gs.topology || !gs.topology.jxns) {
-    buildJunctionGraph(gs);
-  }
+  ensureFreshTopology(gs);
   if (!gs.successTrail) {
     const W = state.GRID.cols, H = state.GRID.rows;
     gs.successTrail = state.makeScalarField(W, H, 0);
@@ -444,16 +438,9 @@ function startWave() {
 }
 
 function update(dt) {
-  ensureFreshTopology(GameState);
+  ensureFreshTopology(state.GameState);
   const gs = state.GameState;
 
-  // Topology auto-rebuild on version bumps from wall edits
-if (gs._topoSeen !== gs.topologyVersion) {
-  buildJunctionGraph(gs);
-  gs._topoSeen = gs.topologyVersion;
-  // quick trace:
-  console.debug('[topology] rebuilt on version', gs._topoSeen);
-}
 
     // ---- FSM time shim (seconds everywhere) ----
 {
