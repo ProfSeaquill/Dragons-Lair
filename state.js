@@ -47,6 +47,12 @@ export function applyConfig(gs, cfg) {
   gs.cfgLoaded = true;  // runtime flag
 }
 
+export function bumpTopology(gs, reason) {
+  // Only allow in build-phase unless an explicit allow window is open
+  if (gs.phase !== 'build' && !gs._allowTopoBump) return false;
+  gs.topologyVersion = (gs.topologyVersion | 0) + 1;
+  return true;
+}
 
 // If you added healDragon earlier, keep it but read from cfg:
 export function healDragon(gs) {
