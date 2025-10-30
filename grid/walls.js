@@ -23,7 +23,7 @@ export function toggleEdge(gs, x, y, side, forcePlace /* optional boolean */) {
     state.setEdgeWall(gs, x, y, side, curr);
     return { ok: false, changed: false, reason: 'disconnect' };
   }
-gs.topologyVersion = (gs.topologyVersion | 0) + 1;
+if (changed) bumpTopology(gs, 'walls:toggleEdge');
   return { ok: true, changed: true };
 }
 
