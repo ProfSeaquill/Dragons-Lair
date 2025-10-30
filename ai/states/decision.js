@@ -46,10 +46,10 @@ export function update(e, gs, dt) {
   if (e.stateT * 1000 < (e._jxnWaitMs | 0)) return null;
 
   // Require fresh topology
-  const topo = gs.topology;
-  if (!topo || !topo.jxns || (topo.version|0) !== (gs.topologyVersion|0)) {
+    const topo = gs.topology;
+  if (!topo || !topo.jxns) {
     e.speedMul = 1;
-    return 'search';
+    return 'search';  // fall back to movement until topology is ready
   }
 
   const id = junctionId(e.tileX | 0, e.tileY | 0);
