@@ -41,12 +41,14 @@ export function floodFrom(gs, starts) {
 }
 
 export function ensureFreshTopology(gs) {
-  const tv  = (gs.topologyVersion | 0);
-  const cur = gs.topology ? (gs.topology.version | 0) : -1;
-  if (!gs.topology || cur !== tv) {
-    const topo = buildJunctionGraph(gs);
-    topo.version = tv;      // mirror the flag
-    gs.topology = topo;     // the ONLY place that assigns
+  const tv   = (gs.topologyVersion | 0);
+  const have = gs.topology;
+  const cur  = have ? (have.version | 0) : -1;
+
+  if (!have || cur < tv) {
+    const topo = buildJunctionGraph(gs); // pure build
+    topo.version = tv;                   // pin built version
+    gs.topology = topo;                  // single assignment
   }
 }
 
@@ -165,7 +167,6 @@ export function buildJunctionGraph(gs) {
     }
   }
 }
-
-    const topo = { version: (gs.topologyVersion|0), jxns };
-  return topo; // ← do NOT assign to gs or bump the flag here
+  
+return { version: (gs.topologyVersion | 0), jxns };
 }
