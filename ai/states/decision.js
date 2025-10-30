@@ -45,9 +45,12 @@ export function update(e, gs, dt) {
   e.stateT += dt;
   if (e.stateT * 1000 < (e._jxnWaitMs | 0)) return null;
 
-  // Require topology
+  // Require fresh topology
   const topo = gs.topology;
-  if (!topo || !topo.jxns) { e.speedMul = 1; return 'search'; }
+  if (!topo || !topo.jxns || (topo.version|0) !== (gs.topologyVersion|0)) {
+    e.speedMul = 1;
+    return 'search';
+  }
 
   const id = junctionId(e.tileX | 0, e.tileY | 0);
   const node = topo.jxns.get(id);
@@ -166,7 +169,8 @@ export function update(e, gs, dt) {
   e.pendingOutcome = { fromId: id, dir: chosen.ex.dir };
 
   e.path = chosen.ex.path || [];
-  e.commitTilesLeft = (chosen.ex.commit | 0);
+  // ensure at least 1 tile of forward motion; prevents instant re-entry to decision
+  e.commitTilesLeft = Math.max(1, (chosen.ex.commit | 0));
   e.speedMul = 1;
   return 'search';
 }
