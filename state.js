@@ -476,6 +476,7 @@ export function setEdgeWall(gs, x, y, side, hasWall) {
   const there = ensureCell(gs, nx, ny);
   here[side] = !!hasWall;
   there[opp] = !!hasWall;
+  gs.topologyVersion = (gs.topologyVersion|0) + 1;  // <— bump once per successful change
   return true;
 }
 
