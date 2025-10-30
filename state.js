@@ -509,14 +509,17 @@ export function clearMaze(gs) {
 export function applyMaze(gs, edges) {
   gs = __useGS(gs);
   clearMaze(gs);
-  if (Array.isArray(edges)) {
-    for (let i = 0; i < edges.length; i++) {
-      const [x, y, side] = edges[i];
-      setEdgeWall(gs, x|0, y|0, side, true);
+  gs._allowTopoBump = true;
+  try {
+    if (Array.isArray(edges)) {
+      for (const [x,y,side] of edges) setEdgeWall(gs, x|0, y|0, side, true);
     }
+    bumpTopology(gs, 'applyMaze');
+  } finally {
+    gs._allowTopoBump = false;
   }
-  gs.topologyVersion = (gs.topologyVersion || 0) + 1;
 }
+
 
 // ===== Phase 7: Robust saves (versioned + migration) =====
 export const SAVE_SCHEMA_VERSION = 2;
