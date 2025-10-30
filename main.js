@@ -14,9 +14,13 @@ import { buyUpgrade } from './upgrades.js';
 // ----- Combat (robust namespace import; tolerant of export name variants) -----
 import * as combat from './combat.js';
 
+window.state = state;             // exposes state.GameState for console tools
+window.GameState = state.GameState;
+
 // ===== Phase 7: autosave =====
 let __autosaveAccum = 0;
 let __lastWaveSaved = 0;
+
 
 
 async function loadConfigFiles() {
