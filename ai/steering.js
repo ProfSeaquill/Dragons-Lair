@@ -130,7 +130,7 @@ export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
   e._prevX = e.x;
   e._prevY = e.y;
 }
-
+}
 
 // Choose a primary axis toward a tile target (grid coords)
 export function setDirToward(e, fromX, fromY, toX, toY) {
