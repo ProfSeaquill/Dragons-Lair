@@ -47,12 +47,13 @@ export function applyConfig(gs, cfg) {
   gs.cfgLoaded = true;  // runtime flag
 }
 
-export function bumpTopology(gs, reason) {
-  // Only allow in build-phase unless an explicit allow window is open
-  if (gs.phase !== 'build' && !gs._allowTopoBump) return false;
-  gs.topologyVersion = (gs.topologyVersion | 0) + 1;
-  return true;
+export function bumpTopology(gs, reason = '') {
+  gs._lastTopoReason = reason;
+  gs._allowTopoBump = true;
+  try { bumpTopology }
+  finally { gs._allowTopoBump = false; }
 }
+
 
 // If you added healDragon earlier, keep it but read from cfg:
 export function healDragon(gs) {
@@ -482,7 +483,7 @@ export function setEdgeWall(gs, x, y, side, hasWall) {
   const there = ensureCell(gs, nx, ny);
   here[side] = !!hasWall;
   there[opp] = !!hasWall;
-  gs.topologyVersion = (gs.topologyVersion|0) + 1;  // <— bump once per successful change
+  bumpTopology
   return true;
 }
 
@@ -503,7 +504,7 @@ export function serializeMaze(gs) {
 export function clearMaze(gs) {
   gs = __useGS(gs);
   gs.cellWalls.clear();
-  gs.topologyVersion = (gs.topologyVersion || 0) + 1;
+  bumpTopology(gs, 'clearMaze');
 }
 
 export function applyMaze(gs, edges) {
@@ -604,6 +605,8 @@ if (Array.isArray(loaded.cellWalls)) {
   GameState.cellWalls = new Map(loaded.cellWalls);
 } else if (!(GameState.cellWalls instanceof Map)) {
   GameState.cellWalls = new Map();
+  bumpTopology(GameState, 'loadState:rehydrate');
+
 }
 
     return true;
