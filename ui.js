@@ -50,7 +50,6 @@ export function bindUI() {
   wireCanvasEdgeBuild();
   renderUpgradesPanel();
   refreshHUD();          // also triggers first preview render
-  state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
 
 
   // Dev tools
@@ -297,7 +296,7 @@ function renderGridHelp(gs) {
     return;
   }
 
-  const cost = ((getCfg(gs)?.tuning?.economy?.wallCostBones ?? state.COSTS.edgeWall) | 0);
+ const cost = ((state.getCfg(gs)?.tuning?.economy?.wallCostBones ?? state.COSTS.edgeWall) | 0);
   el.textContent =
     `Build Mode: Click a TILE EDGE to add a wall (${cost} bone). ` +
     `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
@@ -388,8 +387,6 @@ function wireCanvasEdgeBuild() {
     toggleEdge(gs, hover.x, hover.y, hover.side);
     globalThis.Telemetry?.log('wall:remove', { x: hover.x, y: hover.y, side: hover.side });
   }
-
-  bumpTopology
   // Use the local helper to avoid TDZ issues with UI export
   refreshHUD?.();
 });
