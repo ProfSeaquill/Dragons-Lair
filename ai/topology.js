@@ -40,6 +40,17 @@ export function floodFrom(gs, starts) {
   return dist;
 }
 
+// ai/topology.js — add this near your other exports
+export function ensureFreshTopology(gs) {
+  if (!gs) return;
+  const have = gs.topology?.version | 0;
+  const want = gs.topologyVersion | 0;
+  if (have !== want) {
+    // your existing builder:
+    buildJunctionGraph(gs);
+  }
+}
+
 // Connectivity check: is ENTRY reachable from EXIT given current edge walls?
 export function isEntryConnectedToExit(gs, entry = state.ENTRY, exit = state.EXIT) {
   const D = floodFrom(gs, exit);
