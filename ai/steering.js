@@ -59,6 +59,7 @@ export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
   if (dx === 0 && dy === -1) side = 'N';
 
   const cx = e.tileX | 0, cy = e.tileY | 0;
+  const prevTX = cx, prevTY = cy;
   const step = ensureFinite(pxPerSec * ensureFinite(dt, 0.016), 0);
   let nx = e.x + dx * step;
   let ny = e.y + dy * step;
@@ -95,38 +96,41 @@ export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
   e.tileX = Math.floor(e.x / t);
   e.tileY = Math.floor(e.y / t);
 
-  // --- Post-move sanity: if we crossed a CLOSED edge, roll back and replan ---
+ // --- Post-move sanity: if we crossed a CLOSED edge, roll back and replan ---
 {
-  const t = (state.GRID.tile || 32);
-  const prevX = e._prevX, prevY = e._prevY;
+  const cx2 = e.tileX | 0, cy2 = e.tileY | 0;
+  const dxT = cx2 - prevTX, dyT = cy2 - prevTY;
+  const movedTile = (Math.abs(dxT) + Math.abs(dyT)) === 1;
 
-  if (Number.isFinite(prevX) && Number.isFinite(prevY)) {
-    const pcx = Math.floor(prevX / t), pcy = Math.floor(prevY / t);
-    const cx  = Math.floor(e.x   / t),  cy  = Math.floor(e.y   / t);
+  if (movedTile) {
+    const side =
+      (dxT ===  1 && dyT === 0) ? 'E' :
+      (dxT === -1 && dyT === 0) ? 'W' :
+      (dyT ===  1 && dxT === 0) ? 'S' :
+      (dyT === -1 && dxT === 0) ? 'N' : null;
 
-    if (pcx !== cx || pcy !== cy) {
-      const side =
-        (cx === pcx+1 && cy === pcy) ? 'E' :
-        (cx === pcx-1 && cy === pcy) ? 'W' :
-        (cy === pcy+1 && cx === pcx) ? 'S' :
-        (cy === pcy-1 && cx === pcx) ? 'N' : null;
+    if (side && !state.isOpen(state.GameState, prevTX, prevTY, side)) {
+      // Snap to the boundary of the origin tile (a hair inside), force replan.
+      const bx = (side === 'E') ? (prevTX + 1) * t :
+                 (side === 'W') ?  prevTX      * t : null;
+      const by = (side === 'S') ? (prevTY + 1) * t :
+                 (side === 'N') ?  prevTY      * t : null;
 
-      if (side && !state.isOpen(state.GameState, pcx, pcy, side)) {
-        // Roll back to the previous tile center, drop commit, force replan
-        e.x = (pcx + 0.5) * t;  e.y = (pcy + 0.5) * t;
-        e.tileX = pcx;          e.tileY = pcy;
-        e.commitTilesLeft = 0;
-        e._blockedForward = true;   // consumed by search.update next frame
-      }
+      if (bx != null) e.x = bx + (side === 'E' ? -0.001 : 0.001);
+      if (by != null) e.y = by + (side === 'S' ? -0.001 : 0.001);
+
+      e.tileX = prevTX; e.tileY = prevTY;
+      e.commitTilesLeft = 0;
+      e._blockedForward = true;
+      console.warn('[postmove-guard:dir] prevented embed across', side, 'id=', e.id);
     }
   }
 
   // record for next frame’s check
-  e._prevX = e.x; 
+  e._prevX = e.x;
   e._prevY = e.y;
 }
 
-}
 
 // Choose a primary axis toward a tile target (grid coords)
 export function setDirToward(e, fromX, fromY, toX, toY) {
