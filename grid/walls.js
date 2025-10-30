@@ -4,26 +4,23 @@ import * as topology from '../ai/topology.js';
 
 // Example toggle that prevents full block:
 export function toggleEdge(gs, x, y, side, forcePlace /* optional boolean */) {
-  // current state
   const here = state.ensureCell(gs, x, y);
   const curr = !!here[side];
-
   const next = (typeof forcePlace === 'boolean') ? !!forcePlace : !curr;
 
-  // Fast no-op
   if (next === curr) return { ok: true, changed: false };
 
   // Tentatively apply
   state.setEdgeWall(gs, x, y, side, next);
 
-  // Don’t allow fully blocking entry↔exit
+  // Connectivity guard
   const connected = topology.isEntryConnectedToExit(gs);
   if (!connected) {
-    // revert
-    state.setEdgeWall(gs, x, y, side, curr);
+    state.setEdgeWall(gs, x, y, side, curr); // revert
     return { ok: false, changed: false, reason: 'disconnect' };
   }
-if (changed) bumpTopology(gs, 'walls:toggleEdge');
+
+  bumpTopology(gs, 'walls:toggleEdge'); // ← single bump here
   return { ok: true, changed: true };
 }
 
