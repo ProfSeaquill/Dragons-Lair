@@ -94,6 +94,38 @@ export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
   e.y = ensureFinite(ny, e.y);
   e.tileX = Math.floor(e.x / t);
   e.tileY = Math.floor(e.y / t);
+
+  // --- Post-move sanity: if we crossed a CLOSED edge, roll back and replan ---
+{
+  const t = (state.GRID.tile || 32);
+  const prevX = e._prevX, prevY = e._prevY;
+
+  if (Number.isFinite(prevX) && Number.isFinite(prevY)) {
+    const pcx = Math.floor(prevX / t), pcy = Math.floor(prevY / t);
+    const cx  = Math.floor(e.x   / t),  cy  = Math.floor(e.y   / t);
+
+    if (pcx !== cx || pcy !== cy) {
+      const side =
+        (cx === pcx+1 && cy === pcy) ? 'E' :
+        (cx === pcx-1 && cy === pcy) ? 'W' :
+        (cy === pcy+1 && cx === pcx) ? 'S' :
+        (cy === pcy-1 && cx === pcx) ? 'N' : null;
+
+      if (side && !state.isOpen(state.GameState, pcx, pcy, side)) {
+        // Roll back to the previous tile center, drop commit, force replan
+        e.x = (pcx + 0.5) * t;  e.y = (pcy + 0.5) * t;
+        e.tileX = pcx;          e.tileY = pcy;
+        e.commitTilesLeft = 0;
+        e._blockedForward = true;   // consumed by search.update next frame
+      }
+    }
+  }
+
+  // record for next frame’s check
+  e._prevX = e.x; 
+  e._prevY = e.y;
+}
+
 }
 
 // Choose a primary axis toward a tile target (grid coords)
@@ -168,6 +200,36 @@ export function followPath(e, dt, tileSize, speedTilesPerSec) {
     e.tileX = Math.floor(e.x / t);
     e.tileY = Math.floor(e.y / t);
   }
+// --- Post-move sanity: if we crossed a CLOSED edge, roll back and replan ---
+{
+  const t = (state.GRID.tile || 32);
+  const prevX = e._prevX, prevY = e._prevY;
+
+  if (Number.isFinite(prevX) && Number.isFinite(prevY)) {
+    const pcx = Math.floor(prevX / t), pcy = Math.floor(prevY / t);
+    const cx  = Math.floor(e.x   / t),  cy  = Math.floor(e.y   / t);
+
+    if (pcx !== cx || pcy !== cy) {
+      const side =
+        (cx === pcx+1 && cy === pcy) ? 'E' :
+        (cx === pcx-1 && cy === pcy) ? 'W' :
+        (cy === pcy+1 && cx === pcx) ? 'S' :
+        (cy === pcy-1 && cx === pcx) ? 'N' : null;
+
+      if (side && !state.isOpen(state.GameState, pcx, pcy, side)) {
+        // Roll back to the previous tile center, drop commit, force replan
+        e.x = (pcx + 0.5) * t;  e.y = (pcy + 0.5) * t;
+        e.tileX = pcx;          e.tileY = pcy;
+        e.commitTilesLeft = 0;
+        e._blockedForward = true;   // consumed by search.update next frame
+      }
+    }
+  }
+
+  // record for next frame’s check
+  e._prevX = e.x; 
+  e._prevY = e.y;
+}
 
   // Keep logical facing coherent with motion (helps decision/charge logic)
   if (Math.abs(dx) >= Math.abs(dy)) {
