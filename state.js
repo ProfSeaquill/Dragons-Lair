@@ -50,8 +50,11 @@ export function applyConfig(gs, cfg) {
 export function bumpTopology(gs, reason = '') {
   gs._lastTopoReason = reason;
   gs._allowTopoBump = true;
-  try { bumpTopology }
-  finally { gs._allowTopoBump = false; }
+  try {
+    gs.topologyVersion = (gs.topologyVersion | 0) + 1;
+  } finally {
+    gs._allowTopoBump = false;
+  }
 }
 
 
