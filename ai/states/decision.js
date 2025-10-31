@@ -198,7 +198,7 @@ if (!node) {
   }
 
   // --- ANCHOR B: record the branch we’re about to test, then COMMIT and leave decision ---
-  e.pendingOutcome = { fromId: id, dir: chosen.ex.dir };
+  e.pendingOutcome = { fromId: id, dir: chosen.ex.dir, toId: chosen.ex.to || null };
 
   e.path = chosen.ex.path || [];
   // ensure at least 1 tile of forward motion; prevents instant re-entry to decision
