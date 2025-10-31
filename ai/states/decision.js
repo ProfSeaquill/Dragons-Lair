@@ -46,7 +46,7 @@ export function enter(e, gs) {
   recordOutcome(e, fromId, dir, outcome);
   e.pendingOutcome = null;
 }
-
+}
 
 // Hoisted: wave-scoped group route memo
 function _ensureGroupMemo(gs, gid) {
