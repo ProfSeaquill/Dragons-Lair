@@ -178,32 +178,6 @@ export function followPath(e, dt, tileSize, speedTilesPerSec) {
     return;
   }
 
-    // Replace the head with our normalized prefix, keep the rest of the path
-    if (norm.length > 0) {
-      e.path = norm.concat(e.path.slice(1));
-      // Recompute head/side against new first step
-      const h = e.path[0];
-      const hx = (h.x ?? h[0]) | 0, hy = (h.y ?? h[1]) | 0;
-      if (hx === cx + 1 && hy === cy) side = 'E';
-      else if (hx === cx - 1 && hy === cy) side = 'W';
-      else if (hy === cy + 1 && hx === cx) side = 'S';
-      else if (hy === cy - 1 && hx === cx) side = 'N';
-      else {
-        // Still not adjacent? Bail and replan.
-        e.path = null;
-        e.commitTilesLeft = 0;
-        e._blockedForward = true;
-        return;
-      }
-    } else {
-      // No progress — let FSM replan
-      e.path = null;
-      e.commitTilesLeft = 0;
-      e._blockedForward = true;
-      return;
-    }
-  }
-
 
   // Gate the step on the wall model.
   if (!state.isOpen(state.GameState, cx, cy, side)) {
