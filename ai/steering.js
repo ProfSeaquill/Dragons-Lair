@@ -122,7 +122,6 @@ export function stepAlongDirection(e, dt, tileSize, speedTilesPerSec) {
       e.tileX = prevTX; e.tileY = prevTY;
       e.commitTilesLeft = 0;
       e._blockedForward = true;
-      console.warn('[postmove-guard:dir] prevented embed across', side, 'id=', e.id);
     }
   }
 
@@ -172,41 +171,12 @@ export function followPath(e, dt, tileSize, speedTilesPerSec) {
   else if (ny === cy + 1 && nx === cx) side = 'S';
   else if (ny === cy - 1 && nx === cx) side = 'N';
   else {
-    // Non-4-neighbor (bad head) → normalize into a legal 4-neighbor prefix.
-    // We expand the first hop into 1-tile steps, preferring an open axis.
-    const norm = [];
-    let ax = cx, ay = cy;
-    const tx = nx, ty = ny;
-
-    // safety ceiling: at most grid area hops
-    let guard = (state.GRID.cols * state.GRID.rows) + 5;
-
-    while ((ax !== tx || ay !== ty) && guard-- > 0) {
-      const stepX = Math.sign(tx - ax);
-      const stepY = Math.sign(ty - ay);
-
-      // Try X first if open; then Y. If both closed, bail.
-      const tryOrder = [];
-      if (stepX !== 0) tryOrder.push({ dx: stepX, dy: 0, side: stepX > 0 ? 'E' : 'W' });
-      if (stepY !== 0) tryOrder.push({ dx: 0, dy: stepY, side: stepY > 0 ? 'S' : 'N' });
-
-      let moved = false;
-      for (const c of tryOrder) {
-        if (state.isOpen(state.GameState, ax, ay, c.side)) {
-          ax += c.dx; ay += c.dy;
-          norm.push({ x: ax, y: ay });
-          moved = true;
-          break;
-        }
-      }
-      if (!moved) {
-        // Can’t legally step toward head — drop and replan.
-        e.path = null;
-        e.commitTilesLeft = 0;
-        e._blockedForward = true;
-        return;
-      }
-    }
+    // Non-4-neighbor head: treat as invalid and replan.
+    e.path = null;
+    e.commitTilesLeft = 0;
+    e._blockedForward = true;
+    return;
+  }
 
     // Replace the head with our normalized prefix, keep the rest of the path
     if (norm.length > 0) {
