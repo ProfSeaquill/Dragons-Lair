@@ -55,8 +55,40 @@ export function update(e, gs, dt) {
   const id = junctionId(e.tileX | 0, e.tileY | 0);
   const node = topo.jxns.get(id);
 
-  // If not a mapped node (e.g., degree==2), just return to search
-  if (!node) { e.speedMul = 1; return 'search'; }
+  // If not a mapped node (degree==2 corridor/entry), make a tiny local choice
+if (!node) {
+  const cx = e.tileX | 0, cy = e.tileY | 0;
+  const dir = e.dir || 'E';
+  const ahead = (d) => d === 'E' ? 'E' : d === 'W' ? 'W' : d === 'S' ? 'S' : 'N';
+  const rightOf = (d) => d === 'E' ? 'S' : d === 'W' ? 'N' : d === 'S' ? 'W' : 'E';
+  const leftOf  = (d) => d === 'E' ? 'N' : d === 'W' ? 'S' : d === 'S' ? 'E' : 'W';
+  const backOf  = (d) => d === 'E' ? 'W' : d === 'W' ? 'E' : d === 'S' ? 'N' : 'S';
+
+  const tryOrder = [ahead(dir), rightOf(dir), leftOf(dir), backOf(dir)];
+  let chosen = null;
+  for (const s of tryOrder) {
+    if (state.isOpen(gs, cx, cy, s)) { chosen = s; break; }
+  }
+
+  // If we found any open edge, face it and move at least 1 tile.
+  if (chosen) {
+    e.path = null;
+    e.commitTilesLeft = 1;   // guarantees progress out of the corridor cell
+    e.speedMul = 1;
+
+    if (chosen === 'E') { e.dir = 'E'; e.dirX =  1; e.dirY =  0; }
+    if (chosen === 'W') { e.dir = 'W'; e.dirX = -1; e.dirY =  0; }
+    if (chosen === 'S') { e.dir = 'S'; e.dirX =  0; e.dirY =  1; }
+    if (chosen === 'N') { e.dir = 'N'; e.dirX =  0; e.dirY = -1; }
+
+    return 'search';
+  }
+
+  // All four sides closed (shouldn’t happen unless fully boxed); let search handle backtrack.
+  e.speedMul = 1;
+  return 'search';
+}
+
 
   // Maintain stack
   pushJunction(e, id);
