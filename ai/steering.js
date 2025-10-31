@@ -167,17 +167,73 @@ export function followPath(e, dt, tileSize, speedTilesPerSec) {
 
   const cx = e.tileX | 0, cy = e.tileY | 0;
   let side = null;
-  if (nx === cx + 1 && ny === cy) side = 'E';
+    if (nx === cx + 1 && ny === cy) side = 'E';
   else if (nx === cx - 1 && ny === cy) side = 'W';
   else if (ny === cy + 1 && nx === cx) side = 'S';
   else if (ny === cy - 1 && nx === cx) side = 'N';
   else {
-    // Non-4-neighbor (bad path); drop it and let FSM replan.
-    e.path = null;
-    e.commitTilesLeft = 0;
-    e._blockedForward = true; // force quick replan
-    return;
+    // Non-4-neighbor (bad head) → normalize into a legal 4-neighbor prefix.
+    // We expand the first hop into 1-tile steps, preferring an open axis.
+    const norm = [];
+    let ax = cx, ay = cy;
+    const tx = nx, ty = ny;
+
+    // safety ceiling: at most grid area hops
+    let guard = (state.GRID.cols * state.GRID.rows) + 5;
+
+    while ((ax !== tx || ay !== ty) && guard-- > 0) {
+      const stepX = Math.sign(tx - ax);
+      const stepY = Math.sign(ty - ay);
+
+      // Try X first if open; then Y. If both closed, bail.
+      const tryOrder = [];
+      if (stepX !== 0) tryOrder.push({ dx: stepX, dy: 0, side: stepX > 0 ? 'E' : 'W' });
+      if (stepY !== 0) tryOrder.push({ dx: 0, dy: stepY, side: stepY > 0 ? 'S' : 'N' });
+
+      let moved = false;
+      for (const c of tryOrder) {
+        if (state.isOpen(state.GameState, ax, ay, c.side)) {
+          ax += c.dx; ay += c.dy;
+          norm.push({ x: ax, y: ay });
+          moved = true;
+          break;
+        }
+      }
+      if (!moved) {
+        // Can’t legally step toward head — drop and replan.
+        e.path = null;
+        e.commitTilesLeft = 0;
+        e._blockedForward = true;
+        return;
+      }
+    }
+
+    // Replace the head with our normalized prefix, keep the rest of the path
+    if (norm.length > 0) {
+      e.path = norm.concat(e.path.slice(1));
+      // Recompute head/side against new first step
+      const h = e.path[0];
+      const hx = (h.x ?? h[0]) | 0, hy = (h.y ?? h[1]) | 0;
+      if (hx === cx + 1 && hy === cy) side = 'E';
+      else if (hx === cx - 1 && hy === cy) side = 'W';
+      else if (hy === cy + 1 && hx === cx) side = 'S';
+      else if (hy === cy - 1 && hx === cx) side = 'N';
+      else {
+        // Still not adjacent? Bail and replan.
+        e.path = null;
+        e.commitTilesLeft = 0;
+        e._blockedForward = true;
+        return;
+      }
+    } else {
+      // No progress — let FSM replan
+      e.path = null;
+      e.commitTilesLeft = 0;
+      e._blockedForward = true;
+      return;
+    }
   }
+
 
   // Gate the step on the wall model.
   if (!state.isOpen(state.GameState, cx, cy, side)) {
