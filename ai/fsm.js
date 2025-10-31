@@ -211,8 +211,51 @@ if (canSeeDragon(gs, e.tileX|0, e.tileY|0) && !canAttackDragon(gs, e)) {
     // (Log once per enemy/state pair if you want; keeping it silent here.)
     return;
   }
+
   const next = impl.update(e, gs, dt);
-  if (next && next !== e.state) changeState(e, gs, next);
+
+// ---- SAFETY: if Decision didn’t resolve, pick a sane exit and go ----
+if (e.state === 'decision' && (!next || next === 'decision')) {
+  const noCommit = (e.commitTilesLeft|0) <= 0;
+  const noPlan   = !e.path || e.path.length === 0;
+  if (noCommit && noPlan && Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
+    const cell = gs.topology?.grid?.[e.tileY]?.[e.tileX];
+    if (cell) {
+      // Prefer stepping toward EXIT if that side is open; else first open side.
+      const dx = Math.sign((state.EXIT.x|0) - (e.tileX|0));
+      const dy = Math.sign((state.EXIT.y|0) - (e.tileY|0));
+      const pref = [];
+      if (dx > 0 && cell.E) pref.push('E');
+      if (dx < 0 && cell.W) pref.push('W');
+      if (dy > 0 && cell.S) pref.push('S');
+      if (dy < 0 && cell.N) pref.push('N');
+      // fill with any open sides to guarantee progress
+      if (cell.E) pref.push('E');
+      if (cell.W) pref.push('W');
+      if (cell.S) pref.push('S');
+      if (cell.N) pref.push('N');
+
+      const side = pref[0]; // first viable
+      if (side) {
+        e.dir = side;
+        e.dirX = (side==='E')? 1 : (side==='W')? -1 : 0;
+        e.dirY = (side==='S')? 1 : (side==='N')? -1 : 0;
+
+        // take at least 1 committed tile so we actually leave the node
+        e.commitDir = side;
+        e.commitSteps = Math.max(1, e.commitSteps|0);
+        e.commitTilesLeft = Math.max(1, e.commitTilesLeft|0);
+
+        // optionally reinforce “success” so herding has something to learn from
+        try { (typeof bumpSuccess === 'function') && bumpSuccess(gs, e.tileX, e.tileY, 0.25); } catch {}
+        changeState(e, gs, 'search'); // resume normal locomotion
+      }
+    }
+  }
+}
+
+if (next && next !== e.state) changeState(e, gs, next);
+
 }
 
 function changeState(e, gs, to) {
