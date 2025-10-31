@@ -21,17 +21,32 @@ export function enter(e, gs) {
 
   // If we arrived here from a previous choice, resolve its outcome now
   if (e.pendingOutcome) {
-    const { fromId, dir } = e.pendingOutcome;
-    const x = e.tileX|0, y = e.tileY|0;
-    let outcome = 'corridor';
+  const { fromId, dir, toId } = e.pendingOutcome;
+  const x = e.tileX|0, y = e.tileY|0;
+  const hereId = `${x},${y}`;
+  let outcome;
+
+  // Case A: we never left the source node (immediate bounce) → check the edge
+  if (hereId === fromId) {
+    const [fx, fy] = fromId.split(',').map(n => n|0);
+    const edgeOpen = state.isOpen(gs, fx, fy, dir);
+    outcome = edgeOpen ? 'corridor' : 'deadend';
+  }
+  // Case B: we reached the intended target node of that corridor
+  else if (toId && hereId === toId) {
+    outcome = 'corridor';
+  }
+  // Case C: fallback to environment inspection (dragon / deadend / etc.)
+  else {
     if (inDragonCell(gs, x, y)) outcome = 'dragon';
     else if (isDeadEnd(gs, x, y)) outcome = 'deadend';
-    else if (isJunction(gs, x, y)) outcome = 'corridor';
-    else if (isCorridor(gs, x, y)) outcome = 'corridor';
-    recordOutcome(e, fromId, dir, outcome);
-    e.pendingOutcome = null;
+    else outcome = 'corridor'; // junction/corridor both treated as non-deadend
   }
+
+  recordOutcome(e, fromId, dir, outcome);
+  e.pendingOutcome = null;
 }
+
 
 // Hoisted: wave-scoped group route memo
 function _ensureGroupMemo(gs, gid) {
