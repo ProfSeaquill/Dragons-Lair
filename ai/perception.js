@@ -1,22 +1,22 @@
 // ai/perception.js
 import * as state from '../state.js';
-import { neighbors4, cellDegree } from './topology.js';
+import { neighbors4, cellDegree, junctionId } from './topology.js';
 
 // Junction helpers (degree-based)
-export function isJunction(gs, x, y) {        // ≥3 exits
-  return cellDegree(gs, x, y) >= 3;
-}
-export function isDeadEnd(gs, x, y) {         // ≤1 exit
-  return cellDegree(gs, x, y) <= 1;
-}
-export function isCorridor(gs, x, y) {        // exactly 2 exits
-  return cellDegree(gs, x, y) === 2;
-}
-// Some state machines want a single “decision node” check:
-export function isDecisionNode(gs, x, y) {
-  // junctions OR dead-ends are “decision points”; corridors are not
-  const d = cellDegree(gs, x, y);
-  return d !== 2;
+export function isJunction(gs, x, y) { return exitsAt(gs,x,y) >= 3; }
+export function isDeadEnd(gs, x, y) { return exitsAt(gs,x,y) <= 1; }
+export function isCorridor(gs, x, y) { return exitsAt(gs,x,y) === 2; }
+export function isDecisionNode(gs, x, y) { return exitsAt(gs,x,y) !== 2; }
+
+function exitsAt(gs, x, y) {
+  const g = gs.topology?.jxns;
+  if (g) {
+    const node = g.get(junctionId(x,y));
+    if (node) return node.exits.length;             // junction or dead-end node
+    return 2;                                       // corridor tiles are not nodes by design
+  }
+  // fallback via walls (slow but safe)
+  return neighbors4(gs, x, y).length;
 }
 
 // (optional) re-export for convenience if other modules want degrees directly
