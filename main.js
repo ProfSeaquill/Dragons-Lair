@@ -24,10 +24,11 @@ let __lastWaveSaved = 0;
 
 
 async function loadConfigFiles() {
-  const [tuningRaw, enemies, upgrades] = await Promise.all([
-    fetch('./tuning.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
-    fetch('./enemies.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
-  ]);
+   const [tuningRaw, enemies, upgrades] = await Promise.all([
+   fetch('./tuning.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
+   fetch('./enemies.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
+   fetch('./upgrades.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
+ ]);
 
   // Unwrap if the file is { "tuning": { ... } }
   const tuning = tuningRaw?.tuning ?? tuningRaw ?? null;
@@ -334,8 +335,6 @@ function boot() {
         !!state.getCfg(state.GameState)?.tuning?.waves,
         state.getCfg(state.GameState)?.tuning?.waves
       );
-
-      state.applyConfig(state.GameState, cfg);
 
 
 function installPermanentBones(gs = state.GameState) {
