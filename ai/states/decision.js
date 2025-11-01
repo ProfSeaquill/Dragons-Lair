@@ -5,71 +5,42 @@ import { junctionId } from '../topology.js';
 import { isDeadEnd, isJunction, isCorridor } from '../perception.js';
 import * as state from '../../state.js';
 
-function nowMs(gs){ return (gs?.time?.nowMs ?? (gs?.time?.now*1000) ?? performance.now()); }
-
-function inDragonCell(gs, x, y) {
-  const cells = state.dragonCells(gs);
-  for (const c of cells) if (c.x === x && c.y === y) return true;
-  return false;
-}
+const OPP = { N:'S', S:'N', E:'W', W:'E' };
 
 export function enter(e, gs) {
-  e.speedMul = 0; e.stateT = 0;
-  // Randomized micro delay (ms → sec when comparing with stateT)
-  const ms = CFG.JXN_THINK_MS_MIN + Math.random() * (CFG.JXN_THINK_MS_MAX - CFG.JXN_THINK_MS_MIN);
-  e._jxnWaitMs = ms;
+  e.stateT = 0;
+  const t = state.GRID.tile || 32;
+  const fx = (e.x / t) % 1, fy = (e.y / t) % 1;
 
-  // If we arrived here from a previous choice, resolve its outcome now
-  if (e.pendingOutcome) {
-  const { fromId, dir, toId } = e.pendingOutcome;
-  const x = e.tileX|0, y = e.tileY|0;
-  const hereId = `${x},${y}`;
-  let outcome;
-
-  // Case A: we never left the source node (immediate bounce) → check the edge
-  if (hereId === fromId) {
-    const [fx, fy] = fromId.split(',').map(n => n|0);
-    const edgeOpen = state.isOpen(gs, fx, fy, dir);
-    outcome = edgeOpen ? 'corridor' : 'deadend';
-  }
-  // Case B: we reached the intended target node of that corridor
-  else if (toId && hereId === toId) {
-    outcome = 'corridor';
-  }
-  // Case C: fallback to environment inspection (dragon / deadend / etc.)
-  else {
-    if (inDragonCell(gs, x, y)) outcome = 'dragon';
-    else if (isDeadEnd(gs, x, y)) outcome = 'deadend';
-    else outcome = 'corridor'; // junction/corridor both treated as non-deadend
-  }
-
-  recordOutcome(e, fromId, dir, outcome);
-  e.pendingOutcome = null;
-}
+  // Slightly tighter snap to reduce jitter; only when close to center/edge
+  if (Math.abs(fx - 0.5) < 0.10 || fx < 0.03 || fx > 0.97) e.x = ((e.tileX|0) + 0.5) * t;
+  if (Math.abs(fy - 0.5) < 0.10 || fy < 0.03 || fy > 0.97) e.y = ((e.tileY|0) + 0.5) * t;
 }
 
-// Hoisted: wave-scoped group route memo
-function _ensureGroupMemo(gs, gid) {
-  if (!gs.groupRoutes) gs.groupRoutes = new Map();
-  let m = gs.groupRoutes.get(gid);
-  if (!m) { m = new Map(); gs.groupRoutes.set(gid, m); }
-  return m;
-}
 
 export function update(e, gs, dt) {
-  e.stateT += dt;
-  if (e.stateT * 1000 < (e._jxnWaitMs | 0)) return null;
+  const x = e.tileX|0, y = e.tileY|0;
+  let exits = exitsAt(gs, x, y);
 
-  // Require fresh topology
-    const topo = gs.topology;
-  if (!topo || !topo.jxns) {
-    e.speedMul = 1;
-    return 'search';  // fall back to movement until topology is ready
+  // If graph says no exits, backtrack one tile instead of freezing
+  if (!exits || exits.length === 0) {
+    const back = OPP[e.dir || 'E'];
+
+    // ENTRY guard: avoid bouncing back off the spawn edge if applicable
+    // (adjust condition for your actual ENTRY position/orientation)
+    const atEntry = (x === state.ENTRY.x && y === state.ENTRY.y);
+    if (atEntry && exits && exits.length > 0) {
+      // Prefer any non-back direction if possible
+      const nonBack = exits.find(d => d !== back) || exits[0];
+      e.commitDir = nonBack;
+    } else {
+      e.commitDir = back;
+    }
+
+    e.commitTilesLeft = 1;
+    return 'search'; // Search should advance along commit before new decisions
   }
-
-  const id = junctionId(e.tileX | 0, e.tileY | 0);
-  const node = topo.jxns.get(id);
-
+  
   // If not a mapped node (degree==2 corridor/entry), make a tiny local choice
 if (!node) {
   const cx = e.tileX | 0, cy = e.tileY | 0;
@@ -220,4 +191,42 @@ if (!node) {
   e.commitTilesLeft = Math.max(1, (chosen.ex.commit | 0));
   e.speedMul = 1;
   return 'search';
+}
+
+function nowMs(gs){ return (gs?.time?.nowMs ?? (gs?.time?.now*1000) ?? performance.now()); }
+
+function inDragonCell(gs, x, y) {
+  const cells = state.dragonCells(gs);
+  for (const c of cells) if (c.x === x && c.y === y) return true;
+  return false;
+}
+
+// clamp helper (prevents OOB grabs from topology.grid)
+function inBounds(grid, x, y) {
+  return y >= 0 && y < grid.length && x >= 0 && x < grid[0].length;
+}
+
+// Hoisted: wave-scoped group route memo
+function _ensureGroupMemo(gs, gid) {
+  if (!gs.groupRoutes) gs.groupRoutes = new Map();
+  let m = gs.groupRoutes.get(gid);
+  if (!m) { m = new Map(); gs.groupRoutes.set(gid, m); }
+  return m;
+}
+
+function exitsAt(gs, x, y) {
+  const g = gs.topology?.grid;
+  if (g && inBounds(g, x, y)) {
+    const cell = g[y][x];
+    if (cell) {
+      const xs = [];
+      if (cell.N) xs.push('N');
+      if (cell.E) xs.push('E');
+      if (cell.S) xs.push('S');
+      if (cell.W) xs.push('W');
+      return xs;
+    }
+  }
+  // Fallback to walls model if topology didn’t include this tile
+  return ['N','E','S','W'].filter(s => state.isOpen(gs, x, y, s));
 }
