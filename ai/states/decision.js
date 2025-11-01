@@ -19,8 +19,13 @@ export function enter(e, gs) {
 
 
 export function update(e, gs, dt) {
-  const x = e.tileX|0, y = e.tileY|0;
+    const x = e.tileX|0, y = e.tileY|0;
   let exits = exitsAt(gs, x, y);
+
+  // Topology context for junction logic
+  const topo = gs.topology || null;
+  const id   = junctionId(x, y);
+  const node = topo?.jxns?.get ? topo.jxns.get(id) : null;
 
   // If graph says no exits, backtrack one tile instead of freezing
   if (!exits || exits.length === 0) {
