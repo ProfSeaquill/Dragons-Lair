@@ -56,10 +56,8 @@ if (!node) {
   const backOf  = (d) => d === 'E' ? 'W' : d === 'W' ? 'E' : d === 'S' ? 'N' : 'S';
 
   const tryOrder = [ahead(dir), rightOf(dir), leftOf(dir), backOf(dir)];
-  let chosen = null;
-  for (const s of tryOrder) {
-    if (state.isOpen(gs, cx, cy, s)) { chosen = s; break; }
-  }
+  const exitsSet = new Set(exits); // exits came from exitsAt(gs,x,y) → topology-first
+  const chosen = tryOrder.find(s => exitsSet.has(s)) || null;
 
   // If we found any open edge, face it and move at least 1 tile.
   if (chosen) {
