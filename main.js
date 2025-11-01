@@ -273,12 +273,6 @@ function boot() {
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
   Debug.init();
 
-   // once, when booting:
-window.addEventListener('dl-topology-bump', () => {
-  // rebuild the topology from current gs walls/grid
-  gs.topology = buildJunctionGraph(gs);
-});
-   
   // --- UI event wiring (unchanged) ---
   window.addEventListener('dl-heal', () => {
     const { healed, reason } = state.healDragon(state.GameState);
