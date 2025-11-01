@@ -32,6 +32,10 @@ export function update(e, gs, dt) {
   const id   = junctionId(x, y);
   const node = topo?.jxns?.get ? topo.jxns.get(id) : null;
 
+  // DEV ASSERT: node.exits should exist when node exists
+console.assert(!node || Array.isArray(node.exits),
+  '[assert] node.exits missing or non-array', { id, node });
+  
   // If graph says no exits, backtrack one tile instead of freezing
   if (!exits || exits.length === 0) {
     const back = OPP[e.dir || 'E'];
