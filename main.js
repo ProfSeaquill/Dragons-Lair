@@ -249,6 +249,22 @@ lighting.render(sceneCanvas, lights, ambient);
   requestAnimationFrame(frame);
 }
 
+// Fires very early (you already dispatch this inside boot())
+window.addEventListener('dl-boot-ok', () => {
+  console.log('[probe] dl-boot-ok: GameState?', !!window.GameState);
+});
+
+// Fires after config applied + UI bound in your current boot chain
+window.addEventListener('dl-preview-refresh', () => {
+  const gs = window.GameState;
+  console.log('[probe] dl-preview-refresh:', {
+    cfgLoaded: !!window.state.getCfg(gs),
+    tileSize:  gs?.tileSize,
+    topoVer:   gs?.topology?.version,
+    topoTv:    gs?.topologyVersion,
+  });
+});
+
 // ---------- Boot ----------
 function boot() {
 
