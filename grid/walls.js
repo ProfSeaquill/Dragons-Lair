@@ -29,6 +29,10 @@ export function edgeHasWall(gs, x, y, side) {
   return !!c[side];
 }
 
+// fire a topology-rebuild ping whenever walls change
+function bumpTopology() {
+  window.dispatchEvent(new CustomEvent('dl-topology-bump'));
+}
 
 function edgeTouchesDragon(gs, x, y, side) {
   const a = { x, y };
