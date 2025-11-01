@@ -9,13 +9,18 @@ const OPP = { N:'S', S:'N', E:'W', W:'E' };
 
 export function enter(e, gs) {
   e.stateT = 0;
-  const t = state.GRID.tile || 32;
-  const fx = (e.x / t) % 1, fy = (e.y / t) % 1;
+  const t  = (gs?.tileSize | 0) || (state.GRID.tile | 0) || 32;
 
-  // Slightly tighter snap to reduce jitter; only when close to center/edge
+  // snap near centers/edges to reduce drift
+  const fx = (e.x / t) % 1, fy = (e.y / t) % 1;
   if (Math.abs(fx - 0.5) < 0.10 || fx < 0.03 || fx > 0.97) e.x = ((e.tileX|0) + 0.5) * t;
   if (Math.abs(fy - 0.5) < 0.10 || fy < 0.03 || fy > 0.97) e.y = ((e.tileY|0) + 0.5) * t;
+
+  // ensure discrete tile coords agree with snapped pixel coords
+  e.tileX = (e.x / t) | 0;
+  e.tileY = (e.y / t) | 0;
 }
+
 
 
 export function update(e, gs, dt) {
