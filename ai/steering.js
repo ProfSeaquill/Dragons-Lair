@@ -206,12 +206,12 @@ export function followPath(e, dt, tileSize, speedTilesPerSec) {
   }
 // --- Post-move sanity: if we crossed a CLOSED edge, roll back and replan ---
 {
-  const t = (state.GRID.tile || 32);
+  const tsize = (state.GRID.tile || 32);
   const prevX = e._prevX, prevY = e._prevY;
 
   if (Number.isFinite(prevX) && Number.isFinite(prevY)) {
-    const pcx = Math.floor(prevX / t), pcy = Math.floor(prevY / t);
-    const cx  = Math.floor(e.x   / t),  cy  = Math.floor(e.y   / t);
+   const pcx = Math.floor(prevX / tsize), pcy = Math.floor(prevY / tsize);
+   const cx  = Math.floor(e.x   / tsize),  cy  = Math.floor(e.y   / tsize);
 
     if (pcx !== cx || pcy !== cy) {
       const side =
@@ -222,7 +222,7 @@ export function followPath(e, dt, tileSize, speedTilesPerSec) {
 
       if (side && !state.isOpen(state.GameState, pcx, pcy, side)) {
         // Roll back to the previous tile center, drop commit, force replan
-        e.x = (pcx + 0.5) * t;  e.y = (pcy + 0.5) * t;
+        e.x = (pcx + 0.5) * tsize;  e.y = (pcy + 0.5) * tsize;
         e.tileX = pcx;          e.tileY = pcy;
         e.commitTilesLeft = 0;
         e._blockedForward = true;   // consumed by search.update next frame
