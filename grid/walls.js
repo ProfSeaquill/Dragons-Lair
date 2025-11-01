@@ -20,7 +20,7 @@ export function toggleEdge(gs, x, y, side, forcePlace /* optional boolean */) {
     return { ok: false, changed: false, reason: 'disconnect' };
   }
 
-  bumpTopology(gs, 'walls:toggleEdge'); // ← single bump here
+  state.bumpTopology(gs, 'walls:toggleEdge');
   return { ok: true, changed: true };
 }
 
