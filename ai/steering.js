@@ -1,6 +1,16 @@
 // ai/steering.js
 import * as state from '../state.js';
 
+function __logBlockedForward(e, where, extra={}) {
+  try {
+    const id = e.id ?? '(no-id)';
+    const tx = e.tileX|0, ty = e.tileY|0;
+    // NOTE: zero side-effects — pure log
+    console.debug(`[probe][blockedForward] ${where}`,
+      { id, tx, ty, dir:e.dir, commit:e.commitTilesLeft|0, ...extra });
+  } catch {}
+}
+
 // Helper: can we move from (cx,cy) across `side`?
 function canCross(gs, cx, cy, side) {
   return state.isOpen(gs, cx, cy, side);
