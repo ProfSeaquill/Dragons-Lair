@@ -12,7 +12,7 @@ export function toggleEdge(gs, x, y, side, forcePlace /* optional boolean */) {
 
   // Tentatively apply
   state.setEdgeWall(gs, x, y, side, next);
-  bumpTopologyRevision(gs);   // new
+  state.bumpTopology();
   
   // Connectivity guard
   const connected = topology.isEntryConnectedToExit(gs);
