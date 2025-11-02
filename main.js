@@ -366,8 +366,6 @@ function installPermanentBones(gs = state.GameState) {
 
 // After config load + before the game loop starts, do:
 state.applyConfig(state.GameState, cfg);
-lockEntryToEast(state.GameState);
-lockDragonToWest(state.GameState);
  installPermanentBones(state.GameState);
  state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1; // bump first
  ensureFreshTopology(state.GameState); // then build the matching version
@@ -389,69 +387,6 @@ lockDragonToWest(state.GameState);
       // Wire UI after listeners are set
       bindUI();
        
-
-function lockEntryToEast(gs = state.GameState) {
-  const { x, y } = state.ENTRY;
-  // Block West, North, South around ENTRY (leave East open)
-  state.setEdgeWall(gs, x, y, 'W', true);
-  state.setEdgeWall(gs, x, y, 'N', true);
-  state.setEdgeWall(gs, x, y, 'S', true);
-
-  // (Optional belt-and-suspenders) also block stepping “off the map” to the far West row
-  // by walling the west edge of every cell in column 0:
-  for (let yy = 0; yy < state.GRID.rows; yy++) {
-    state.setEdgeWall(gs, 0, yy, 'W', true);
-  }
-
-  state.bumpTopology(gs, 'entry-lock');
-}
-
-
-function lockDragonToWest(gs = state.GameState) {
-  const cells = state.dragonCells(gs);
-  for (const c of cells) {
-    state.setEdgeWall(gs, c.x, c.y, 'E', true);
-    state.setEdgeWall(gs, c.x, c.y, 'N', true);
-    state.setEdgeWall(gs, c.x, c.y, 'S', true);
-    // DO NOT set 'W' here — we want West open for attacks.
-  }
-  state.bumpTopology(gs, 'dragon-west-only');
-}
-
-     // now it’s safe to run the game loop
-     lastT = performance.now();
-     requestAnimationFrame(frame);
-      
-      // Console debug for tuning
-      const tcfg = state.getCfg(state.GameState)?.tuning;
-      console.debug('[cfg] tuning keys =', tcfg ? Object.keys(tcfg) : '(none)');
-      console.debug('[cfg] tuning.waves =', tcfg?.waves);
-
-      // Initial UI render passes
-      UI.renderUpgradesPanel?.();
-      UI.refreshHUD?.();
-      UI.tell?.('Config loaded');
-
-      // Telemetry gate can read either dev flag or cfg
-      globalThis.Telemetry?.setup(
-        () => !!state.GameState.dev?.telemetry
-           || !!state.getCfg(state.GameState)?.tuning?.telemetry?.enabled
-      );
-
-      // Now safe to start waves; also refresh preview once more
-      if (startBtn) startBtn.disabled = false;
-      window.dispatchEvent(new CustomEvent('dl-preview-refresh'));
-    })
-    .catch(err => {
-      console.error('loadConfigFiles failed', err);
-      // Optional: apply defaults & still bring up UI
-      state.applyConfig(state.GameState, {});
-      bindUI();
-      UI.refreshHUD?.();
-      if (startBtn) startBtn.disabled = false; // or true if you want to force config
-    });
-}
-
 
 function startWave() {
   if (!state.GameState.cfgLoaded) return; // don’t start waves before tuning exists
