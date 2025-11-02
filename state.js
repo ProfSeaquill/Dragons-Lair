@@ -569,6 +569,12 @@ const LS_KEY = 'dragons-lair-save';
 
 export function saveState(gs) {
   try {
+    const snap = structuredClone(gs);
+    // Derived: rebuilds quickly; don’t persist
+    delete snap.topology;
+    // Optional: also strip transient fields if you like:
+    // delete snap.distFromEntry; delete snap.distToExit;
+    
     const payload = {
       schemaVersion: SAVE_SCHEMA_VERSION,
       createdAt: Date.now(),
@@ -600,7 +606,13 @@ export function loadState() {
 
     const loaded = save.state;
     if (!loaded || typeof loaded !== 'object') return false;
-
+  const loaded = JSON.parse(raw).state;
+// ...
+// Ensure derived fields are rebuilt
+loaded.topology = null;
+loaded.topologyVersion = (loaded.topologyVersion|0) + 1;
+applyLoadedState(loaded);  // your existing installer
+return true;
     Object.assign(GameState, loaded);
     
    // Rehydrate cellWalls as a Map if needed
