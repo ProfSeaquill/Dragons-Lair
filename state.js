@@ -496,16 +496,21 @@ export function isOpenPhysical(gs, x, y, side) {
   }
   if (!inBounds(nx, ny)) return false;
   const there = ensureCell(gs, nx, ny);
-  return there[opp] === false;            // open if opposite isn’t walled
+  return there[opp] === true;            // open if opposite isn’t walled
 }
 
-export function ensureCell(gs, x, y) {
-  gs = __useGS(gs);
-  const k = tileKey(x, y);
-  let rec = gs.cellWalls.get(k);
-  if (!rec) { rec = { N: false, E: false, S: false, W: false }; gs.cellWalls.set(k, rec); }
-  return rec;
+function ensureCell(gs, x, y) {
+  const key = `${x},${y}`;
+  let c = gs.grid.get(key);
+  if (!c) {
+    c = { N:false, S:false, E:false, W:false };
+    gs.grid.set(key, c);
+  } else {
+    c.N ??= false; c.S ??= false; c.E ??= false; c.W ??= false;
+  }
+  return c;
 }
+
 
 export function neighborsByEdges(gs, cx, cy) {
   gs = __useGS(gs);
