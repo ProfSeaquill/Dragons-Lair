@@ -45,6 +45,26 @@ export function ensureFreshTopology(gs) {
   const have = gs.topology;
   const cur  = have ? (have.version | 0) : -1;
 
+  const topo = gs.topology;
+
+  // NEW: if jxns isn't a Map (e.g., after JSON load), force rebuild.
+  const needsRehydrate =
+    !topo ||
+    !(topo.jxns instanceof Map) ||
+    !topo.grid;
+
+  const versionMismatch =
+    !topo ||
+    (gs.topologyVersion|0) !== (topo.version|0);
+
+  if (needsRehydrate || versionMismatch) {
+    const built = buildJunctionGraph(gs);   // your existing builder
+    // IMPORTANT: ensure builder returns { version, grid, jxns: Map, ... }
+    gs.topology = built;
+    gs.topologyVersion = (gs.topologyVersion|0) + 1; // keep monotonic
+  }
+}
+
   if (!have || cur < tv) {
     const topo = buildJunctionGraph(gs); // pure build
     topo.version = tv;                   // pin built version
