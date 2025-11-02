@@ -213,6 +213,41 @@ if (canSeeDragon(gs, e.tileX|0, e.tileY|0) && !canAttackDragon(gs, e)) {
   }
 
   const next = impl.update(e, gs, dt);
+  
+  // --- PROBE: pendingOutcome -> would-record (no state writes) ---
+{
+  const po = e.pendingOutcome;
+  if (po) {
+    const hereId = `${e.tileX|0},${e.tileY|0}`;
+    // Detect “success” conditions:
+    const isDragonCell = (() => {
+      try { return state.dragonCells(gs).some(c => c.x === (e.tileX|0) && c.y === (e.tileY|0)); }
+      catch { return false; }
+    })();
+    const atJunction = !!(gs.topology?.jxns?.get && gs.topology.jxns.get(hereId));
+    const reachedPlanned = po.toId ? (hereId === po.toId) : atJunction;
+
+    // Detect “deadend” condition: forward was blocked since committing
+    const wasBlocked = !!e._blockedForward;
+
+    if (wasBlocked) {
+      console.debug('[probe][outcome:would-record]', {
+        id: e.id ?? '(no-id)',
+        fromId: po.fromId, dir: po.dir, outcome: 'deadend',
+        at: hereId
+      });
+      // we *consume* nothing — this is a probe only
+    } else if (isDragonCell || reachedPlanned) {
+      console.debug('[probe][outcome:would-record]', {
+        id: e.id ?? '(no-id)',
+        fromId: po.fromId, dir: po.dir,
+        outcome: (isDragonCell ? 'dragon' : 'junction'),
+        at: hereId
+      });
+    }
+  }
+}
+
 
 // ---- SAFETY: if Decision didn’t resolve, pick a sane exit and go ----
 if (e.state === 'decision' && (!next || next === 'decision')) {
