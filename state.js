@@ -600,32 +600,37 @@ export function loadState() {
       localStorage.getItem('dragon.save');
     if (!txt) return false;
 
-    const raw = JSON.parse(txt);
+    const raw  = JSON.parse(txt);
     const save = migrateSave(raw);
-    if (!save) return false;
+    if (!save || !save.state || typeof save.state !== 'object') return false;
 
+    // 1) Take the saved state
     const loaded = save.state;
-    if (!loaded || typeof loaded !== 'object') return false;
-  const loaded = JSON.parse(raw).state;
-// ...
-// Ensure derived fields are rebuilt
-loaded.topology = null;
-loaded.topologyVersion = (loaded.topologyVersion|0) + 1;
-applyLoadedState(loaded);  // your existing installer
-return true;
-    Object.assign(GameState, loaded);
-    
-   // Rehydrate cellWalls as a Map if needed
-if (Array.isArray(loaded.cellWalls)) {
-  GameState.cellWalls = new Map(loaded.cellWalls);
-  bumpTopology(GameState, 'loadState:rehydrate-array');
-} else if (!(GameState.cellWalls instanceof Map)) {
-  GameState.cellWalls = new Map();
-  bumpTopology(GameState, 'loadState:rehydrate-empty');
-} else {
-  bumpTopology(GameState, 'loadState'); // safe single bump
-}
 
+    // 2) Strip / bump derived topology so we always rebuild after load
+    delete loaded.topology;                              // derived, don’t persist
+    loaded.topologyVersion = (loaded.topologyVersion | 0) + 1;
+
+    // 3) Install into live GameState
+    Object.assign(GameState, loaded);
+
+    // 4) Rehydrate Maps and bump topology (your existing pattern)
+    if (Array.isArray(GameState.cellWalls)) {
+      GameState.cellWalls = new Map(GameState.cellWalls);
+      bumpTopology(GameState, 'loadState:rehydrate-array');
+    } else if (!(GameState.cellWalls instanceof Map)) {
+      GameState.cellWalls = new Map();
+      bumpTopology(GameState, 'loadState:rehydrate-empty');
+    } else {
+      bumpTopology(GameState, 'loadState'); // safe single bump
+    }
+
+    // 5) Make sure a fresh graph exists now (will rebuild if jxns isn’t a Map)
+    //    If you already call ensureFreshTopology() immediately after load in main.js,
+    //    this is optional but harmless.
+    if (typeof ensureFreshTopology === 'function') {
+      ensureFreshTopology(GameState);
+    }
 
     return true;
   } catch (err) {
@@ -633,6 +638,7 @@ if (Array.isArray(loaded.cellWalls)) {
     return false;
   }
 }
+
 
 
 // ===== Convenience Reset =====
