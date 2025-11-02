@@ -4,7 +4,7 @@ import * as S_search from './states/search.js';
 import * as S_decision from './states/decision.js';
 import * as S_charge from './states/charge.js';
 import * as S_fear from './states/fear.js';
-import { initMemory } from './memory.js';
+import { initMemory, recordOutcome } from './memory.js';
 import * as state from '../state.js';
 import * as S_attack from './states/attack.js';
 import { isDecisionNode, canSeeDragon, canAttackDragon } from './perception.js';
@@ -214,39 +214,33 @@ if (canSeeDragon(gs, e.tileX|0, e.tileY|0) && !canAttackDragon(gs, e)) {
 
   const next = impl.update(e, gs, dt);
   
-  // --- PROBE: pendingOutcome -> would-record (no state writes) ---
+  // --- outcome recording: resolve pendingOutcome into junction memory ---
 {
   const po = e.pendingOutcome;
   if (po) {
     const hereId = `${e.tileX|0},${e.tileY|0}`;
-    // Detect “success” conditions:
+
     const isDragonCell = (() => {
       try { return state.dragonCells(gs).some(c => c.x === (e.tileX|0) && c.y === (e.tileY|0)); }
       catch { return false; }
     })();
-    const atJunction = !!(gs.topology?.jxns?.get && gs.topology.jxns.get(hereId));
+
+    const atJunction = !!(gs.topology?.jxns instanceof Map && gs.topology.jxns.get(hereId));
     const reachedPlanned = po.toId ? (hereId === po.toId) : atJunction;
 
-    // Detect “deadend” condition: forward was blocked since committing
-    const wasBlocked = !!e._blockedForward;
-
-    if (wasBlocked) {
-      console.debug('[probe][outcome:would-record]', {
-        id: e.id ?? '(no-id)',
-        fromId: po.fromId, dir: po.dir, outcome: 'deadend',
-        at: hereId
-      });
-      // we *consume* nothing — this is a probe only
+    if (e._blockedForward) {
+      // Closed corridor / dead end reached
+      recordOutcome(e, po.fromId, po.dir, 'deadend');
+      e._blockedForward = false;
+      e.pendingOutcome = null;
     } else if (isDragonCell || reachedPlanned) {
-      console.debug('[probe][outcome:would-record]', {
-        id: e.id ?? '(no-id)',
-        fromId: po.fromId, dir: po.dir,
-        outcome: (isDragonCell ? 'dragon' : 'junction'),
-        at: hereId
-      });
+      // We made it to the expected node/dragon
+      recordOutcome(e, po.fromId, po.dir, isDragonCell ? 'dragon' : 'junction');
+      e.pendingOutcome = null;
     }
   }
 }
+
 
 
 // ---- SAFETY: if Decision didn’t resolve, pick a sane exit and go ----
