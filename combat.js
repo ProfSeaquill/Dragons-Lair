@@ -177,18 +177,17 @@ function isAdjacentToDragon(gs, cx, cy) {
   return false;
 }
 
+
 function dragonPerimeterTiles(gs) {
   const set = new Set();
   const out = [];
-  const offsets = [[1,0],[-1,0],[0,1],[0,-1]];
+  // Only WEST offsets
   for (const c of state.dragonCells(gs)) {
-    for (const [dx, dy] of offsets) {
-      const nx = c.x + dx, ny = c.y + dy;
-      if (!state.inBounds(nx, ny)) continue;
-      if (state.isDragonCell(nx, ny, gs)) continue;      // strictly outside
-      const k = state.tileKey(nx, ny);
-      if (!set.has(k)) { set.add(k); out.push({ x: nx, y: ny }); }
-    }
+    const nx = c.x - 1, ny = c.y;
+    if (!state.inBounds(nx, ny)) continue;
+    if (state.isDragonCell(nx, ny, gs)) continue; // skip interior
+    const k = state.tileKey(nx, ny);
+    if (!set.has(k)) { set.add(k); out.push({ x: nx, y: ny }); }
   }
   return out;
 }
