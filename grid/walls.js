@@ -7,12 +7,13 @@ export function toggleEdge(gs, x, y, side, forcePlace /* optional boolean */) {
   const here = state.ensureCell(gs, x, y);
   const curr = !!here[side];
   const next = (typeof forcePlace === 'boolean') ? !!forcePlace : !curr;
-
+  
   if (next === curr) return { ok: true, changed: false };
 
   // Tentatively apply
   state.setEdgeWall(gs, x, y, side, next);
-
+  bumpTopologyRevision(gs);   // new
+  
   // Connectivity guard
   const connected = topology.isEntryConnectedToExit(gs);
   if (!connected) {
