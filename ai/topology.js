@@ -1,6 +1,16 @@
 // ai/topology.js
 import * as state from '../state.js';
 
+// Edge-aware 4-neighbors: only cross edges that are open according to gs.cellWalls
+export function neighbors4(gs, x, y) {
+  const out = [];
+  if (state.isOpen(gs, x, y, 'N')) out.push({ x,     y: y - 1 });
+  if (state.isOpen(gs, x, y, 'E')) out.push({ x: x+1, y      });
+  if (state.isOpen(gs, x, y, 'S')) out.push({ x,     y: y + 1 });
+  if (state.isOpen(gs, x, y, 'W')) out.push({ x: x-1, y      });
+  return out;
+}
+
 // Physical neighbors: ignores virtual gates (ENTRY/DRAGON)
 export function neighbors4Physical(gs, x, y) {
   const out = [];
