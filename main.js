@@ -340,9 +340,6 @@ function boot() {
     }
   });
 
-  // declare if it’s the first time you use this variable
-  let __lastWaveSaved = (state.GameState.wave | 0) || 0;
-
   // ---- Load config, apply, then wire UI and finish boot ----
   loadConfigFiles()
     .then(cfg => {
