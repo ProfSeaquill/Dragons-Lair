@@ -42,35 +42,25 @@ export function floodFrom(gs, starts) {
 
 export function ensureFreshTopology(gs) {
   const tv   = (gs.topologyVersion | 0);
-  const have = gs.topology;
-  const cur  = have ? (have.version | 0) : -1;
-
   const topo = gs.topology;
 
-  // NEW: if jxns isn't a Map (e.g., after JSON load), force rebuild.
+  // Rebuild if we don't have a topo, jxns isn't a Map (rehydration case),
+  // or the versions don't match.
   const needsRehydrate =
     !topo ||
-    !(topo.jxns instanceof Map) ||
-    !topo.grid;
+    !(topo.jxns instanceof Map);
 
   const versionMismatch =
     !topo ||
-    (gs.topologyVersion|0) !== (topo.version|0);
+    ((topo.version | 0) !== tv);
 
   if (needsRehydrate || versionMismatch) {
-    const built = buildJunctionGraph(gs);   // your existing builder
-    // IMPORTANT: ensure builder returns { version, grid, jxns: Map, ... }
-    gs.topology = built;
-    gs.topologyVersion = (gs.topologyVersion|0) + 1; // keep monotonic
+    const built = buildJunctionGraph(gs);
+    built.version = tv;           // pin to the requested version
+    gs.topology = built;          // single authoritative assignment
   }
 }
 
-  if (!have || cur < tv) {
-    const topo = buildJunctionGraph(gs); // pure build
-    topo.version = tv;                   // pin built version
-    gs.topology = topo;                  // single assignment
-  }
-}
 
 
 // Connectivity check: is ENTRY reachable from EXIT given current edge walls?
