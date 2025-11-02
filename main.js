@@ -366,6 +366,8 @@ function installPermanentBones(gs = state.GameState) {
 
 // After config load + before the game loop starts, do:
 state.applyConfig(state.GameState, cfg);
+lockEntryToEast(state.GameState);
+lockDragonToWest(state.GameState);
  installPermanentBones(state.GameState);
  state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1; // bump first
  ensureFreshTopology(state.GameState); // then build the matching version
