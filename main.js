@@ -366,8 +366,9 @@ function installPermanentBones(gs = state.GameState) {
 
 // After config load + before the game loop starts, do:
 state.applyConfig(state.GameState, cfg);
-installPermanentBones(state.GameState);
-ensureFreshTopology(state.GameState); // one assignment if needed
+ installPermanentBones(state.GameState);
+ state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1; // bump first
+ ensureFreshTopology(state.GameState); // then build the matching version
       
       const cfgNow = state.getCfg(state.GameState);
       console.log('[A after applyConfig]', {
@@ -397,7 +398,6 @@ ensureFreshTopology(state.GameState); // one assignment if needed
 
       // Initial UI render passes
       UI.renderUpgradesPanel?.();
-      state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1;
       UI.refreshHUD?.();
       UI.tell?.('Config loaded');
 
