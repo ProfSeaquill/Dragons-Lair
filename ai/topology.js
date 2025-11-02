@@ -21,10 +21,6 @@ export function neighbors4Physical(gs, x, y) {
   return out;
 }
 
-let __rev = 0;
-export function bumpTopologyRevision() { __rev++; }
-export function getTopologyRevision()   { return __rev; }
-
 // BFS flood from one or more start tiles; returns distance field
 export function floodFrom(gs, starts) {
   const startList = Array.isArray(starts) ? starts
