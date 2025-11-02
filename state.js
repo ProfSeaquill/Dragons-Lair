@@ -432,15 +432,34 @@ export const GameState = {
 // If callers forget to pass gs, fall back to the singleton GameState.
 function __useGS(g) { return g || GameState; }
 
-export function ensureCell(gs, x, y) {
-  gs = __useGS(gs);
-  const k = tileKey(x, y);
-  let rec = gs.cellWalls.get(k);
-  if (!rec) { rec = { N: false, E: false, S: false, W: false }; gs.cellWalls.set(k, rec); }
-  return rec;
+export function isOpen(gs, x, y, side) {
+  // ---- VIRTUAL GATES (logic-only; no visuals) ----
+const DIR = { N:[0,-1], E:[1,0], S:[0,1], W:[-1,0] };
+
+// Entry: only allow leaving to the East
+if (x === ENTRY.x && y === ENTRY.y) {
+  return side === 'E';
 }
 
-export function isOpen(gs, x, y, side) {
+// Figure out destination to test dragon footprint entry
+const dxy = DIR[side] || [0,0];
+const nx = x + dxy[0];
+const ny = y + dxy[1];
+
+const inDragon = (cx, cy) => {
+  const cs = dragonCells(gs);
+  for (let i = 0; i < cs.length; i++) if (cs[i].x === cx && cs[i].y === cy) return true;
+  return false;
+};
+
+// Only ENTER the dragon footprint from the West (i.e., crossing side === 'E')
+if (inDragon(nx, ny) && side !== 'E') return false;
+
+// Inside dragon cells: only West is open (attackers always face from the left)
+if (inDragon(x, y)) return side === 'W';
+
+// ---- fall through to the normal edge-wall logic below ----
+
   gs = __useGS(gs);
   if (!inBounds(x, y)) return false;
   const here = ensureCell(gs, x, y);
@@ -457,6 +476,14 @@ export function isOpen(gs, x, y, side) {
   if (!inBounds(nx, ny)) return false;
   const there = ensureCell(gs, nx, ny);
   return there[opp] === false;
+}
+
+export function ensureCell(gs, x, y) {
+  gs = __useGS(gs);
+  const k = tileKey(x, y);
+  let rec = gs.cellWalls.get(k);
+  if (!rec) { rec = { N: false, E: false, S: false, W: false }; gs.cellWalls.set(k, rec); }
+  return rec;
 }
 
 export function neighborsByEdges(gs, cx, cy) {
