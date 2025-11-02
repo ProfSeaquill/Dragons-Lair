@@ -197,6 +197,14 @@ if (!node) {
 
   // --- ANCHOR B: record the branch we’re about to test, then COMMIT and leave decision ---
   e.pendingOutcome = { fromId: id, dir: chosen.ex.dir, toId: chosen.ex.to || null };
+  
+  console.debug('[probe][pendingOutcome:set]', {
+  id: e.id ?? '(no-id)',
+  fromId: id,
+  dir: chosen.ex.dir,
+  toId: chosen.ex.to || null,
+  commit: Math.max(1, (chosen.ex.commit|0))
+});
 
   e.path = chosen.ex.path || [];
   // ensure at least 1 tile of forward motion; prevents instant re-entry to decision
