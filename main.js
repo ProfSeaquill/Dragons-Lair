@@ -386,6 +386,32 @@ state.applyConfig(state.GameState, cfg);
 
       // Wire UI after listeners are set
       bindUI();
+
+      
+      // now it’s safe to run the game loop
+      lastT = performance.now();
+      requestAnimationFrame(frame);
+
+      // (optional) initial UI passes
+      UI.renderUpgradesPanel?.();
+      UI.refreshHUD?.();
+      UI.tell?.('Config loaded');
+
+      // enable Start button and emit preview refresh
+      const startBtn2 = document.getElementById('startBtn');
+      if (startBtn2) startBtn2.disabled = false;
+      window.dispatchEvent(new CustomEvent('dl-preview-refresh'));
+    })
+    .catch(err => {
+      console.error('loadConfigFiles failed', err);
+      // Fallback: apply defaults & still bring up UI so the game is usable
+      state.applyConfig(state.GameState, {});
+      bindUI();
+      UI.refreshHUD?.();
+      const startBtn3 = document.getElementById('startBtn');
+      if (startBtn3) startBtn3.disabled = false;
+    });
+} // ← CLOSES boot()
        
 
 function startWave() {
