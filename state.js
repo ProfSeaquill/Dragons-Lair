@@ -478,6 +478,27 @@ if (inDragon(x, y)) return side === 'W';
   return there[opp] === false;
 }
 
+// --- Physical edges only (ignores ENTRY/DRAGON virtual gates) ---
+export function isOpenPhysical(gs, x, y, side) {
+  gs = __useGS(gs);
+  if (!inBounds(x, y)) return false;
+
+  const here = ensureCell(gs, x, y);
+  if (here[side] === true) return false;  // wall blocks on the origin side
+
+  let nx = x, ny = y, opp;
+  switch (side) {
+    case 'N': ny = y - 1; opp = 'S'; break;
+    case 'S': ny = y + 1; opp = 'N'; break;
+    case 'E': nx = x + 1; opp = 'W'; break;
+    case 'W': nx = x - 1; opp = 'E'; break;
+    default: return false;
+  }
+  if (!inBounds(nx, ny)) return false;
+  const there = ensureCell(gs, nx, ny);
+  return there[opp] === false;            // open if opposite isn’t walled
+}
+
 export function ensureCell(gs, x, y) {
   gs = __useGS(gs);
   const k = tileKey(x, y);
