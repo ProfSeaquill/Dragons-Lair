@@ -443,8 +443,8 @@ if (x === ENTRY.x && y === ENTRY.y) {
 
 // Figure out destination to test dragon footprint entry
 const dxy = DIR[side] || [0,0];
-const nx = x + dxy[0];
-const ny = y + dxy[1];
+const nx1 = x + dxy[0];
+const ny1 = y + dxy[1];
 
 const inDragon = (cx, cy) => {
   const cs = dragonCells(gs);
@@ -453,7 +453,7 @@ const inDragon = (cx, cy) => {
 };
 
 // Only ENTER the dragon footprint from the West (i.e., crossing side === 'E')
-if (inDragon(nx, ny) && side !== 'E') return false;
+if (inDragon(nx1, ny1) && side !== 'E') return false;
 
 // Inside dragon cells: only West is open (attackers always face from the left)
 if (inDragon(x, y)) return side === 'W';
