@@ -386,6 +386,35 @@ state.applyConfig(state.GameState, cfg);
 
       // Wire UI after listeners are set
       bindUI();
+       
+
+function lockEntryToEast(gs = state.GameState) {
+  const { x, y } = state.ENTRY;
+  // Block West, North, South around ENTRY (leave East open)
+  state.setEdgeWall(gs, x, y, 'W', true);
+  state.setEdgeWall(gs, x, y, 'N', true);
+  state.setEdgeWall(gs, x, y, 'S', true);
+
+  // (Optional belt-and-suspenders) also block stepping “off the map” to the far West row
+  // by walling the west edge of every cell in column 0:
+  for (let yy = 0; yy < state.GRID.rows; yy++) {
+    state.setEdgeWall(gs, 0, yy, 'W', true);
+  }
+
+  state.bumpTopology(gs, 'entry-lock');
+}
+
+
+function lockDragonToWest(gs = state.GameState) {
+  const cells = state.dragonCells(gs);
+  for (const c of cells) {
+    state.setEdgeWall(gs, c.x, c.y, 'E', true);
+    state.setEdgeWall(gs, c.x, c.y, 'N', true);
+    state.setEdgeWall(gs, c.x, c.y, 'S', true);
+    // DO NOT set 'W' here — we want West open for attacks.
+  }
+  state.bumpTopology(gs, 'dragon-west-only');
+}
 
      // now it’s safe to run the game loop
      lastT = performance.now();
