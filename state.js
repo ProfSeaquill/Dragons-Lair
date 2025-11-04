@@ -1,5 +1,8 @@
 // state.js — per-edge wall model + core game state + helpers
 
+// === New pathing imports ===
+import { initPathing, spawnAgent as _pathSpawn, despawnAgent as _pathDespawn, updateAgent as _pathUpdate, renderOffset as _pathRenderOffset } from './pathing/index.js';
+
 // ===== Grid & Entry/Exit =====
 export const GRID = { cols: 24, rows: 16, tile: 32 };
 
@@ -52,6 +55,8 @@ export function bumpTopology(gs, reason = '') {
   gs._allowTopoBump = true;
   try {
     gs.topologyVersion = (gs.topologyVersion | 0) + 1;
+    // Invalidate cached pathing so ensureFreshPathing() rebuilds next time
+    gs._pathTopoVersion = -1;
   } finally {
     gs._allowTopoBump = false;
   }
@@ -382,6 +387,68 @@ export function inBounds(x, y) {
     : _inBoundsImpl(x, y);
 }
 
+// ===== Pathing adapter & lifecycle =====
+
+// Build a grid API *from current state* that respects edge walls + virtual gates.
+// This is what the pathing/index.js orchestrator uses.
+function makeGridApiForState(gs = GameState) {
+  return {
+    cols: GRID.cols,
+    rows: GRID.rows,
+    inBounds: (x, y) => inBounds(x, y),
+    // Tiles themselves are always passable; movement is constrained by neighbors4 via edges.
+    isFree: (x, y) => inBounds(x, y),
+    neighbors4: (x, y) => {
+      const ns = [];
+      // We only add neighbors if the *edge* is open per your rules.
+      if (isOpen(gs, x, y, 'E') && inBounds(x + 1, y)) ns.push([x + 1, y]);
+      if (isOpen(gs, x, y, 'W') && inBounds(x - 1, y)) ns.push([x - 1, y]);
+      if (isOpen(gs, x, y, 'S') && inBounds(x, y + 1)) ns.push([x, y + 1]);
+      if (isOpen(gs, x, y, 'N') && inBounds(x, y - 1)) ns.push([x, y - 1]);
+      return ns;
+    },
+  };
+}
+
+/**
+ * Create/rebuild the pathing context when topology changes (walls, EXIT moves, etc).
+ * We rebuild lazily the next time someone asks for it.
+ */
+export function ensureFreshPathing(gs = GameState) {
+  if (!gs._pathCtx || gs._pathTopoVersion !== gs.topologyVersion) {
+    const gridApi = makeGridApiForState(gs);
+    gs._pathCtx = initPathing(gridApi, EXIT, {
+      enableDetourOnCrowd: true,
+      softCap: 3,
+      // Flip to true if you want speed-based stepping in updateAgent()
+      useTiming: false,
+      // You can add debugDetours: true here if you want quick console logs later.
+    });
+    gs._pathTopoVersion = gs.topologyVersion | 0;
+  }
+  return gs._pathCtx;
+}
+
+// Convenience wrappers so the rest of your game can call pathing without importing pathing/*
+export function pathSpawnAgent(agent, gs = GameState) {
+  const ctx = ensureFreshPathing(gs);
+  _pathSpawn(agent, ctx);
+}
+export function pathDespawnAgent(agent, gs = GameState) {
+  const ctx = ensureFreshPathing(gs);
+  _pathDespawn(agent, ctx);
+}
+/** Advance one grid step (or time-gated step if timing enabled). Returns null or { moved, nx, ny }. */
+export function pathUpdateAgent(agent, dtSec, gs = GameState) {
+  const ctx = ensureFreshPathing(gs);
+  return _pathUpdate(agent, dtSec, ctx);
+}
+/** Visual-only sub-tile offset for stacked units. */
+export function pathRenderOffset(agent, tileSize = GRID.tile, gs = GameState) {
+  const ctx = ensureFreshPathing(gs);
+  return _pathRenderOffset(agent, ctx, tileSize);
+}
+
 
 // ===== Game State (single mutable object) =====
 export const GameState = {
@@ -501,15 +568,16 @@ export function isOpenPhysical(gs, x, y, side) {
 
 function ensureCell(gs, x, y) {
   const key = `${x},${y}`;
-  let c = gs.grid.get(key);
+  let c = gs.cellWalls.get(key);
   if (!c) {
     c = { N:false, S:false, E:false, W:false };
-    gs.grid.set(key, c);
+    gs.cellWalls.set(key, c);
   } else {
     c.N ??= false; c.S ??= false; c.E ??= false; c.W ??= false;
   }
   return c;
 }
+
 
 
 export function neighborsByEdges(gs, cx, cy) {
@@ -710,6 +778,9 @@ export function resetState(gs = GameState) {
   gs.distToExit    = makeScalarField(GRID.cols, GRID.rows, Infinity);
   gs.successTrail  = makeScalarField(GRID.cols, GRID.rows, 0);
   gs.seed = 0;
+  gs._pathCtx = null;
+  gs._pathTopoVersion = -1;
+
 }
 
 // ===== Econ helpers =====
