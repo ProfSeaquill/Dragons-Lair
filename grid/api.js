@@ -21,7 +21,7 @@
 //   import { GRID } from './grid/api.js';
 //   if (GRID.isFree(10, 7)) { ... }
 //   const ns = GRID.neighbors4(10, 7);
-
+import * as state from './state.js';
 const DIR4 = [
   [ 1, 0],  // East
   [-1, 0],  // West
