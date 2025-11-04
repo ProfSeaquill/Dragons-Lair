@@ -1,8 +1,8 @@
 // combat.js (top)
 import * as state from './state.js';
-import { updateEnemyDistance } from './ai/metrics.js';
-import { buildJunctionGraph } from './ai/topology.js';
-import { computeShortestPath } from './ai/topology.js';
+// New pathing wrappers (added in state.js patch)
+import { pathSpawnAgent, pathUpdateAgent, pathRenderOffset, GRID, ENTRY, EXIT, ensureFreshPathing } from './state.js';
+
 
 
 // === Ability cooldown timers (module-local) ===
@@ -723,6 +723,9 @@ e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
   // initialize prev/commit so freshly-spawned enemies head straight initially
   initializeSpawnPrevAndCommit(e);
 
+  // Register with new pathing
+  pathSpawnAgent(e, gs);
+
     // Ensure FSM is initialized for this enemy
   import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
 
@@ -806,6 +809,8 @@ try {
 
   
   initializeSpawnPrevAndCommit(e);
+  pathSpawnAgent(e, gs);
+
   import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
   (gs.enemies || (gs.enemies = [])).push(e);
 
@@ -867,6 +872,8 @@ if (type === 'engineer') {
 
     // normal spawn helpers
     initializeSpawnPrevAndCommit(e);
+    pathSpawnAgent(e, gs);
+
 
     // ✅ initialize FSM bits (same as your normal spawner)
     import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
@@ -961,6 +968,56 @@ function enemyTile(e) {
   return { x: Math.floor((e.x||0)/t), y: Math.floor((e.y||0)/t) };
 }
 
+// BFS from start (sx,sy) up to maxTiles; respects edge walls via state.isOpen(...)
+function bfsFrom(gs, sx, sy, maxTiles) {
+  const W = GRID.cols, H = GRID.rows;
+  const dist = Array.from({ length: H }, () => new Array(W).fill(Infinity));
+  const prev = Array.from({ length: H }, () => new Array(W).fill(null));
+  const q = [];
+  dist[sy][sx] = 0;
+  q.push([sx, sy]);
+
+  const dirs = [['E',1,0], ['W',-1,0], ['S',0,1], ['N',0,-1]];
+
+  while (q.length) {
+    const [x, y] = q.shift();
+    const d = dist[y][x];
+    if (d >= maxTiles) continue; // don’t explore beyond range
+
+    for (let i = 0; i < 4; i++) {
+      const [side, dx, dy] = dirs[i];
+      if (!state.isOpen(gs, x, y, side)) continue;
+      const nx = x + dx, ny = y + dy;
+      if (!state.inBounds(nx, ny)) continue;
+      if (dist[ny][nx] <= d + 1) continue;
+      dist[ny][nx] = d + 1;
+      prev[ny][nx] = [x, y];  // parent pointer
+      q.push([nx, ny]);
+    }
+  }
+  return { dist, prev };
+}
+
+// Reconstruct a path (array of {x,y}) from BFS prev pointers
+function reconstructPath(prev, sx, sy, tx, ty) {
+  if (!prev[ty] || prev[ty][tx] == null) {
+    // If target is start itself
+    if (sx === tx && sy === ty) return [{ x: sx, y: sy }];
+    return null;
+  }
+  const out = [];
+  let x = tx, y = ty;
+  while (!(x === sx && y === sy)) {
+    out.push({ x, y });
+    const p = prev[y][x];
+    if (!p) return null;
+    x = p[0]; y = p[1];
+  }
+  out.push({ x: sx, y: sy });
+  out.reverse();
+  return out;
+}
+
 function dragonBreathTick(gs, dt, ds) {
   fireCooldown = Math.max(0, fireCooldown - dt);
   const firePeriod = 1 / Math.max(0.0001, ds.fireRate);
@@ -970,18 +1027,22 @@ function dragonBreathTick(gs, dt, ds) {
   const maxTiles = Math.max(1, Math.round(ds.breathRange / tileSize));
   const mouth = dragonMouthCell(gs);
 
-  // Build shortest paths to every reachable enemy within range
+    // One BFS from mouth → reconstruct per-enemy corridors (cheap on 24×16)
+  const { dist, prev } = bfsFrom(gs, mouth.x, mouth.y, maxTiles);
+
   const paths = [];
   for (const e of (gs.enemies || [])) {
     if (e.type === 'engineer' && e.tunneling) continue;
     const et = enemyTile(e);
-    const p = computeShortestPath(gs, mouth.x, mouth.y, [{ x: et.x, y: et.y }]);
-    if (!Array.isArray(p) || p.length === 0) continue;
-    const L = p.length;              // tiles including mouth + enemy tile
-    if (L > 0 && L <= maxTiles) {
-      paths.push({ e, et, pathObjs: p, L, isHero: (e.type === 'hero') });
-    }
+    const d = (dist[et.y] && dist[et.y][et.x]) ?? Infinity;
+    if (!Number.isFinite(d) || d <= 0 || d > maxTiles) continue;
+
+    const p = reconstructPath(prev, mouth.x, mouth.y, et.x, et.y);
+    if (!Array.isArray(p) || p.length < 2) continue;
+
+    paths.push({ e, et, pathObjs: p, L: p.length, isHero: (e.type === 'hero') });
   }
+
 
   // No reachable target in range → small cooldown so we re-check soon
   if (paths.length === 0) { fireCooldown = firePeriod * 0.5; return; }
@@ -1176,8 +1237,6 @@ if (!_jsonPlan || !Array.isArray(_jsonPlan.groups) || _jsonPlan.groups.length ==
   R.waveActive = true;
 
   // --- NEW: reset wave-scoped systems (junction graph, herding trail, strays) ---
-  // Rebuild (or build) the junction graph for this wave; also bumps gs.topologyVersion.
-  buildJunctionGraph(gs);
   // Fresh success-trail so herding consolidates on current wave’s choices.
   ensureSuccessTrail(gs);
   // Reset the global stray counter used by the curiosity limiter.
@@ -1609,6 +1668,27 @@ export const spawnWave = startWave;
 for (const e of enemies) {
   if (e && e.kb) tickKnockback(e, dt);
 }
+   
+// Step surface enemies with the new navigator (skip stunned & burrowed)
+{
+  const tsize = state.GRID.tile || 32;
+  for (const e of enemies) {
+    if (!e) continue;
+    if (e.type === 'engineer' && e.tunneling) continue;
+    if (e.stunLeft > 0) continue;  // frozen by Roar/Stomp
+
+    const moved = pathUpdateAgent(e, dt, gs); // returns { moved, nx, ny } | null
+    if (moved && moved.moved && Number.isInteger(moved.nx) && Number.isInteger(moved.ny)) {
+      e.cx = e.tileX = moved.nx;
+      e.cy = e.tileY = moved.ny;
+
+      // Optional: smooth sub-tile swizzle (visual-only separation)
+      const [ox, oy] = state.pathRenderOffset(e, tsize, gs);
+      e.x = (e.cx + 0.5) * tsize + (ox || 0);
+      e.y = (e.cy + 0.5) * tsize + (oy || 0);
+    }
+  }
+}
 
      // ---- FSM time shim ----
   const __now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -1833,7 +1913,6 @@ if (efx.dead) { gs.effects.splice(i, 1); continue; }
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
 
-    updateEnemyDistance(e, gs);
 
     // Engineers: above-ground grace → then start tunneling
 if (e.type === 'engineer' && !e.tunneling) {
