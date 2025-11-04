@@ -3,16 +3,15 @@ import * as Debug from './debugOverlay.js';
 import { getCooldowns } from './combat.js';
 
 import * as state from './state.js';
+import { ensureFreshPathing } from './state.js'; // new pathing API
 import { bindUI, UI } from './ui.js';
 import * as render from './render.js';
-import { stepEnemyFSM } from './ai/fsm.js';
-import { updateEnemyDistance } from './ai/metrics.js';
-import { buildJunctionGraph, ensureFreshTopology } from './ai/topology.js';
 import { initLighting } from './lighting-webgl.js';
 import { buyUpgrade } from './upgrades.js';
 
 // ----- Combat (robust namespace import; tolerant of export name variants) -----
 import * as combat from './combat.js';
+
 
 window.state = state;             // exposes state.GameState for console tools
 window.GameState = state.GameState;
@@ -365,7 +364,7 @@ function installPermanentBones(gs = state.GameState) {
 state.applyConfig(state.GameState, cfg);
  installPermanentBones(state.GameState);
  state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1; // bump first
- ensureFreshTopology(state.GameState); // then build the matching version
+ ensureFreshPathing(state.GameState); // new pathing build
       
       const cfgNow = state.getCfg(state.GameState);
       console.log('[A after applyConfig]', {
@@ -420,7 +419,7 @@ function startWave() {
   gs.__firstTorchGiven = false;
   // --- NEW: if someone calls main.startWave directly, ensure topology & trail exist.
   // If combat.startWave runs next, its calls are idempotent.
-  ensureFreshTopology(gs);
+  ensureFreshPathing(gs);
   if (!gs.successTrail) {
     const W = state.GRID.cols, H = state.GRID.rows;
     gs.successTrail = state.makeScalarField(W, H, 0);
@@ -442,7 +441,7 @@ function startWave() {
 }
 
 function update(dt) {
-  ensureFreshTopology(state.GameState);
+  ensureFreshPathing(state.GameState);
   const gs = state.GameState;
 
 
@@ -514,27 +513,6 @@ function update(dt) {
   // 1) Let Combat drive game logic if available
   if (typeof combatUpdate === 'function') {
    combatUpdate(gs, dt);
-}
-
-
-// 2) Fallback enemy movement using interpolated center-to-center steps
-for (const enemy of gs.enemies) {
-  if (enemy.updateByCombat) continue;
-  
-  if (enemy.kb) continue; // ← suppress FSM movement while being knocked back
-
-  if (Number.isInteger(enemy.cx) && Number.isInteger(enemy.cy)) {
-    if (typeof enemy.pxPerSec !== 'number' && typeof enemy.speed !== 'number') {
-      enemy.speed = enemy.speed || 2.5;
-    }
-    stepEnemyFSM(gs, enemy, dt);
-    if (Number.isInteger(enemy.tileX) && Number.isInteger(enemy.tileY)) {
-  enemy.cx = enemy.tileX;
-  enemy.cy = enemy.tileY;
-}
-
-    updateEnemyDistance(enemy, gs);
-  }
 }
 
   // 2b) Dragon fire animation FX timer (visual only; optional)
