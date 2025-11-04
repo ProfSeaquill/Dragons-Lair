@@ -535,6 +535,7 @@ function drawHeatShimmer(ctx, gs) {
 }
 
 /* -------- Traveling corridor fire -------- */
+/* -------- Traveling corridor fire -------- */
 function drawFlameWaves(ctx, gs) {
   const tsize = state.GRID.tile;
   const waves = gs.effects || [];
@@ -546,17 +547,23 @@ function drawFlameWaves(ctx, gs) {
     const start = Math.max(0, fx.headIdx - tailLen);
     const end   = fx.headIdx;
 
-  if (window.__logFlame === true && (seg.dir !== 'h' && seg.dir !== 'v')) {
-  console.warn('[flameWave] segment missing dir at i=', i, seg);
-}
+    // Optional high-level debug about the head
+    if (window.__logFlame === true) {
+      console.debug('[flameWave] headIdx, head.dir, len',
+        fx.headIdx,
+        fx.path?.[fx.headIdx]?.dir,
+        fx.path?.length
+      );
+    }
 
     for (let i = start; i <= end; i++) {
       const seg = fx.path[i];
       if (!seg) continue;
 
-      if (window.__logFlame && (seg.dir !== 'h' && seg.dir !== 'v')) {
-  console.warn('[flameWave] segment missing dir at i=', i, seg);
-}
+      // Per-segment sanity logging — now that seg & i exist
+      if (window.__logFlame === true && (seg.dir !== 'h' && seg.dir !== 'v')) {
+        console.warn('[flameWave] segment missing dir at i=', i, seg);
+      }
 
       const c = centerOf(seg.x, seg.y);
       const age = end - i;                         // 0 = freshest
@@ -569,8 +576,7 @@ function drawFlameWaves(ctx, gs) {
       ctx.save();
       ctx.globalAlpha = alpha * 0.95;
 
-      // in drawFlameWaves loop
-      if (!seg || !seg.dir) continue; // no dir → don’t draw it
+      if (!seg || !seg.dir) { ctx.restore(); continue; } // safety
 
       if (horiz && fireHReady) {
         ctx.drawImage(fireStripH, c.x - w/2, c.y - h/2, w, h);
@@ -592,6 +598,7 @@ function drawFlameWaves(ctx, gs) {
     }
   }
 }
+
 
 /* --------- Tunneling ----------*/
 function drawTunnelIndicators(ctx, gs) {
