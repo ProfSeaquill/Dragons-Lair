@@ -69,6 +69,9 @@ export function createRNG(seed = 123456789) {
  * @returns {{nx:number, ny:number, dir:Dir} | null}
  */
 export function chooseNextStep(agent, dp, grid, occ, optsIn) {
+  agent._marks ??= new Map();    // undirected edge marks: "x,y|nx,ny" -> 0|1|2
+  agent._uphillRun ??= 0;        // consecutive uphill steps counter
+
   const opts = { ...DEFAULT_OPTS, ...optsIn };
   const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
 
@@ -77,6 +80,22 @@ export function chooseNextStep(agent, dp, grid, occ, optsIn) {
 
   /** @type {Array<{dir:Dir, nx:number, ny:number, score:number}>} */
   let candidates = [];
+
+  if (isJunction(grid, x, y, agent.heading)) {
+  const pick = pickAtJunction(agent, dp, grid, occ, opts);
+  if (pick) {
+    // === move bookkeeping ===
+    const hereD = getDist(dp, x, y);
+    const { nx, ny, dir, chosenD } = pick;
+    if (isFinite(chosenD) && chosenD > hereD) agent._uphillRun = (agent._uphillRun || 0) + 1;
+    else agent._uphillRun = 0;
+
+    incMark(agent, x, y, nx, ny);
+    agent.heading = dir;
+    return { nx, ny, dir };
+  }
+}
+// else fall through to your existing downhill/soft-block logic
 
   if (downhill.length > 0) {
     for (let i = 0; i < downhill.length; i++) {
@@ -187,4 +206,125 @@ function isJunction(grid, x, y, cameFromDir) {
   const excludingBack = ns.filter(([nx,ny]) => dirFromDelta(x,y,nx,ny) !== opposite(cameFromDir));
   return excludingBack.length >= 2;
 }
+
+function pickAtJunction(agent, dp, grid, occ, opts) {
+  const x = agent.x|0, y = agent.y|0;
+  const hereD = getDist(dp, x, y);
+
+  // Build passable neighbors (we still allow soft-blocked; just penalize later)
+  const ns = grid.neighbors4(x, y).map(([nx,ny]) => {
+    const dir = dirFromDelta(x, y, nx, ny);
+    const mark = getMark(agent, x,y, nx,ny);
+    const d = getDist(dp, nx, ny);
+    return { nx, ny, dir, mark, d };
+  });
+
+  if (ns.length === 0) return null;
+
+  // Avoid immediate back unless it’s the only option
+  if (agent.heading != null) {
+    const backDir = opposite(agent.heading);
+    if (ns.length > 1) {
+      for (let i = ns.length - 1; i >= 0; i--) {
+        if (ns[i].dir === backDir) ns.splice(i,1);
+      }
+    }
+  }
+
+  // Split by Trémaux mark
+  const untried = ns.filter(c => c.mark === 0);
+  const pool = untried.length ? untried : ns.sort((a,b) => a.mark - b.mark);
+
+  // Tiny goal bias + your existing soft-block discourager + heading stick
+  let best = null, bestScore = Infinity;
+  for (const c of pool) {
+    let s = 0;
+
+    // Distance bands: downhill best, lateral okay, uphill worse
+    if (isFinite(c.d)) {
+      if (c.d === hereD - 1) s += 0;
+      else if (c.d === hereD) s += 0.6;
+      else if (c.d === hereD + 1) s += 1.2;
+      else s += 1.6; // really uphill
+    } else {
+      s += 3.0;
+    }
+
+    // Soft-block penalty (if you use it)
+    if (occ?.isSoftBlocked && occ.isSoftBlocked(occ, c.nx, c.ny, opts.softCap ?? 3)) {
+      s += opts.softPenalty ?? 1.0;
+    }
+
+    // Heading continuity (optional)
+    if (agent.heading != null) {
+      const turn = turnKind(agent.heading, c.dir);
+      if (turn === 'straight') s -= (opts.headingStick ?? 0.35);
+      else if (turn === 'back') s += (opts.backPenalty ?? 0.6);
+    }
+
+    // Tiny jitter
+    const rng = typeof opts?.rng === 'function' ? opts.rng : Math.random;
+    s += (opts?.randJitter ?? 0.06) * (rng() - 0.5);
+
+    if (s < bestScore) { bestScore = s; best = c; }
+  }
+
+  // Uphill guard: if we’ve gone uphill K times and a downhill exists, force downhill
+  const K = opts?.uphillCap ?? 2;
+  if (best && best.d > hereD && agent._uphillRun >= K) {
+    const downs = pool.filter(c => c.d === hereD - 1);
+    if (downs.length) {
+      // pick best downhill by same tie-breaks minus the uphill band
+      best = downs.reduce((acc, c) => {
+        let s = 0;
+        if (occ?.isSoftBlocked && occ.isSoftBlocked(occ, c.nx, c.ny, opts.softCap ?? 3)) s += opts.softPenalty ?? 1.0;
+        if (agent.heading != null) {
+          const turn = turnKind(agent.heading, c.dir);
+          if (turn === 'straight') s -= (opts.headingStick ?? 0.35);
+          else if (turn === 'back') s += (opts.backPenalty ?? 0.6);
+        }
+        s += (opts?.randJitter ?? 0.06) * ((typeof opts?.rng==='function'?opts.rng():Math.random) - 0.5);
+        return (s < acc.s ? {c, s} : acc);
+      }, {c: downs[0], s: 999}).c;
+    }
+  }
+
+  return best ? { nx: best.nx, ny: best.ny, dir: /** @type {0|1|2|3} */(best.dir), chosenD: best.d } : null;
+}
+
+// same turnKind you used earlier (reuse if already present)
+function turnKind(prev, next) {
+  const cwMap = [0,2,1,3]; // E=0, S=1, W=2, N=3
+  const a = cwMap[prev], b = cwMap[next];
+  const delta = (b - a + 4) % 4;
+  if (delta === 0) return 'straight';
+  if (delta === 1) return 'right';
+  if (delta === 3) return 'left';
+  return 'back';
+}
+
+function edgeKeyUndir(x1, y1, x2, y2) {
+  // lexicographic order so (a,b)-(c,d) === (c,d)-(a,b)
+  return (y1 < y2 || (y1 === y2 && x1 <= x2))
+    ? `${x1},${y1}|${x2},${y2}`
+    : `${x2},${y2}|${x1},${y1}`;
+}
+function getMark(agent, x1, y1, x2, y2) {
+  return agent._marks.get(edgeKeyUndir(x1,y1,x2,y2)) ?? 0;
+}
+function incMark(agent, x1, y1, x2, y2) {
+  const k = edgeKeyUndir(x1,y1,x2,y2);
+  const v = Math.min(2, (agent._marks.get(k) ?? 0) + 1);
+  agent._marks.set(k, v);
+}
+function opposite(dir){ return [1,0,3,2][dir]; } // if you don’t already have one
+function dirFromDelta(x, y, nx, ny) {
+  const dx = nx - x, dy = ny - y;
+  if (dx === 1 && dy === 0) return 0;  // E
+  if (dx === -1 && dy === 0) return 1; // W
+  if (dx === 0 && dy === 1) return 2;  // S
+  if (dx === 0 && dy === -1) return 3; // N
+  throw new Error('dirFromDelta: not 4-way neighbor');
+}
+
 
