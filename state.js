@@ -566,7 +566,7 @@ export function isOpenPhysical(gs, x, y, side) {
   return there[opp] === true;            // open if opposite isn’t walled
 }
 
-function ensureCell(gs, x, y) {
+export function ensureCell(gs, x, y) {
   const key = `${x},${y}`;
   let c = gs.cellWalls.get(key);
   if (!c) {
