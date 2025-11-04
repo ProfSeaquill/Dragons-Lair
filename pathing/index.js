@@ -89,7 +89,6 @@ export function renderOffset(agent, occ, tileSize, opts) {
   return computeOffset(count, idx, tileSize, opts, agent.id);
 }
 
-// pathing/index.js
 export function despawnAgent(gs, agent) {
   if (!gs || !agent) return;
 
