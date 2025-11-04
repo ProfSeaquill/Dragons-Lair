@@ -1,4 +1,4 @@
-// ui.js — edge-wall build mode + HUD + Next Wave preview
+// ui.js — edge-wall build mode + HUD + Next Wave preview + Dev Panel
 import * as state from './state.js';
 import * as api from './grid/api.js';
 import * as upgrades from './upgrades.js';
@@ -36,7 +36,15 @@ const ENEMY_META = {
   boss:       { name: 'Knight of the Round Table', color: '#f4a261', blurb: 'Boss: massive HP; a real push.' },
 };
 
-// Cache the combat module (so we can ask it for wave composition)
+// ---------- Config helpers (economy) ----------
+function edgeCost(gs) {
+  return ((state.getCfg(gs)?.tuning?.economy?.wallCostBones) ?? 1) | 0;
+}
+function edgeRefund(gs) {
+  return ((state.getCfg(gs)?.tuning?.economy?.wallRefundBones) ?? 0) | 0;
+}
+
+// Cache the combat module (so we can ask it for wave composition/cooldowns)
 let _combatMod = null;
 async function getCombat() {
   if (_combatMod) return _combatMod;
@@ -50,26 +58,34 @@ export function bindUI() {
   wireCanvasEdgeBuild();
   renderUpgradesPanel();
   refreshHUD();          // also triggers first preview render
-
-
-  // Dev tools
   ensureDevPanel();
-
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
 }
 
 // Track last values so we only rebuild when needed
 let _lastPreviewWave = -1;
 let _lastGold = -1;
-let _lastGoldForPanel = -1; 
 let _lastWaveHUD = -1;
 let _lastBones = -1;
 let _lastHPStr = '';
 let _lastAuto = null;
 
-
 // ---------- Optional small API for main/render ----------
 export const UI = { refreshHUD, tell, renderUpgradesPanel };
+
+// Lightweight message banner
+function tell(s, color = '') {
+  if (!hud.msg) return;
+  const same = (hud.msg.textContent === String(s)) && (hud.msg.style.color === (color || ''));
+  if (!same) {
+    hud.msg.textContent = String(s);
+    hud.msg.style.color = color || '';
+  }
+  if (s) {
+    clearTimeout(tell._t);
+    tell._t = setTimeout(() => { if (hud.msg.textContent === s) hud.msg.textContent = ''; }, 2500);
+  }
+}
 
 export function refreshHUD() {
   const gs = state.GameState;
@@ -82,14 +98,14 @@ export function refreshHUD() {
   }
 
   // --- GOLD ---
-  const goldNow = gs.gold | 0;            // define once, early
+  const goldNow = gs.gold | 0;
   if (hud.gold) hud.gold.textContent = String(goldNow);
-  if (goldNow !== _lastGold) {            // use _lastGold only as the rebuild gate
+  if (goldNow !== _lastGold) {
     _lastGold = goldNow;
     renderUpgradesPanel();
   }
 
-  // --- Rest of HUD (unchanged) ---
+  // --- Rest of HUD ---
   const waveNow  = gs.wave | 0;
   const bonesNow = gs.bones | 0;
   const hpStrNow = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
@@ -109,31 +125,12 @@ export function refreshHUD() {
   renderGridHelp(gs);
 }
 
-
-
-// Lightweight message banner
-function tell(s, color = '') {
-  if (!hud.msg) return;
-  const same = (hud.msg.textContent === String(s)) && (hud.msg.style.color === (color || ''));
-  if (!same) {
-    hud.msg.textContent = String(s);
-    hud.msg.style.color = color || '';
-  }
-  if (s) {
-    clearTimeout(tell._t);
-    tell._t = setTimeout(() => { if (hud.msg.textContent === s) hud.msg.textContent = ''; }, 2500);
-  }
-}
-
-  
 // ---------- Buttons / HUD wiring ----------
 function wireButtons() {
-  const gs = state.GameState;
-
   if (hud.healBtn) {
     hud.healBtn.addEventListener('click', () => {
-  window.dispatchEvent(new CustomEvent('dl-heal'));
-});
+      window.dispatchEvent(new CustomEvent('dl-heal'));
+    });
   }
 
   if (hud.start) {
@@ -145,50 +142,47 @@ function wireButtons() {
 
   if (hud.auto) {
     hud.auto.addEventListener('change', (e) => {
-  window.dispatchEvent(new CustomEvent('dl-auto-start', { detail: !!e.target.checked }));
-});
-
+      window.dispatchEvent(new CustomEvent('dl-auto-start', { detail: !!e.target.checked }));
+    });
   }
 
   if (hud.save) {
     hud.save.addEventListener('click', () => {
-  window.dispatchEvent(new CustomEvent('dl-save'));
-});
+      window.dispatchEvent(new CustomEvent('dl-save'));
+    });
   }
 
   if (hud.load) {
-   hud.load.addEventListener('click', () => {
-  window.dispatchEvent(new CustomEvent('dl-load'));
-});
+    hud.load.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('dl-load'));
+    });
   }
 
-    if (hud.clear) {
+  if (hud.clear) {
     hud.clear.addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('dl-save-clear'));
     });
   }
-
 }
 
 function renderHealButtonLabel(gs) {
   const btn = document.getElementById('healBtn');
   if (!btn) return;
-  const costPerHP = (state.getCfg(gs).tuning.dragon.healCostBone | 0) || 1;
+  const costPerHP = (state.getCfg(gs)?.tuning?.dragon?.healCostBone ?? 1) | 0;
   const unit = costPerHP === 1 ? 'bone' : 'bones';
   btn.textContent = `Heal (1 HP / ${costPerHP} ${unit})`;
 }
 
-// ---------- upgrades panel ----------
-function renderUpgradesPanel() {
+// ---------- Upgrades panel ----------
+export function renderUpgradesPanel() {
   const root = hud.upgrades;
   if (!root) return;
 
-  const data = getUpgradeInfo(state.GameState);   // <-- computed rows
+  const data = upgrades.getUpgradeInfo(state.GameState);
   const list = Array.isArray(data) ? data : Object.values(data);
   root.innerHTML = '';
 
-  // Keep references to "Use" buttons so we can live-update them
-  const useBtns = []; // { key: 'gust'|'roar'|'stomp', btn }
+  const useBtns = []; // { key, btn }
 
   list.forEach(info => {
     const row = document.createElement('div');
@@ -212,11 +206,11 @@ function renderUpgradesPanel() {
     }
 
     buy.addEventListener('click', () => {
-  if (info.isMax) return; // safety
+      if (info.isMax) return;
       window.dispatchEvent(new CustomEvent('dl-upgrade-buy', {
-    detail: { id: info.key, title: info.title, cost: info.cost }
-  }));
-});
+        detail: { id: info.key, title: info.title, cost: info.cost }
+      }));
+    });
 
     const left = document.createElement('div');
     left.style.display = 'flex';
@@ -227,18 +221,17 @@ function renderUpgradesPanel() {
     row.appendChild(left);
     row.appendChild(buy);
 
-    // Ability "Use" buttons (Gust/Roar/Stomp)
+    // Ability Use buttons (gust / roar / stomp)
     if (info.type === 'ability' && (info.key === 'gust' || info.key === 'roar' || info.key === 'stomp')) {
       const use = document.createElement('button');
       use.className = 'btn';
-
-      use.textContent = 'Locked'; // live-updated below
+      use.textContent = 'Locked';
       use.disabled = true;
 
       use.addEventListener('click', () => {
         const U = state.GameState.upgrades || {};
         const lvlNow = (U[info.key] | 0);
-        if (lvlNow <= 0) return; // still locked
+        if (lvlNow <= 0) return;
         if (info.key === 'gust')  state.GameState.reqWingGust = true;
         if (info.key === 'roar')  state.GameState.reqRoar     = true;
         if (info.key === 'stomp') state.GameState.reqStomp    = true;
@@ -251,7 +244,7 @@ function renderUpgradesPanel() {
     root.appendChild(row);
   });
 
-  // ---- Live cooldown / lock updater ----
+  // Live cooldown / lock updater
   (async function abilityUseUpdater() {
     const combat = await getCombat();
     if (typeof combat.getCooldowns !== 'function') return;
@@ -284,9 +277,9 @@ function renderUpgradesPanel() {
     }
     requestAnimationFrame(tick);
   })();
-} // <-- closes renderUpgradesPanel()
+}
 
-// Wall instructional text
+// ---------- Wall instructional text ----------
 function renderGridHelp(gs) {
   const el = document.querySelector('.gridHelp');
   if (!el) return;
@@ -296,12 +289,14 @@ function renderGridHelp(gs) {
     return;
   }
 
- const cost = ((state.getCfg(gs)?.tuning?.economy?.wallCostBones ?? state.COSTS.edgeWall) | 0);
+  const cost = edgeCost(gs);
   el.textContent =
-    `Build Mode: Click a TILE EDGE to add a wall (${cost} bone). ` +
+    `Build Mode: Click a TILE EDGE to add a wall (${cost} bone${cost === 1 ? '' : 's'}). ` +
     `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
 }
-
+// Make available to main.js even if it calls it globally
+// (keeps compatibility without changing main.js imports)
+if (typeof window !== 'undefined') window.renderGridHelp = renderGridHelp;
 
 // ---------- Canvas Edge Build Mode ----------
 function wireCanvasEdgeBuild() {
@@ -312,86 +307,90 @@ function wireCanvasEdgeBuild() {
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
 
   cv.addEventListener('mousemove', (e) => {
-  const gs = state.GameState;
+    const gs = state.GameState;
 
-  // Hide the hover + do nothing while a wave is active
-  if (!state.canEditMaze(gs)) {
-    gs.uiHoverEdge = null;
-    return;
-  }
+    // Hide the hover + do nothing while a wave is active
+    if (!state.canEditMaze(gs)) {
+      gs.uiHoverEdge = null;
+      return;
+    }
 
-  const hover = edgeHitTest(cv, e);
-  gs.uiHoverEdge = hover; // for render highlight
-  if (hover) {
-    const hasWall = edgeHasWall(gs, hover.x, hover.y, hover.side);
-    const verb = hasWall ? 'Remove' : 'Place';
-    const cost = hasWall
-      ? `(+${state.COSTS.edgeRefund} bones)`
-      : `(${state.COSTS.edgeWall} bones)`;
-    tell(`${verb} wall: (${hover.x},${hover.y}) ${hover.side} ${cost}`, '#9cf');
-  }
-});
-
+    const hover = edgeHitTest(cv, e);
+    gs.uiHoverEdge = hover; // for render highlight
+    if (hover) {
+      const hasWall = api.edgeHasWall(gs, hover.x, hover.y, hover.side);
+      const verb = hasWall ? 'Remove' : 'Place';
+      const cost = hasWall
+        ? `(+${edgeRefund(gs)} bones)`
+        : `(${edgeCost(gs)} bones)`;
+      tell(`${verb} wall: (${hover.x},${hover.y}) ${hover.side} ${cost}`, '#9cf');
+    }
+  });
 
   cv.addEventListener('mouseleave', () => {
     state.GameState.uiHoverEdge = null;
   });
 
   cv.addEventListener('mousedown', (e) => {
-  const gs = state.GameState;
+    const gs = state.GameState;
 
-  // Hard UI guard: no edits during waves
-  if (!state.canEditMaze(gs)) {
-    tell('You can only place/remove walls between waves.', '#f88');
-    return;
-  }
-
-  const hover = edgeHitTest(cv, e);
-  if (!hover) return;
-
-  const place  = (e.button === 0);
-  const remove = (e.button === 2);
-  if (!place && !remove) return;
-
-  const hasWall = edgeHasWall(gs, hover.x, hover.y, hover.side);
-  if (place && hasWall) return;
-  if (remove && !hasWall) return;
-
-  if (place) {
-    const cost = ((state.getCfg(gs)?.tuning?.economy?.wallCostBones ?? state.COSTS.edgeWall) | 0);
-    if ((gs.bones | 0) < cost) {
-      tell('Not enough bones'); 
-      return;
-    }
-    if (edgeTouchesDragon(gs, hover.x, hover.y, hover.side)) {
-      tell("Can't build on the dragon", '#f88');
+    // Hard UI guard: no edits during waves
+    if (!state.canEditMaze(gs)) {
+      tell('You can only place/remove walls between waves.', '#f88');
       return;
     }
 
-    // Attempt to place
-    toggleEdge(gs, hover.x, hover.y, hover.side);
+    const hover = edgeHitTest(cv, e);
+    if (!hover) return;
 
-    // If placement was rejected (e.g., would fully block entry↔exit), don't charge
-    const placed = edgeHasWall(gs, hover.x, hover.y, hover.side);
-    if (!placed) {
-      tell("Can't block entry ↔ exit");
-      return;
+    const place  = (e.button === 0);
+    const remove = (e.button === 2);
+    if (!place && !remove) return;
+
+    const hasWall = api.edgeHasWall(gs, hover.x, hover.y, hover.side);
+    if (place && hasWall) return;
+    if (remove && !hasWall) return;
+
+    if (place) {
+      const cost = edgeCost(gs);
+      if ((gs.bones | 0) < cost) {
+        tell('Not enough bones');
+        return;
+      }
+      if (edgeTouchesDragon(gs, hover.x, hover.y, hover.side)) {
+        tell("Can't build on the dragon", '#f88');
+        return;
+      }
+
+      // Attempt to place
+      api.toggleEdge(gs, hover.x, hover.y, hover.side);
+
+      // If placement was rejected (e.g., would fully block entry↔exit), don't charge
+      const placed = api.edgeHasWall(gs, hover.x, hover.y, hover.side);
+      if (!placed) {
+        tell("Can't block entry ↔ exit");
+        return;
+      }
+
+      // Charge after successful placement
+      gs.bones -= cost;
+      globalThis.Telemetry?.log('wall:place', { x: hover.x, y: hover.y, side: hover.side, cost });
+
+      // Ensure topology rebuild notices the change
+      state.bumpTopology?.(gs, 'ui:edge-place');
+
+    } else if (remove) {
+      // Remove (no refund here; if you want, credit edgeRefund(gs) to gs.bones)
+      api.toggleEdge(gs, hover.x, hover.y, hover.side);
+      globalThis.Telemetry?.log('wall:remove', { x: hover.x, y: hover.y, side: hover.side });
+
+      state.bumpTopology?.(gs, 'ui:edge-remove');
     }
 
-    // Charge after successful placement
-    gs.bones -= cost;
-    globalThis.Telemetry?.log('wall:place', { x: hover.x, y: hover.y, side: hover.side, cost });
-
-  } else if (remove) {
-    // Remove (no refund here)
-    toggleEdge(gs, hover.x, hover.y, hover.side);
-    globalThis.Telemetry?.log('wall:remove', { x: hover.x, y: hover.y, side: hover.side });
-  }
-  // Use the local helper to avoid TDZ issues with UI export
-  refreshHUD?.();
-});
+    // Keep HUD snappy after edits
+    refreshHUD?.();
+  });
 }
-
 
 function edgeHitTest(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
@@ -419,7 +418,6 @@ function edgeHitTest(canvas, evt) {
   return { x: cx, y: cy, side };
 }
 
-
 function edgeTouchesDragon(gs, x, y, side) {
   // side is 'N','S','E','W' for the edge on cell (x,y)
   const a = { x, y };
@@ -428,8 +426,6 @@ function edgeTouchesDragon(gs, x, y, side) {
   if (side === 'S') b.y = y + 1;
   if (side === 'W') b.x = x - 1;
   if (side === 'E') b.x = x + 1;
-
-  // If either cell is part of the dragon, block building
   return state.isDragonCell(a.x, a.y, gs) || state.isDragonCell(b.x, b.y, gs);
 }
 
@@ -442,7 +438,6 @@ async function renderNextWavePreview() {
   const combat = await getCombat();
   const wave = state.GameState.wave | 0;
 
-  // Get the raw list, then count by type
   const list = (typeof combat.previewWaveList === 'function')
     ? combat.previewWaveList(wave)
     : [];
@@ -450,7 +445,6 @@ async function renderNextWavePreview() {
   const counts = {};
   for (const type of list) counts[type] = (counts[type] | 0) + 1;
 
-  // Build rows in a consistent order
   const order = ['villager','squire','knight','hero','engineer','kingsguard','boss'];
   order.forEach((type) => {
     const n = counts[type] | 0;
@@ -465,7 +459,6 @@ async function renderNextWavePreview() {
     row.style.gap = '8px';
     row.style.margin = '6px 0';
 
-    // Icon (colored circle via inline SVG)
     const ico = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     ico.setAttribute('width', '24');
     ico.setAttribute('height', '24');
@@ -476,7 +469,6 @@ async function renderNextWavePreview() {
     circ.setAttribute('stroke-width', '2');
     ico.appendChild(circ);
 
-    // Name + blurb
     const txt = document.createElement('div');
     const title = document.createElement('div');
     title.textContent = meta.name;
@@ -488,7 +480,6 @@ async function renderNextWavePreview() {
     txt.appendChild(title);
     txt.appendChild(blurb);
 
-    // Count pill
     const pill = document.createElement('div');
     pill.textContent = 'x ' + n;
     pill.style.background = '#1b2437';
@@ -503,7 +494,6 @@ async function renderNextWavePreview() {
     root.appendChild(row);
   });
 
-  // Empty state
   if (!root.children.length) {
     const p = document.createElement('div');
     p.style.opacity = '0.7';
@@ -512,13 +502,10 @@ async function renderNextWavePreview() {
   }
 }
 
-
 // ---------- Dev / Playtest Panel ----------
 async function ensureDevPanel() {
   const rightCol = document.getElementById('rightCol');
   if (!rightCol) return;
-
-  // Avoid duplicates if bindUI is ever called twice
   if (document.getElementById('devPanel')) return;
 
   const panel = document.createElement('div');
@@ -642,7 +629,7 @@ async function ensureDevPanel() {
 
   panel.appendChild(utilRow);
 
-    // === Maze Presets (A/B/C) ===
+  // === Maze Presets (A/B/C) ===
   const presetTitle = document.createElement('div');
   presetTitle.className = 'pTitle';
   presetTitle.textContent = 'Maze Presets';
@@ -695,7 +682,7 @@ async function ensureDevPanel() {
       const edges = map[slot];
       if (!edges) { tell?.(`Preset ${slot} is empty`, '#f88'); return; }
       state.applyMaze(state.GameState, edges);
-      refreshHUD?.(); // optional; draw will pick it up next tick
+      refreshHUD?.();
       tell?.(`Loaded Preset ${slot} (${labelFor(edges)})`);
     });
 
@@ -712,7 +699,6 @@ async function ensureDevPanel() {
       tell?.(`Deleted Preset ${slot}`);
     });
 
-    // initialize label
     const initMap = getPresetMap();
     info.textContent = labelFor(initMap[slot]);
 
@@ -724,9 +710,9 @@ async function ensureDevPanel() {
     return wrap;
   }
 
-  row(makePresetRow('A'));
-  row(makePresetRow('B'));
-  row(makePresetRow('C'));
+  panel.appendChild(makePresetRow('A'));
+  panel.appendChild(makePresetRow('B'));
+  panel.appendChild(makePresetRow('C'));
 
   rightCol.appendChild(panel);
 }
