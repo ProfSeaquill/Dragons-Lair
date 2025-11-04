@@ -21,6 +21,7 @@
 //   import { GRID } from './grid/api.js';
 //   if (GRID.isFree(10, 7)) { ... }
 //   const ns = GRID.neighbors4(10, 7);
+import * as state from '../state.js';
 
 const DIR4 = [
   [ 1, 0],  // East
@@ -96,6 +97,15 @@ export function createGridApi(opts) {
  */
 export function key(x, y) {
   return `${x},${y}`;
+}
+
+function _ensureCell(gs, x, y) {
+  if (typeof state.ensureCell === 'function') return state.ensureCell(gs, x, y);
+  // ultra-defensive fallback
+  gs.grid = gs.grid || Array.from({ length: state.GRID.rows }, () =>
+    Array.from({ length: state.GRID.cols }, () => ({ N:0, E:0, S:0, W:0 }))
+  );
+  return gs.grid[y][x];
 }
 
 /**
