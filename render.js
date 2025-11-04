@@ -572,7 +572,6 @@ function drawFlameWaves(ctx, gs) {
   }
 }
 
-
 /* --------- Tunneling ----------*/
 function drawTunnelIndicators(ctx, gs) {
   if (!Array.isArray(gs.effects)) return;
