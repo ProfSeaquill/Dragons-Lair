@@ -549,7 +549,6 @@ function drawFlameWaves(ctx, gs) {
   if (window.__logFlame === true && (seg.dir !== 'h' && seg.dir !== 'v')) {
   console.warn('[flameWave] segment missing dir at i=', i, seg);
 }
-}
 
     for (let i = start; i <= end; i++) {
       const seg = fx.path[i];
