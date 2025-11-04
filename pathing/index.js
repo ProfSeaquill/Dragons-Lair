@@ -89,6 +89,28 @@ export function renderOffset(agent, occ, tileSize, opts) {
   return computeOffset(count, idx, tileSize, opts, agent.id);
 }
 
+// pathing/index.js
+export function despawnAgent(gs, agent) {
+  if (!gs || !agent) return;
+
+  agent.dead = true;
+  if (Array.isArray(gs.enemies)) {
+    const i = gs.enemies.indexOf(agent);
+    if (i !== -1) gs.enemies.splice(i, 1);
+  }
+
+  // Optional: if you keep any path reservations keyed by agent.id,
+  // clear them here. For example:
+  // if (gs.path?.reservations && agent.id != null) {
+  //   for (const k of Object.keys(gs.path.reservations)) {
+  //     const v = gs.path.reservations[k];
+  //     if (v === agent.id || (Array.isArray(v) && v.includes(agent.id))) {
+  //       delete gs.path.reservations[k];
+  //     }
+  //   }
+  // }
+}
+
 // ===== helpers =====
 
 const TAU = Math.PI * 2;
