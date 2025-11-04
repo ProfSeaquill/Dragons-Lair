@@ -1,7 +1,7 @@
 // ui.js — edge-wall build mode + HUD + Next Wave preview
 import * as state from './state.js';
-import { toggleEdge, edgeHasWall } from './grid/walls.js';
-import { getUpgradeInfo, listUpgrades } from './upgrades.js';
+import * as api from './grid/api.js';
+import * as upgrades from './upgrades.js';
 
 // ---------- DOM helpers ----------
 const $ = (id) => document.getElementById(id);
