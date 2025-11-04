@@ -760,4 +760,3 @@ function enemyPixelPositionInto(out, e) {
   }
   return false;
 }
-
