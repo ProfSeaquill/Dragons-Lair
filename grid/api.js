@@ -99,6 +99,23 @@ export function key(x, y) {
 }
 
 /**
+ * Return true if there is a wall on the given edge of (x,y).
+ * Accounts for shared edges (e.g., (x,y).N === (x,y-1).S).
+ */
+export function edgeHasWall(gs, x, y, side) {
+  if (x < 0 || y < 0 || x >= state.GRID.cols || y >= state.GRID.rows) return false;
+
+  const rec = _ensureCell(gs, x, y);
+  switch (side) {
+    case 'N': return !!(rec.N || (y > 0 && _ensureCell(gs, x, y - 1).S));
+    case 'S': return !!(rec.S || (y < state.GRID.rows - 1 && _ensureCell(gs, x, y + 1).N));
+    case 'W': return !!(rec.W || (x > 0 && _ensureCell(gs, x - 1, y).E));
+    case 'E': return !!(rec.E || (x < state.GRID.cols - 1 && _ensureCell(gs, x + 1, y).W));
+    default:  return false;
+  }
+}
+
+/**
  * Option validation & normalization.
  * @param {Object} opts
  * @private
