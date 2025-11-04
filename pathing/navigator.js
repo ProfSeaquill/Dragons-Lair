@@ -81,7 +81,7 @@ export function chooseNextStep(agent, dp, grid, occ, optsIn) {
   /** @type {Array<{dir:Dir, nx:number, ny:number, score:number}>} */
   let candidates = [];
 
-  if (isJunction(grid, x, y, agent.heading)) {
+  if (isJunction(dp, grid, x, y, agent.heading)) {
   const pick = pickAtJunction(agent, dp, grid, occ, opts);
   if (pick) {
     // === move bookkeeping ===
@@ -158,6 +158,18 @@ export function chooseNextStep(agent, dp, grid, occ, optsIn) {
   candidates.sort((a, b) => a.score - b.score);
   const choice = candidates[0];
 
+  // --- NON-JUNCTION BOOKKEEPING: put this right before the final return ---
+const hereD = getDist(dp, x, y);
+const nextD = getDist(dp, choice.nx, choice.ny);
+if (isFinite(nextD) && nextD > hereD) {
+  agent._uphillRun = (agent._uphillRun || 0) + 1;
+} else {
+  agent._uphillRun = 0;
+}
+incMark(agent, x, y, choice.nx, choice.ny);
+agent.heading = choice.dir;
+// --- end bookkeeping ---
+  
   return { nx: choice.nx, ny: choice.ny, dir: choice.dir };
 }
 
@@ -194,7 +206,8 @@ function turnKind(prev, next) {
   if (delta === 3) return 'left';
   return 'back'; // delta === 2
 }
-function isJunction(grid, x, y, cameFromDir) {
+
+function isJunction(dp, grid, x, y, cameFromDir) {
   const ns = grid.neighbors4(x, y);
   const deg = ns.length;
   if (deg >= 3) return true;                     // obvious junction
@@ -292,16 +305,6 @@ function pickAtJunction(agent, dp, grid, occ, opts) {
   return best ? { nx: best.nx, ny: best.ny, dir: /** @type {0|1|2|3} */(best.dir), chosenD: best.d } : null;
 }
 
-// same turnKind you used earlier (reuse if already present)
-function turnKind(prev, next) {
-  const cwMap = [0,2,1,3]; // E=0, S=1, W=2, N=3
-  const a = cwMap[prev], b = cwMap[next];
-  const delta = (b - a + 4) % 4;
-  if (delta === 0) return 'straight';
-  if (delta === 1) return 'right';
-  if (delta === 3) return 'left';
-  return 'back';
-}
 
 function edgeKeyUndir(x1, y1, x2, y2) {
   // lexicographic order so (a,b)-(c,d) === (c,d)-(a,b)
@@ -318,13 +321,5 @@ function incMark(agent, x1, y1, x2, y2) {
   agent._marks.set(k, v);
 }
 function opposite(dir){ return [1,0,3,2][dir]; } // if you don’t already have one
-function dirFromDelta(x, y, nx, ny) {
-  const dx = nx - x, dy = ny - y;
-  if (dx === 1 && dy === 0) return 0;  // E
-  if (dx === -1 && dy === 0) return 1; // W
-  if (dx === 0 && dy === 1) return 2;  // S
-  if (dx === 0 && dy === -1) return 3; // N
-  throw new Error('dirFromDelta: not 4-way neighbor');
-}
 
 
