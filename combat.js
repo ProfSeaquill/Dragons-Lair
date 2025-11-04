@@ -726,9 +726,6 @@ e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
   // Register with new pathing
   pathSpawnAgent(e, gs);
 
-    // Ensure FSM is initialized for this enemy
-  import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
-
 
   gs.enemies.push(e);
 
@@ -811,7 +808,6 @@ try {
   initializeSpawnPrevAndCommit(e);
   pathSpawnAgent(e, gs);
 
-  import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
   (gs.enemies || (gs.enemies = [])).push(e);
 
 if (typeof e.trailStrength === 'number') {
@@ -873,11 +869,7 @@ if (type === 'engineer') {
     // normal spawn helpers
     initializeSpawnPrevAndCommit(e);
     pathSpawnAgent(e, gs);
-
-
-    // ✅ initialize FSM bits (same as your normal spawner)
-    import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
-
+    
     (gs.enemies || (gs.enemies = [])).push(e);
 
     if (typeof e.trailStrength === 'number') {
@@ -1990,9 +1982,6 @@ if (e.type === 'engineer' && e.tunneling) {
     // Exit tunneling; hand control back to FSM
     e.tunneling = false;
     e.updateByCombat = false;
-
-    // re-init FSM if needed
-    import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(()=>{});
 
     // Plant bomb at dragon perimeter, leaning toward engineer
     const dc = nearestDragonCell(gs, e.cx, e.cy);
