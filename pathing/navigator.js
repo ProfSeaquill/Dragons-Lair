@@ -175,3 +175,16 @@ function turnKind(prev, next) {
   if (delta === 3) return 'left';
   return 'back'; // delta === 2
 }
+function isJunction(grid, x, y, cameFromDir) {
+  const ns = grid.neighbors4(x, y);
+  const deg = ns.length;
+  if (deg >= 3) return true;                     // obvious junction
+  // “two-way but branching relative to downhill”
+  // If ≥2 downhill dirs, it’s also a decision point:
+  const downs = getBestDirs(dp, x, y);
+  if (downs.length >= 2) return true;
+  // Optional: treat a T-junction behind you as a junction
+  const excludingBack = ns.filter(([nx,ny]) => dirFromDelta(x,y,nx,ny) !== opposite(cameFromDir));
+  return excludingBack.length >= 2;
+}
+
