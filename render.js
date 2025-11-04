@@ -5,7 +5,7 @@
 import * as state from './state.js';
 
 // DEBUG toggle
-window.__logFlame = window.__logFlame ?? true;
+window.__logFlame = window.__logFlame ?? false; // default quiet; toggle in console if needed
 
 
 
@@ -346,58 +346,82 @@ function drawCapsule(ctx, cx, cy, w, h, angleRad = 0) {
   ctx.restore();
 }
 
+// Small deterministic nudge so stacked enemies don't perfectly overlap.
+// Purely visual; does not affect gameplay coordinates.
+function enemyRenderOffset(e, tsize) {
+  const id = (e?.id | 0);
+  const s1 = ((id * 1103515245 + 12345) >>> 16) & 0xff; // LCG-ish hash
+  const s2 = ((id * 2654435761 + 97) >>> 16) & 0xff;
+  const amp = Math.max(0.5, tsize * 0.08);  // ~8% tile
+  // map 0..255 -> [-1,1] then scale; slight bias along intended dir if available
+  const jx = ((s1 / 127.5) - 1) * amp;
+  const jy = ((s2 / 127.5) - 1) * amp;
+
+  // If we know a grid-facing dir, bias the offset slightly along it so a column reads left/right/vertically.
+  let bx = 0, by = 0;
+  const d = e?.dir;
+  if (d === 'E') bx = amp * 0.25;
+  else if (d === 'W') bx = -amp * 0.25;
+  else if (d === 'S') by = amp * 0.25;
+  else if (d === 'N') by = -amp * 0.25;
+
+  return { dx: jx + bx, dy: jy + by };
+}
+
 /* ===================== enemies, dragon, fire, shimmer ===================== */
 
 function drawEnemies(ctx, gs) {
   if (!Array.isArray(gs.enemies)) return;
-  const r = Math.max(3, state.GRID.tile * 0.22);
+  const t = state.GRID.tile;
+  const r = Math.max(3, t * 0.22);
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
-  for (const e of gs.enemies) {
-    if (e.type === 'engineer' && e.tunneling) {
-      continue;
-    }
-    const t = state.GRID.tile; // or your existing tile size ref
-    const ex = (e.x != null) ? e.x : (e.cx + 0.5) * t;
-    const ey = (e.y != null) ? e.y : (e.cy + 0.5) * t;
-    const size = (e.size || 1) * t * 0.9;
-    if (!isOnScreen(ex - size*0.5, ey - size*0.5, size, size, ctx.canvas.width, ctx.canvas.height)) continue;
-    if (!enemyPixelPositionInto(SCR.p, e)) continue;
-    const p = SCR.p;
+  // Shallow copy + Y-sort for nicer overlap (closest is drawn last)
+  const list = gs.enemies.slice().sort((a, b) => {
+    const ay = (typeof a.y === 'number') ? a.y : (a.cy + 0.5) * t;
+    const by = (typeof b.y === 'number') ? b.y : (b.cy + 0.5) * t;
+    return ay - by;
+  });
 
+  for (const e of list) {
+    if (e.type === 'engineer' && e.tunneling) continue; // drawn by tunnel ring
+
+    // Resolve a pixel position
+    const ex = (typeof e.x === 'number') ? e.x : (e.cx + 0.5) * t;
+    const ey = (typeof e.y === 'number') ? e.y : (e.cy + 0.5) * t;
+    const size = (e.size || 1) * t * 0.9;
+    if (!isOnScreen(ex - size * 0.5, ey - size * 0.5, size, size, ctx.canvas.width, ctx.canvas.height)) continue;
+
+    // Deterministic micro-offset to reduce perfect stacking
+    const off = enemyRenderOffset(e, t);
+    const px = ex + off.dx;
+    const py = ey + off.dy;
 
     const bodyColor = TYPE_COLOR[e.type] || (e?.shield ? '#5cf' : '#fc3');
-    circle(ctx, p.x, p.y, r, bodyColor, true);
-    if (e?.shield)   ring(ctx, p.x, p.y, r + 2, '#9df');
-    if (e?.miniboss) ring(ctx, p.x, p.y, r + 5, '#f7a');
+    circle(ctx, px, py, r, bodyColor, true);
+    if (e?.shield)   ring(ctx, px, py, r + 2, '#9df');
+    if (e?.miniboss) ring(ctx, px, py, r + 5, '#f7a');
 
-    // Optional HP bar logic (kept if you use e.showHpUntil / e.maxHp)
+    // Optional HP bar (uses e.showHpUntil / e.maxHp)
     if (e.showHpUntil && now < e.showHpUntil && e.maxHp > 0) {
-      const t = state.GRID.tile;
       const barW = Math.max(18, t * 0.8);
       const barH = Math.max(3,  t * 0.10);
-      const x = p.x - barW / 2;
-      const y = p.y - r - 6 - barH;
+      const x = px - barW / 2;
+      const y = py - r - 6 - barH;
 
       const life = Math.max(0, e.showHpUntil - now) / 1000; // 0..1s
       const alpha = Math.min(1, life * 1.2);
-
       const ratio = Math.max(0, Math.min(1, e.hp / e.maxHp));
+
       ctx.save();
       ctx.globalAlpha = alpha;
-
-      // back
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(x, y, barW, barH);
-
-      // front
-      ctx.fillStyle = '#4ade80';
-      ctx.fillRect(x + 1, y + 1, (barW - 2) * ratio, barH - 2);
-
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x, y, barW, barH);
+      ctx.fillStyle = '#4ade80';         ctx.fillRect(x + 1, y + 1, (barW - 2) * ratio, barH - 2);
       ctx.restore();
     }
   }
 }
+
 
 function drawDragonAndMouthFire(ctx, gs) {
   const p = centerOf(state.EXIT.x, state.EXIT.y);
@@ -522,12 +546,9 @@ function drawFlameWaves(ctx, gs) {
     const start = Math.max(0, fx.headIdx - tailLen);
     const end   = fx.headIdx;
 
-  if (window.__logFlame) {
-  console.debug('[flameWave] headIdx, head.dir, len',
-    fx.headIdx,
-    fx.path?.[fx.headIdx]?.dir,
-    fx.path?.length
-  );
+  if (window.__logFlame === true && (seg.dir !== 'h' && seg.dir !== 'v')) {
+  console.warn('[flameWave] segment missing dir at i=', i, seg);
+}
 }
 
     for (let i = start; i <= end; i++) {
