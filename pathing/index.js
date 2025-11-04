@@ -89,26 +89,81 @@ export function renderOffset(agent, occ, tileSize, opts) {
   return computeOffset(count, idx, tileSize, opts, agent.id);
 }
 
-export function despawnAgent(gs, agent) {
-  if (!gs || !agent) return;
+// pathing/index.js (adapter stubs so state.js can import them)
 
-  agent.dead = true;
-  if (Array.isArray(gs.enemies)) {
-    const i = gs.enemies.indexOf(agent);
-    if (i !== -1) gs.enemies.splice(i, 1);
+export function updateAgent(e, gs, dt = 0) {
+  // No-op “still alive” result so the game loop doesn’t break.
+  // If your engine already moves enemies elsewhere, this won’t interfere.
+  if (!e || !gs) return { ok: true };
+
+  // If someone set a flag like e.dead elsewhere:
+  if (e.hp != null && e.hp <= 0) return { dead: true };
+
+  // If this enemy is already marked as having reached exit:
+  if (e.arrived) return { arrived: true };
+
+  // If you have a path array and want the tiniest motion:
+  if (Array.isArray(e.path) && e.path.length) {
+    const tsize = gs?.GRID?.tile || 32;
+    const idx = e.pathIdx | 0;
+    const node = e.path[idx] || e.path[e.path.length - 1];
+    const targetX = (node.x + 0.5) * tsize;
+    const targetY = (node.y + 0.5) * tsize;
+
+    // Use pixel coords if present; otherwise initialize from cx/cy
+    if (typeof e.x !== 'number' || typeof e.y !== 'number') {
+      if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
+        e.x = (e.cx + 0.5) * tsize;
+        e.y = (e.cy + 0.5) * tsize;
+      }
+    }
+
+    if (typeof e.x === 'number' && typeof e.y === 'number') {
+      const speed = (e.speed || 1.0) * (tsize * 2.0); // pixels/sec fallback
+      const dx = targetX - e.x, dy = targetY - e.y;
+      const dist = Math.hypot(dx, dy);
+      const step = Math.max(0, speed * dt);
+
+      if (dist <= Math.max(1, tsize * 0.1)) {
+        e.pathIdx = idx + 1;
+        if (e.pathIdx >= e.path.length) {
+          // Treat end-of-path as arrival at EXIT
+          return { arrived: true };
+        }
+        return { ok: true };
+      } else if (step > 0) {
+        e.x += (dx / (dist || 1)) * Math.min(step, dist);
+        e.y += (dy / (dist || 1)) * Math.min(step, dist);
+        return { ok: true };
+      }
+    }
+
+    // Couldn’t progress, ask caller to replan if grid changed:
+    if (gs?.topologyRevision && e._seenTopoRev !== gs.topologyRevision) {
+      e._seenTopoRev = gs.topologyRevision;
+      return { replan: true };
+    }
+    return { stalled: true };
   }
 
-  // Optional: if you keep any path reservations keyed by agent.id,
-  // clear them here. For example:
-  // if (gs.path?.reservations && agent.id != null) {
-  //   for (const k of Object.keys(gs.path.reservations)) {
-  //     const v = gs.path.reservations[k];
-  //     if (v === agent.id || (Array.isArray(v) && v.includes(agent.id))) {
-  //       delete gs.path.reservations[k];
-  //     }
-  //   }
-  // }
+  // No path known → request a replan
+  return { replan: true };
 }
+
+export function despawnAgent(gs, e, reason = 'unknown') {
+  if (!gs || !e) return;
+  const list = gs.enemies;
+  if (Array.isArray(list)) {
+    const idx = list.indexOf(e);
+    if (idx >= 0) list.splice(idx, 1);
+  }
+  if (reason === 'arrived') {
+    const dmg = (e.damage | 0) || 1;
+    gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - dmg);
+  }
+  // Optional: currency/effects hooks could go here if you want.
+}
+
 
 // ===== helpers =====
 
