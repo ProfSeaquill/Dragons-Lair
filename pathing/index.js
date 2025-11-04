@@ -164,6 +164,19 @@ export function despawnAgent(gs, e, reason = 'unknown') {
   // Optional: currency/effects hooks could go here if you want.
 }
 
+// ---- Init / topology -------------------------------------------------------
+
+export function initPathing(gs) {
+  // Ensure a topology revision counter exists
+  gs.topologyRevision = gs.topologyRevision | 0;
+  return { ok: true };
+}
+
+// Utility you can call when walls change
+export function onTopologyChanged(gs) {
+  gs.topologyRevision = (gs.topologyRevision | 0) + 1;
+  return gs.topologyRevision;
+}
 
 // ===== helpers =====
 
