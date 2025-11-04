@@ -8,7 +8,6 @@ import * as state from './state.js';
 window.__logFlame = window.__logFlame ?? true;
 
 
-
 // ===== Phase 9: render scratch + caches =====
 const SCR = {
   rect: { x:0, y:0, w:0, h:0 },       // generic rect scratch
@@ -740,4 +739,3 @@ function enemyPixelPositionInto(out, e) {
   }
   return false;
 }
-
