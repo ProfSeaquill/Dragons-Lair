@@ -149,8 +149,13 @@ export function updateAgent(agent, dtSec, ctx) {
 
   if (opts.clampMovesToFree && !grid.isFree(nav.nx, nav.ny)) {
     // Defensive: target somehow invalid; skip this tick.
-    return null;
-  }
+    
+    if (!nav) {
+  console.debug('[path] stuck at', agent.x, agent.y,
+    'downs=', getBestDirs(dp, agent.x|0, agent.y|0),
+    'ns=', ctx.grid.neighbors4(agent.x|0, agent.y|0));
+  return null;
+}
 
   moveTo(agent, nav.nx, nav.ny, ctx);
   return { moved: true, nx: nav.nx, ny: nav.ny };
