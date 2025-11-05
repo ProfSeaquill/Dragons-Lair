@@ -431,7 +431,7 @@ export function makeGridApiForState(gs) {
 export function ensureFreshPathing(gs = GameState) {
   // Rebuild whenever topology changes
   if (!gs._pathCtx || gs._pathTopoVersion !== (gs.topologyVersion | 0)) {
-    const gridApi = makeGridApiForState(gs);   // <-- no createPathGrid
+    const gridApi = api.createPathGrid(gs);
     gs._pathCtx = initPathing(gridApi, EXIT, {
       enableDetourOnCrowd: true,
       softCap: 3,
