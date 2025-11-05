@@ -30,6 +30,45 @@ const DIR4 = [
   [ 0,-1],  // North
 ];
 
+// Map a neighbor delta to an edge side from (x,y)
+function _sideTo(nx, ny, x, y) {
+  if (nx === x+1 && ny === y) return 'E';
+  if (nx === x-1 && ny === y) return 'W';
+  if (nx === x && ny === y+1) return 'S';
+  if (nx === x && ny === y-1) return 'N';
+  return null;
+}
+
+/**
+ * neighbors4 that respects edge walls stored in state.ensureCell(...).
+ * Uses your existing edgeHasWall(gs,x,y,side).
+ */
+export function neighbors4Open(gs, x, y) {
+  const out = [];
+  if (x+1 < state.GRID.cols && !edgeHasWall(gs, x, y, 'E')) out.push([x+1, y]);
+  if (x-1 >= 0               && !edgeHasWall(gs, x, y, 'W')) out.push([x-1, y]);
+  if (y+1 < state.GRID.rows && !edgeHasWall(gs, x, y, 'S')) out.push([x, y+1]);
+  if (y-1 >= 0               && !edgeHasWall(gs, x, y, 'N')) out.push([x, y-1]);
+  return out;
+}
+
+/**
+ * Build a pathing grid view for the current game state.
+ * isFree() is tile-level (don’t over-block). neighbors4() filters by walls.
+ */
+export function createPathGrid(gs) {
+  const cols = state.GRID.cols;
+  const rows = state.GRID.rows;
+  return {
+    cols,
+    rows,
+    inBounds: (x, y) => x >= 0 && x < cols && y >= 0 && y < rows,
+    // Don’t mark tiles blocked here—edges do the blocking.
+    isFree: (x, y) => x >= 0 && x < cols && y >= 0 && y < rows,
+    neighbors4: (x, y) => neighbors4Open(gs, x, y),
+  };
+}
+
 /**
  * @typedef {Object} GridApi
  * @property {number} cols
