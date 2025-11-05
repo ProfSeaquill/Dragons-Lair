@@ -152,20 +152,20 @@ export function updateAgent(agent, dtSec, ctx) {
     }
   }
 
-    // 3) Normal navigation (your junction-gated Trémaux logic lives inside).
+     // 3) Normal navigation (your junction-gated Trémaux logic lives inside).
   const nav = chooseNavStep(agent, dp, grid, occ, {
     softCap: opts.softCap,
   });
 
+  // If we couldn't pick a move, log some local context and bail.
   if (!nav) {
-    // No step chosen — helpful one-shot debug
-    console.debug('[path] no step at', x, y,
+    console.debug('[path] stuck at', x, y,
       'downs=', getBestDirs(dp, x, y),
       'ns=', grid.neighbors4(x, y));
     return null;
   }
 
-  // Defensive: if the chosen target is not free, skip this tick.
+  // Defensive: if the chosen target isn’t currently free, skip this tick.
   if (opts.clampMovesToFree && !grid.isFree(nav.nx, nav.ny)) {
     console.debug('[path] target blocked', { from: [x, y], to: [nav.nx, nav.ny] });
     return null;
@@ -173,7 +173,7 @@ export function updateAgent(agent, dtSec, ctx) {
 
   moveTo(agent, nav.nx, nav.ny, ctx);
   return { moved: true, nx: nav.nx, ny: nav.ny };
-} 
+}
 
 /** Visual-only sub-tile offset for rendering. */
 export function renderOffset(agent, ctx, tileSize) {
