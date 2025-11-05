@@ -162,7 +162,7 @@ export function updateAgent(agent, dtSec, ctx) {
 
   moveTo(agent, nav.nx, nav.ny, ctx);
   return { moved: true, nx: nav.nx, ny: nav.ny };
-  
+} 
 
 /** Visual-only sub-tile offset for rendering. */
 export function renderOffset(agent, ctx, tileSize) {
