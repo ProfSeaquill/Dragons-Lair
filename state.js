@@ -2,7 +2,7 @@
 
 // === New pathing imports ===
 import { initPathing, spawnAgent as _pathSpawn, despawnAgent as _pathDespawn, updateAgent as _pathUpdate, renderOffset as _pathRenderOffset } from './pathing/index.js';
-import { createPathGrid } from './grid/api.js';
+import * as api from './grid/api.js'; // for api.edgeHasWall(...)
 
 // ===== Grid & Entry/Exit =====
 export const GRID = { cols: 24, rows: 16, tile: 32 };
@@ -392,23 +392,36 @@ export function inBounds(x, y) {
 
 // Build a grid API *from current state* that respects edge walls + virtual gates.
 // This is what the pathing/index.js orchestrator uses.
-function makeGridApiForState(gs = GameState) {
-  return {
-    cols: GRID.cols,
-    rows: GRID.rows,
-    inBounds: (x, y) => inBounds(x, y),
-    // Tiles themselves are always passable; movement is constrained by neighbors4 via edges.
-    isFree: (x, y) => inBounds(x, y),
-    neighbors4: (x, y) => {
-      const ns = [];
-      // We only add neighbors if the *edge* is open per your rules.
-      if (isOpen(gs, x, y, 'E') && inBounds(x + 1, y)) ns.push([x + 1, y]);
-      if (isOpen(gs, x, y, 'W') && inBounds(x - 1, y)) ns.push([x - 1, y]);
-      if (isOpen(gs, x, y, 'S') && inBounds(x, y + 1)) ns.push([x, y + 1]);
-      if (isOpen(gs, x, y, 'N') && inBounds(x, y - 1)) ns.push([x, y - 1]);
-      return ns;
-    },
+export function makeGridApiForState(gs) {
+  const cols = GRID.cols, rows = GRID.rows;
+
+  const inBounds = (x, y) => (x >= 0 && x < cols && y >= 0 && y < rows);
+
+  // Tiles themselves are free unless out of bounds or inside the dragon's footprint.
+  // (Add other tile-level blockers here if you truly have them.)
+  const isFree = (x, y) => inBounds(x, y) && !isDragonCell(x, y, gs);
+
+  // Neighbors are “free tiles that are reachable without a wall between”.
+  const neighbors4 = (x, y) => {
+    const out = [];
+    // side label is from the *source* tile’s perspective
+    const cand = [
+      ['E', x + 1, y],
+      ['W', x - 1, y],
+      ['S', x, y + 1],
+      ['N', x, y - 1],
+    ];
+    for (const [side, nx, ny] of cand) {
+      if (!inBounds(nx, ny)) continue;
+      if (!isFree(nx, ny)) continue;
+      // If there's a wall on the edge between (x,y) and (nx,ny), skip it
+      if (api.edgeHasWall(gs, x, y, side)) continue;
+      out.push([nx, ny]);
+    }
+    return out;
   };
+
+  return { cols, rows, inBounds, isFree, neighbors4 };
 }
 
 /**
