@@ -56,18 +56,50 @@ export function neighbors4Open(gs, x, y) {
  * Build a pathing grid view for the current game state.
  * isFree() is tile-level (don’t over-block). neighbors4() filters by walls.
  */
+// ⬇️ Add in grid/api.js
 export function createPathGrid(gs) {
-  const cols = state.GRID.cols;
-  const rows = state.GRID.rows;
+  const cols = state.GRID.cols, rows = state.GRID.rows;
+
+  const inBounds = (x, y) => (x >= 0 && x < cols && y >= 0 && y < rows);
+
+  // Passable rule: everything in-bounds is passable EXCEPT dragon footprint…
+  // …but EXIT itself is *always* passable so BFS can seed from it.
+  const isPassable = (x, y) => {
+    if (!inBounds(x, y)) return false;
+    const onDragon = typeof state.isDragonCell === 'function' && state.isDragonCell(x, y, gs);
+    const isExit   = (x === state.EXIT.x && y === state.EXIT.y);
+    return isExit || !onDragon;
+  };
+
+  const neighbors4 = (x, y) => {
+    const out = [];
+    // From (x,y), you may step into (nx,ny) only if the shared edge has no wall.
+    const DIRS = [
+      ['E',  1,  0],
+      ['W', -1,  0],
+      ['S',  0,  1],
+      ['N',  0, -1],
+    ];
+    for (const [side, dx, dy] of DIRS) {
+      const nx = x + dx, ny = y + dy;
+      if (!inBounds(nx, ny)) continue;
+      if (!isPassable(nx, ny)) continue;
+      // Blocked if there is a wall on the edge we’re about to cross
+      if (edgeHasWall(gs, x, y, side)) continue;
+      out.push([nx, ny]);
+    }
+    return out;
+  };
+
   return {
     cols,
     rows,
-    inBounds: (x, y) => x >= 0 && x < cols && y >= 0 && y < rows,
-    // Don’t mark tiles blocked here—edges do the blocking.
-    isFree: (x, y) => x >= 0 && x < cols && y >= 0 && y < rows,
-    neighbors4: (x, y) => neighbors4Open(gs, x, y),
+    inBounds,
+    isFree: isPassable,   // adapter name used by directpath
+    neighbors4,
   };
 }
+
 
 /**
  * @typedef {Object} GridApi
