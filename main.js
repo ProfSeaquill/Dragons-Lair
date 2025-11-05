@@ -8,7 +8,7 @@ import { bindUI, UI } from './ui.js';
 import * as render from './render.js';
 import { initLighting } from './lighting-webgl.js';
 import { buyUpgrade } from './upgrades.js';
-
+import { updateAgent } from './pathing/index.js';
 // ----- Combat (robust namespace import; tolerant of export name variants) -----
 import * as combat from './combat.js';
 
