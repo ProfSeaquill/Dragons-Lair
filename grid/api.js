@@ -125,6 +125,35 @@ export function edgeHasWall(gs, x, y, side) {
   }
 }
 
+// ---- write: toggle an edge and mirror its neighbor edge ----
+export function toggleEdge(gs, x, y, side) {
+  if (!state.inBounds(x, y)) return false;
+  const rec = _ensureCell(gs, x, y);
+  let changed = false;
+
+  const flip = (obj, k) => { obj[k] = obj[k] ? 0 : 1; changed = true; };
+
+  if (side === 'N') {
+    flip(rec, 'N');
+    if (y > 0) flip(_ensureCell(gs, x, y - 1), 'S');
+  } else if (side === 'S') {
+    flip(rec, 'S');
+    if (y < state.GRID.rows - 1) flip(_ensureCell(gs, x, y + 1), 'N');
+  } else if (side === 'W') {
+    flip(rec, 'W');
+    if (x > 0) flip(_ensureCell(gs, x - 1, y), 'E');
+  } else if (side === 'E') {
+    flip(rec, 'E');
+    if (x < state.GRID.cols - 1) flip(_ensureCell(gs, x + 1, y), 'W');
+  }
+
+  // Notify systems that depend on topology
+  if (changed && typeof state.bumpTopology === 'function') {
+    state.bumpTopology(gs);
+  }
+  return changed;
+}
+
 /**
  * Option validation & normalization.
  * @param {Object} opts
