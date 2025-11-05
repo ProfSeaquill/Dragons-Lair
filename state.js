@@ -2,6 +2,7 @@
 
 // === New pathing imports ===
 import { initPathing, spawnAgent as _pathSpawn, despawnAgent as _pathDespawn, updateAgent as _pathUpdate, renderOffset as _pathRenderOffset } from './pathing/index.js';
+import { createPathGrid } from './grid/api.js';
 
 // ===== Grid & Entry/Exit =====
 export const GRID = { cols: 24, rows: 16, tile: 32 };
@@ -415,19 +416,25 @@ function makeGridApiForState(gs = GameState) {
  * We rebuild lazily the next time someone asks for it.
  */
 export function ensureFreshPathing(gs = GameState) {
-  if (!gs._pathCtx || gs._pathTopoVersion !== gs.topologyVersion) {
-    const gridApi = makeGridApiForState(gs);
-    gs._pathCtx = initPathing(gridApi, EXIT, {
-      enableDetourOnCrowd: true,
-      softCap: 3,
-      // Flip to true if you want speed-based stepping in updateAgent()
-      useTiming: false,
-      // You can add debugDetours: true here if you want quick console logs later.
-    });
+  // Rebuild whenever the maze topology changes
+  if (!gs._pathCtx || gs._pathTopoVersion !== (gs.topologyVersion | 0)) {
+    const pgrid = createPathGrid(gs);               // wall-aware neighbors4()
+    gs._pathCtx = initPathing(
+      pgrid,
+      { x: EXIT.x | 0, y: EXIT.y | 0 },            // ensure integers
+      {
+        enableDetourOnCrowd: true,
+        softCap: 3,
+        useTiming: false,                           // step every tick by default
+        // detour: { maxSteps: 2 },                 // (optional) tweak if desired
+        // separation: { maxOffsetRatio: 0.25 },    // (optional) render tuning
+      }
+    );
     gs._pathTopoVersion = gs.topologyVersion | 0;
   }
   return gs._pathCtx;
 }
+
 
 // Convenience wrappers so the rest of your game can call pathing without importing pathing/*
 export function pathSpawnAgent(agent, gs = GameState) {
