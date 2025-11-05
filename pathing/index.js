@@ -98,16 +98,6 @@ export function updateAgent(agent, dtSec, ctx) {
 
   const x = agent.x | 0, y = agent.y | 0;
 
-  if (opts.clampMovesToFree && !grid.isFree(nav.nx, nav.ny)) {
-  console.debug('[path] target blocked', {
-    from: [x, y],
-    to: [nav.nx, nav.ny],
-    downs: getBestDirs(dp, x, y),
-    ns: grid.neighbors4(x, y),
-    free_to: grid.isFree(nav.nx, nav.ny)
-  });
-  return null;
-}
 
   // 1) If currently detouring for crowd, try a detour step first.
   if (agent._detour?.active) {
