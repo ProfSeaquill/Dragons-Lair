@@ -73,6 +73,8 @@ export function buildDirectPath(exitX, exitY, grid) {
   dist[idx(exitX, exitY)] = 0;
   qx[qt] = exitX; qy[qt] = exitY; qt++;
 
+  console.debug('[dp] seed exit', exitX, exitY, 'free?', grid.isFree(exitX, exitY));
+
   while (qh !== qt) {
     const x = qx[qh], y = qy[qh]; qh++;
     const d = dist[idx(x, y)];
