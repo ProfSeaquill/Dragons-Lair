@@ -397,9 +397,9 @@ export function makeGridApiForState(gs) {
 
   const inBounds = (x, y) => (x >= 0 && x < cols && y >= 0 && y < rows);
 
-  // Tiles themselves are free unless out of bounds or inside the dragon's footprint.
-  // (Add other tile-level blockers here if you truly have them.)
-  const isFree = (x, y) => inBounds(x, y) && !isDragonCell(x, y, gs);
+  // Let the distance field flood through; edge gating enforces combat rules.
+const isFree = (x, y) => inBounds(x, y);
+
 
   // Neighbors are “free tiles that are reachable without a wall between”.
   const neighbors4 = (x, y) => {
