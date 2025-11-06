@@ -14,8 +14,10 @@
 //                      after leaving start, so your FSM can run a Decision there.
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { neighbors4, dirFromTo, isJunction, inBounds, } from "../grid/walls.js";
-import { isOpen as isPassable } from '../state.js';
+import { neighbors4, dirFromTo, isJunction, } from "../grid/walls.js";
+import { GRID, isOpen as isPassable, inBounds } from '../state.js';
+
+
 
 
 //// TUNABLES ///////////////////////////////////////////////////////////////////
