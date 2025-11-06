@@ -477,7 +477,7 @@ export function makeGridApiForState(gs) {
       // Physical edge wall blocks?
       if (walls.edgeHasWall(gs, x, y, side)) continue;
 
-      out.push([nx, ny]);
+      out.push({ x: nx, y: ny });
     }
     return out;
   };
