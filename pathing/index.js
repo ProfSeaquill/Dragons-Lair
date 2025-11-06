@@ -56,6 +56,14 @@ export function updateAgent(enemy, /* dtSec, */ ctx) {
   enemy.x = (nx + 0.5) * tile;
   enemy.y = (ny + 0.5) * tile;
 
+  // DIAG: throttle peek per enemy
+if ((enemy.__peekT = (enemy.__peekT ?? 0) + 1) % 60 === 0) {
+  try {
+    const st = getFSMState(enemy._fsm);
+    console.log('[DIAG fsm]', { id: enemy.id, type: enemy.type, st, x: enemy._fsm.x, y: enemy._fsm.y });
+  } catch {}
+}
+
   return { moved: true, x: nx, y: ny, state: getFSMState(enemy._fsm) };
 }
 
