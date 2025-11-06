@@ -2,7 +2,7 @@
 
 // === New pathing imports ===
 import { initPathing, spawnAgent as _pathSpawn, despawnAgent as _pathDespawn, updateAgent as _pathUpdate, renderOffset as _pathRenderOffset } from './pathing/index.js';
-import * as walls from './grid/walls.js'; 
+import * as tpl from './grid/topology.js'; 
 
 // ===== Grid & Entry/Exit =====
 export const GRID = { cols: 24, rows: 16, tile: 32 };
@@ -474,7 +474,7 @@ export function makeGridApiForState(gs) {
       if (!hereIsDragon && nextIsDragon && side !== 'E') continue;
 
       // Physical edge wall blocks?
-      if (walls.edgeHasWall(gs, x, y, side)) continue;
+      if (tpl.edgeHasWall(gs, x, y, side)) continue;
 
       out.push([nx, ny]);
     }
@@ -489,7 +489,7 @@ export function makeGridApiForState(gs) {
 export function ensureFreshPathing(gs = GameState) {
   // Rebuild whenever topology changes
   if (!gs._pathCtx || gs._pathTopoVersion !== (gs.topologyVersion | 0)) {
-    const gridApi = walls.createPathGrid(gs);
+    const gridApi = tpl.createPathGrid(gs);
     gs._pathCtx = initPathing(gridApi, EXIT, {
       enableDetourOnCrowd: true,
       softCap: 3,
