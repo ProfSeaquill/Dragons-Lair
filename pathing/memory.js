@@ -135,6 +135,7 @@ export function isEdgeExplored(mem, ax, ay, bx, by) {
  *  Returns { chosenDir, hasRemaining }.
  */
 export function pushBreadcrumb(mem, jx, jy, backDir, exits, posX, posY) {
+  mem = ensureMem(mem);
   // 1) Build candidate mask: exits minus backDir and minus edges already explored
   let mask = 0;
   for (const d of exits) {
@@ -162,12 +163,14 @@ export function pushBreadcrumb(mem, jx, jy, backDir, exits, posX, posY) {
 
 /** Return the top breadcrumb (or null). */
 export function peekBreadcrumb(mem) {
+  mem = ensureMem(mem);
   const n = mem.stack.length;
   return n ? mem.stack[n - 1] : null;
 }
 
 /** Pop the top breadcrumb. */
 export function popBreadcrumb(mem) {
+  mem = ensureMem(mem);
   return mem.stack.pop() || null;
 }
 
