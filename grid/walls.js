@@ -17,8 +17,8 @@
 
 //// Internal state /////////////////////////////////////////////////////////////
 
-let COLS = 0;
-let ROWS = 0;
+let COLS = 24;
+let ROWS = 16;
 // Store blocked tiles as "x,y" in a Set for O(1) queries.
 const WALLS = new Set();
 
@@ -117,8 +117,8 @@ export function loadWallsArray(rowsArray) {
 export function neighbors4(x, y) {
   const n = [];
   // Keep the push order aligned with DIRS for predictability
-  if (isPassable(x, y - 1)) n.push({ x, y: y - 1, dir: "N" }); // N
   if (isPassable(x + 1, y)) n.push({ x: x + 1, y, dir: "E" }); // E
+  if (isPassable(x, y - 1)) n.push({ x, y: y - 1, dir: "N" }); // N
   if (isPassable(x, y + 1)) n.push({ x, y: y + 1, dir: "S" }); // S
   if (isPassable(x - 1, y)) n.push({ x: x - 1, y, dir: "W" }); // W
   return n;
