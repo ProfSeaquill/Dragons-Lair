@@ -3,6 +3,7 @@
 import * as state from '../state.js';
 
 const OPP = { N:'S', S:'N', E:'W', W:'E' };
+const useGS = (maybeGs) => (maybeGs && maybeGs.GRID ? maybeGs : state.GameState);
 
 // ───────────────── Registry (shim) ─────────────────
 let __grid = null;
