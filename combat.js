@@ -419,35 +419,7 @@ function initializeSpawnPrevAndCommit(e) {
 /* =========================
  * Enemy templates & scaling
  * ========================= */
-// --- Wave progress in [0,1] where wave 1 -> 0, wave 101 -> 1
-const MAX_WAVE_CAP = 101;
-function waveProgress(wave, maxWave = MAX_WAVE_CAP) {
-  const w = Math.max(1, wave | 0);
-  return Math.min(1, (w - 1) / Math.max(1, (maxWave - 1)));
-}
-
-// Linear: early slow, exactly cap at p=1
-function linCap(base, cap, p) {
-  const t = Math.max(0, Math.min(1, p));
-  return base + (cap - base) * t;
-}
-
-// Power curve: p^a (a>1 = slow early, a<1 = fast early), hits cap at p=1
-function powCap(base, cap, p, a = 1.0) {
-  const t = Math.max(0, Math.min(1, p));
-  const s = Math.pow(t, Math.max(0.0001, a));
-  return base + (cap - base) * s;
-}
-
-// Exponential-like (tempered) growth, normalized to reach exactly 1 at p=1
 // k controls “tempo” (higher = faster early growth). Always reaches cap at p=1.
-function expCap(base, cap, p, k = 3.0) {
-  const t = Math.max(0, Math.min(1, p));
-  const denom = 1 - Math.exp(-k);
-  const s = denom > 0 ? (1 - Math.exp(-k * t)) / denom : t; // normalized
-  return base + (cap - base) * s;
-}
-
 const ENEMY_MAX_WAVE = 101;
 function waveP(w, max = ENEMY_MAX_WAVE) { return Math.min(1, Math.max(0, (Math.max(1, w|0)-1) / (max-1))); }
 function exp01(p, k=3){ 
@@ -484,11 +456,6 @@ const FLAGS = {
 };
 
 // -------- Wave helpers --------
-function normalizedWaveProgress(wave, maxWave = MAX_WAVE_CAP) {
-  const w = Math.max(1, wave | 0);
-  return Math.min(1, (w - 1) / Math.max(1, (maxWave - 1)));
-}
-
 // Progress gated by unlock (minWave): 0 before unlock; 1 at maxWave
 function unlockedProgress(wave, minWave = 1, maxWave = MAX_WAVE_CAP) {
   if (wave < (minWave | 0)) return 0;
