@@ -1,6 +1,6 @@
 // ui.js — edge-wall build mode + HUD + Next Wave preview + Dev Panel
 import * as state from './state.js';
-import * as tpl from './grid/topology.js';
+import * as walls from './grid/walls.js';
 import * as upgrades from './upgrades.js';
 
 // ---------- DOM helpers ----------
@@ -335,7 +335,7 @@ if (!hover) {
   return;
 }
 
-const hasWall = tpl.edgeHasWall(gs, hover.x, hover.y, hover.side);
+const hasWall = walls.edgeHasWall(gs, hover.x, hover.y, hover.side);
 const k = `${hover.x},${hover.y},${hover.side}`;
 if (k !== _hoverKey || hasWall !== _hoverHasWall) {
   _hoverKey = k;
@@ -387,10 +387,10 @@ tell(msg, '#9cf');
       }
 
       // Attempt to place
-      tpl.toggleEdge(gs, hover.x, hover.y, hover.side);
+      walls.toggleEdge(gs, hover.x, hover.y, hover.side);
 
       // If placement was rejected (e.g., would fully block entry↔exit), don't charge
-      const placed = tpl.edgeHasWall(gs, hover.x, hover.y, hover.side);
+      const placed = walls.edgeHasWall(gs, hover.x, hover.y, hover.side);
       if (!placed) {
         tell("Can't block entry ↔ exit");
         return;
@@ -405,7 +405,7 @@ tell(msg, '#9cf');
 
     } else if (remove) {
       // Remove (no refund here; if you want, credit edgeRefund(gs) to gs.bones)
-      tpl.toggleEdge(gs, hover.x, hover.y, hover.side);
+      walls.toggleEdge(gs, hover.x, hover.y, hover.side);
       globalThis.Telemetry?.log('wall:remove', { x: hover.x, y: hover.y, side: hover.side });
 
       state.bumpTopology?.(gs, 'ui:edge-remove');
