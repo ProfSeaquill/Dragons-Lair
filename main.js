@@ -1,7 +1,7 @@
 // main.js — boot, game loop, UI wiring, and combat integration (named imports)
 import * as Debug from './debugOverlay.js';
 import { getCooldowns } from './combat.js';
-import { installPermanentBones } from './grid/walls.js';
+import { installPermanentWalls } from './grid/walls.js';
 import * as state from './state.js';
 import { ensureFreshPathing } from './state.js'; // new pathing API
 import { bindUI, UI } from './ui.js';
