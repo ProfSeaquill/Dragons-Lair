@@ -113,8 +113,8 @@ class MinHeap {
  * TUNABLE: If you want partial paths on timeout, you can return the best-so-far.
  */
 export function aStarToTarget(sx, sy, gx, gy) {
-  if (!inBounds(sx, sy) || !inBounds(gx, gy) || !isPassable(sx, sy) || !isPassable(gx, gy)) {
-    return null;
+ // Tiles themselves are passable; edge blocking happens via neighbors4().
+  if (!inBounds(sx, sy) || !inBounds(gx, gy)) return null;
   }
   if (sx === gx && sy === gy) return [{ x: sx, y: sy }];
 
