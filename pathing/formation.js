@@ -11,7 +11,7 @@
 // - ordering:          The group array MUST be ordered [leader, f1, f2, ...].
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { isPassable } from "../grid/walls.js";
+import { isOpen as isPassable } from '../state.js';
 
 // TUNABLE: small per-follower start delay in ticks (e.g., [0,0,0] = tight stack).
 // Length should be >= group size; extra entries are ignored.
