@@ -56,7 +56,7 @@ export function installPermanentWalls(gs) {
     [21, 11, 'N'], [22, 11, 'N'], [23, 11, 'N'], [20, 9, 'W'],
     [21, 10, 'W'], [21,  6, 'W'], [20, 7, 'N'], [20, 7, 'W'],
   ];
-  for (const [x, y, side] of PERMA) setEdgeWall(gs, x, y, side, true);
+  for (const [x, y, side] of PERMA) setEdge(gs, x, y, side, true);
   // single bump after batch
   if (typeof state?.bumpTopology === 'function') state.bumpTopology(gs, 'permanent-walls');
 }
