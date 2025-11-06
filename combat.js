@@ -355,7 +355,7 @@ function wingGustPush(gs, tiles) {
 
 // Roar: stun + temporary behavior buff within range
 function roarAffect(gs, rs) {
-  const a = dragonAnchor(gs);
+  const a = state.dragonAnchor(gs);
     for (const e of gs.enemies) {
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
     if (e.type === 'engineer' && e.tunneling) continue; // ← roar doesn’t affect burrowers
@@ -373,7 +373,7 @@ function roarAffect(gs, rs) {
 
 // Stomp: low dmg + slow in a big radius
 function stompAffect(gs, ss) {
-  const a = dragonAnchor(gs);
+  const a = state.dragonAnchor(gs);
   for (const e of gs.enemies) {
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
     const distMan = Math.abs(e.cx - a.cx) + Math.abs(e.cy - a.cy);
@@ -1887,7 +1887,7 @@ if (e.type === 'engineer' && e.tunneling) {
     e.updateByCombat = false;
 
     // Plant bomb at dragon perimeter, leaning toward engineer
-    const dc = nearestDragonCell(gs, e.cx, e.cy);
+    const dc = state.nearestDragonCell(gs, e.cx, e.cy);
     const cx = (dc.x + 0.5) * t;
     const cy = (dc.y + 0.5) * t;
 
