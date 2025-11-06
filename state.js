@@ -138,6 +138,17 @@ export function isDragonCell(x, y, gs) {
   return false;
 }
 
+// Return nearest dragon cell (tile coords) to a given tile (ox, oy)
+function nearestDragonCell(gs, ox, oy) {
+  const cells = dragonCells(gs);
+  let best = cells[0], bestD2 = Infinity;
+  for (const c of cells) {
+    const dx = c.x - ox, dy = c.y - oy;
+    const d2 = dx*dx + dy*dy;
+    if (d2 < bestD2) { bestD2 = d2; best = c; }
+  }
+  return best;
+}
 
 // Quick helper: any tile adjacent to any dragon cell?
 function isAdjacentToDragon(gs, cx, cy) {
