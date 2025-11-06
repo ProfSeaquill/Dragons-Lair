@@ -16,8 +16,6 @@ let clawCooldown  = 0;
 // Unique enemy IDs (module-local counter)
 let __ENEMY_ID = 0;
 
-// Back-compat: cap any single enemy's mix share
-const MAX_WAVE_CAP = 0.8; // default ceiling; can be tuned later
 
 // ===== Phase 9: object pools (prevent GC churn) =====
 const ENEMY_POOL = new Map();   // type -> array of recycled enemies
@@ -51,7 +49,6 @@ function __resolveMixedType(gs, t) {
   for (const [k,w] of weights) { r -= w; if (r <= 0) return k; }
   return weights[0][0];
 }
-
 
 function acquireEnemy(type, wave, initFn) {
   const pool = ENEMY_POOL.get(type);
