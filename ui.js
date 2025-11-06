@@ -284,7 +284,7 @@ if (!_abilityLoopInit) {
     requestAnimationFrame(tick);
   })();
 }
-
+}
 
 // ---------- Wall instructional text ----------
 function renderGridHelp(gs) {
