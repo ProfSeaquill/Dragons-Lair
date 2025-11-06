@@ -16,6 +16,8 @@
 //                    aggressively the FSM consumes it (FSM concern).
 // ──────────────────────────────────────────────────────────────────────────────
 
+
+
 //// Direction bit masks (4-connected) //////////////////////////////////////////
 // Bit layout (fixed for portability): N=1<<0, E=1<<1, S=1<<2, W=1<<3
 export const DIR_BITS = Object.freeze({ N: 1, E: 2, S: 4, W: 8 });
@@ -28,6 +30,18 @@ export function bitToDir(bit) { return BITS_DIR[bit] || null; }
 export function maskHas(mask, dir) { return (mask & dirToBit(dir)) !== 0; }
 export function maskAdd(mask, dir) { return mask | dirToBit(dir); }
 export function maskRemove(mask, dir) { return mask & ~dirToBit(dir); }
+
+// --- Defensive memory helpers ---
+export function createMemory() {
+  return { stack: [], crumbs: [], visits: new Map(), last: null };
+}
+export function ensureMem(mem) {
+  if (!mem) return createMemory();
+  if (!Array.isArray(mem.stack)) mem.stack = [];
+  if (!Array.isArray(mem.crumbs)) mem.crumbs = [];
+  if (!mem.visits) mem.visits = new Map();
+  return mem;
+}
 
 /** Build a mask from an array like ["N","E"] */
 export function maskFromDirs(dirs) {
