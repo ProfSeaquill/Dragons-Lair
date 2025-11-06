@@ -341,11 +341,13 @@ if (k !== _hoverKey || hasWall !== _hoverHasWall) {
   _hoverKey = k;
   _hoverHasWall = hasWall;
 
-  const verb = hasWall ? 'Remove' : 'Place';
-  const cost = hasWall
-    ? `(+${edgeRefund(gs)} bones)`
-    : `(${edgeCost(gs)} bones)`;
-  tell(`${verb} wall: (${hover.x},${hover.y}) ${hover.side} ${cost}`, '#9cf');
+const verb = hasWall ? 'Remove' : 'Place';
+const refund = edgeRefund(gs) | 0;
+const msg = hasWall
+  ? (refund > 0 ? `Remove wall: (${hover.x},${hover.y}) ${hover.side} (+${refund} bones)` 
+                : `Remove wall: (${hover.x},${hover.y}) ${hover.side}`)
+  : `Place wall: (${hover.x},${hover.y}) ${hover.side} (${edgeCost(gs)} bones)`;
+tell(msg, '#9cf');
 }
   });
 
