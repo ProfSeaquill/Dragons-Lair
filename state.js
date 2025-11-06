@@ -138,7 +138,7 @@ export function isDragonCell(x, y, gs) {
 }
 
 // Return nearest dragon cell (tile coords) to a given tile (ox, oy)
-function nearestDragonCell(gs, ox, oy) {
+export function nearestDragonCell(gs, ox, oy) {
   const cells = dragonCells(gs);
   let best = cells[0], bestD2 = Infinity;
   for (const c of cells) {
@@ -150,7 +150,7 @@ function nearestDragonCell(gs, ox, oy) {
 }
 
 // Quick helper: any tile adjacent to any dragon cell?
-function isAdjacentToDragon(gs, cx, cy) {
+export function isAdjacentToDragon(gs, cx, cy) {
   if (!Number.isInteger(cx) || !Number.isInteger(cy)) return false;
   // Manhattan distance 1 to any dragon cell
   for (const c of dragonCells(gs)) {
@@ -160,7 +160,7 @@ function isAdjacentToDragon(gs, cx, cy) {
 }
 
 // Helper: west-most dragon tile = mouth (dragon faces west toward ENTRY)
-function dragonAnchor(gs) {
+export function dragonAnchor(gs) {
   const cells = dragonCells(gs);
   // simple centroid of dragon tiles
   let sx = 0, sy = 0;
@@ -170,7 +170,7 @@ function dragonAnchor(gs) {
   return { cx, cy };
 }
 
-function dragonMouthCell(gs) {
+export function dragonMouthCell(gs) {
   const cells = dragonCells(gs);
   if (!cells || !cells.length) return { x: EXIT.x, y: EXIT.y };
   let best = cells[0];
