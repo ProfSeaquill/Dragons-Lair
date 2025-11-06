@@ -3,7 +3,7 @@
 // === New pathing imports ===
 import { initPathing, spawnAgent as _pathSpawn, despawnAgent as _pathDespawn, updateAgent as _pathUpdate, renderOffset as _pathRenderOffset } from './pathing/index.js';
 import * as walls from './grid/walls.js';
-
+import * as topo  from './grid/topology.js';
 
 // ===== Grid & Entry/Exit =====
 export const GRID = { cols: 24, rows: 16, tile: 32 };
@@ -493,6 +493,8 @@ export function ensureFreshPathing(gs = GameState) {
   // Rebuild whenever topology changes
   if (!gs._pathCtx || gs._pathTopoVersion !== (gs.topologyVersion | 0)) {
     const gridApi = makeGridApiForState(gs);
+    // let topology.js use our state-aware grid
+    topo.setGridApi?.(gridApi);
     gs._pathCtx = initPathing(gridApi, EXIT, {
       enableDetourOnCrowd: true,
       softCap: 3,
