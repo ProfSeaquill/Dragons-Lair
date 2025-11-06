@@ -397,32 +397,50 @@ export function makeGridApiForState(gs) {
 
   const inBounds = (x, y) => (x >= 0 && x < cols && y >= 0 && y < rows);
 
-  // Let the distance field flood through; edge gating enforces combat rules.
-const isFree = (x, y) => inBounds(x, y);
+  // Tiles themselves are free unless out of bounds.
+  // (Do NOT block dragon cells here; enforce dragon gating in neighbors4.)
+  const isFree = (x, y) => inBounds(x, y);
 
-
-  // Neighbors are “free tiles that are reachable without a wall between”.
   const neighbors4 = (x, y) => {
     const out = [];
-    // side label is from the *source* tile’s perspective
+
+    const inDragon = (cx, cy) => {
+      const cs = dragonCells(gs);
+      for (let i = 0; i < cs.length; i++) if (cs[i].x === cx && cs[i].y === cy) return true;
+      return false;
+    };
+
+    // candidates with side from the *source* cell’s perspective
     const cand = [
       ['E', x + 1, y],
       ['W', x - 1, y],
       ['S', x, y + 1],
       ['N', x, y - 1],
     ];
+
+    const hereIsDragon = inDragon(x, y);
+
     for (const [side, nx, ny] of cand) {
       if (!inBounds(nx, ny)) continue;
       if (!isFree(nx, ny)) continue;
-      // If there's a wall on the edge between (x,y) and (nx,ny), skip it
+
+      // --- Dragon virtual gates on transitions ---
+      const nextIsDragon = inDragon(nx, ny);
+
+      // Inside dragon: only WEST is allowed (attackers exit to the left)
+      if (hereIsDragon && side !== 'W') continue;
+
+      // Entering dragon: only from WEST neighbor (i.e., crossing with side === 'E')
+      if (!hereIsDragon && nextIsDragon && side !== 'E') continue;
+
+      // Physical edge wall blocks?
       if (api.edgeHasWall(gs, x, y, side)) continue;
+
       out.push([nx, ny]);
     }
     return out;
   };
 
-  return { cols, rows, inBounds, isFree, neighbors4 };
-}
 
 /**
  * Create/rebuild the pathing context when topology changes (walls, EXIT moves, etc).
