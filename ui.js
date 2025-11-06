@@ -371,7 +371,7 @@ tell(msg, '#9cf');
     const remove = (e.button === 2);
     if (!place && !remove) return;
 
-    const hasWall = tp.edgeHasWall(gs, hover.x, hover.y, hover.side);
+    const hasWall = walls.edgeHasWall(gs, hover.x, hover.y, hover.side);
     if (place && hasWall) return;
     if (remove && !hasWall) return;
 
