@@ -440,7 +440,7 @@ export function makeGridApiForState(gs) {
     }
     return out;
   };
-
+}
 
 /**
  * Create/rebuild the pathing context when topology changes (walls, EXIT moves, etc).
