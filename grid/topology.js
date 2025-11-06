@@ -68,13 +68,32 @@ export function forwardOptions(x, y, prevDir) {
 
 // ───────────── Optional helpers that still accept gs ─────────────
 // Kept for places that pass gs explicitly (safe to leave as-is)
-export function stepStraight(gs, x, y, prevDir) {
+// Accepts (gs, x, y, prevDir) OR (x, y, prevDir)
+export function stepStraight(a, b, c, d) {
+  let gs, x, y, prevDir;
+  if (d !== undefined) {
+    // called as (gs, x, y, prevDir)
+    gs = (a && a.GRID) ? a : state.GameState;
+    x = b; y = c; prevDir = d;
+  } else {
+    // called as (x, y, prevDir)
+    gs = state.GameState;
+    x = a; y = b; prevDir = c;
+  }
   if (!prevDir) return null;
-  const nx = prevDir === 'E' ? x+1 : prevDir === 'W' ? x-1 : x;
-  const ny = prevDir === 'S' ? y+1 : prevDir === 'N' ? y-1 : y;
+
+  const nx = prevDir === 'E' ? x + 1
+          : prevDir === 'W' ? x - 1
+          : x;
+  const ny = prevDir === 'S' ? y + 1
+          : prevDir === 'N' ? y - 1
+          : y;
+
+  // Respect virtual gates + walls
   if (!state.isOpen(gs, x, y, prevDir)) return null;
-  return { x:nx, y:ny, side:prevDir };
+  return { x: nx, y: ny, side: prevDir };
 }
+
 
 export function isDeadEnd(x, y) {
   return degree(x, y) <= 1;
