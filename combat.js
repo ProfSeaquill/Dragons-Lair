@@ -657,6 +657,19 @@ e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
   e.tileY = e.cy;
 }
 
+  // speed in pixels/sec (navigator reads this)
+{
+  const tsize = state.GRID.tile || 32;
+  e.pxPerSec = (typeof e.speed === 'number') ? e.speed * tsize : 80; // tiles→px
+  e.speedBase = e.speed;
+
+  // heading vector consistent with e.dir
+  const dirMap = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
+  const v = dirMap[e.dir] || [1,0];
+  e.dirX = v[0];
+  e.dirY = v[1];
+}
+
   // initialize prev/commit so freshly-spawned enemies head straight initially
   initializeSpawnPrevAndCommit(e);
 
@@ -680,13 +693,19 @@ function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
   // If you already compute spawn tile as integers, keep them; otherwise derive:
   let scx = Number.isInteger(e.tileX) ? e.tileX : Math.floor((e.x ?? ((state.ENTRY.x + 0.5) * t)) / t);
   let scy = Number.isInteger(e.tileY) ? e.tileY : Math.floor((e.y ?? ((state.ENTRY.y + 0.5) * t)) / t);
-
   e.tileX = scx | 0;
   e.tileY = scy | 0;
 
   // Snap pixel position to tile center to avoid fractional drift at birth
   e.x = (e.tileX + 0.5) * t;
   e.y = (e.tileY + 0.5) * t;
+
+  // ensure px/sec exists for navigator
+{
+  const tsize = state.GRID.tile || 32;
+  e.pxPerSec = (typeof e.speed === 'number') ? e.speed * tsize : 80;
+  e.speedBase = e.speed;
+}
 
   // Clear any stale navigation intent
   e.path = null;
