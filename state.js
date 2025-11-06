@@ -162,7 +162,7 @@ function isAdjacentToDragon(gs, cx, cy) {
 
 // Helper: west-most dragon tile = mouth (dragon faces west toward ENTRY)
 function dragonAnchor(gs) {
-  const cells = state.dragonCells(gs);
+  const cells = dragonCells(gs);
   // simple centroid of dragon tiles
   let sx = 0, sy = 0;
   for (const c of cells) { sx += c.x; sy += c.y; }
@@ -172,7 +172,7 @@ function dragonAnchor(gs) {
 }
 
 function dragonMouthCell(gs) {
-  const cells = state.dragonCells(gs);
+  const cells = dragonCells(gs);
   if (!cells || !cells.length) return { x: state.EXIT.x, y: state.EXIT.y };
   let best = cells[0];
   for (const c of cells) if (c.x < best.x) best = c;
