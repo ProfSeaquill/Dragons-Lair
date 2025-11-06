@@ -1,6 +1,10 @@
 // grid/walls.js — per-edge wall helpers + no-full-block guard
 import * as state from '../state.js';
 
+
+// passthrough shim so old imports keep working
+export * from './topology.js';
+
 // --- Canonical edge accessors ----------------------------------------------
 // We store N/W on the current cell; E is neighbor.W; S is neighbor.N.
 function getEdge(gs, x, y, side) {
