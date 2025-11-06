@@ -15,8 +15,9 @@
 //                        pick the same edge again after backtracking.
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { stepStraight, forwardOptions, dirFromTo, isJunction, } from "../grid/topology.js";
-import { isOpen as isPassable } from '../state.js';
+import { stepStraight, forwardOptions, dirFromTo, isJunction } from "../grid/topology.js";
+import { edgeOpen } from "../grid/edges.js";
+import { GameState } from "../state.js";
 import {
   aStarToTarget,
   planSegmentToFirstJunction,
@@ -143,7 +144,7 @@ export function tick(agent) {
 function tickWalkStraight(agent) {
   // Rule #1: walk east by default, but "straight" maintains current prevDir.
   // Try to continue straight if passable and NOT a junction ahead.
-  const straight = stepStraight(agent.x, agent.y, agent.prevDir);
+ const straight = stepStraight(GameState, agent.x, agent.y, agent.prevDir);
   if (straight && !isJunction(straight.x, straight.y, agent.prevDir)) {
     moveOne(agent, straight.x, straight.y);
     // Check goal
@@ -215,17 +216,15 @@ function tickDecision(agent) {
   );
 
   if (chosenDir) {
-    // Take that exit exactly one tile, then resume WALK_STRAIGHT
     const [nx, ny] = stepFrom(agent.x, agent.y, chosenDir);
-    if (isPassable(nx, ny)) {
+    // Must verify the *edge* (x,y,dir), not just the destination tile
+    if (edgeOpen(GameState, agent.x, agent.y, chosenDir)) {
       moveOne(agent, nx, ny);
-      if (agent.x === agent.gx && agent.y === agent.gy) {
-        agent.state = S.REACHED; return agent.state;
-      }
+      if (agent.x === agent.gx && agent.y === agent.gy) { agent.state = S.REACHED; return agent.state; }
       agent.state = S.WALK_STRAIGHT;
       return agent.state;
     }
-    // If somehow now blocked, fall back to BACKTRACK
+    // else fall through to BACKTRACK
   }
 
   // No exits remain (or chosen exit was blocked unexpectedly) → BACKTRACK
@@ -255,7 +254,7 @@ function tickBacktrack(agent) {
     const next = nextUntriedExit(agent.mem);
     if (next) {
       const [nx, ny] = stepFrom(agent.x, agent.y, next);
-      if (isPassable(nx, ny)) {
+      if (edgeOpen(GameState, agent.x, agent.y, next)) {
         moveOne(agent, nx, ny);
         if (agent.x === agent.gx && agent.y === agent.gy) {
           agent.state = S.REACHED; return agent.state;
