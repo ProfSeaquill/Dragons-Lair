@@ -160,6 +160,25 @@ function isAdjacentToDragon(gs, cx, cy) {
   return false;
 }
 
+// Helper: west-most dragon tile = mouth (dragon faces west toward ENTRY)
+function dragonAnchor(gs) {
+  const cells = state.dragonCells(gs);
+  // simple centroid of dragon tiles
+  let sx = 0, sy = 0;
+  for (const c of cells) { sx += c.x; sy += c.y; }
+  const cx = Math.round(sx / Math.max(1, cells.length));
+  const cy = Math.round(sy / Math.max(1, cells.length));
+  return { cx, cy };
+}
+
+function dragonMouthCell(gs) {
+  const cells = state.dragonCells(gs);
+  if (!cells || !cells.length) return { x: state.EXIT.x, y: state.EXIT.y };
+  let best = cells[0];
+  for (const c of cells) if (c.x < best.x) best = c;
+  return best;
+}
+
 // ===== Ability Upgrade Levels =====
 // (0 = base; you can unlock/level these however you like)
 export const upgrades = {
