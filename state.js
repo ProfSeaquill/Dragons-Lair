@@ -2,7 +2,7 @@
 
 // === New pathing imports ===
 import { initPathing, spawnAgent as _pathSpawn, despawnAgent as _pathDespawn, updateAgent as _pathUpdate, renderOffset as _pathRenderOffset } from './pathing/index.js';
-import * as api from './grid/api.js'; // for api.edgeHasWall(...)
+import * as api from './grid/topology.js'; // for api.edgeHasWall(...)
 
 // ===== Grid & Entry/Exit =====
 export const GRID = { cols: 24, rows: 16, tile: 32 };
