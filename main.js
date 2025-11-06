@@ -433,6 +433,24 @@ function startWave() {
 function update(dt) {
   ensureFreshPathing(state.GameState);
   const gs = state.GameState;
+   
+  // --- DIAG: enemy lifecycle heartbeat (1x/sec) ---
+{
+  gs.__diagT = (gs.__diagT ?? 0) + dt;
+  if (gs.__diagT >= 1.0) {
+    gs.__diagT = 0;
+    const enemies = gs.enemies || [];
+    const alive = enemies.filter(e => e && !e.dead);
+    const tunn = alive.filter(e => e.tunneling).length;
+    const vis  = alive.filter(e => !e.tunneling).length;
+    const first = alive[0] ? {
+      id: alive[0].id, type: alive[0].type, cx: alive[0].cx, cy: alive[0].cy,
+      dead: !!alive[0].dead, tunneling: !!alive[0].tunneling,
+      hasFSM: !!alive[0]._fsm, pxps: alive[0].pxPerSec
+    } : null;
+    console.log('[DIAG enemies]', { total: enemies.length, alive: alive.length, vis, tunn, first });
+  }
+}
 
 
     // ---- FSM time shim (seconds everywhere) ----
@@ -503,6 +521,19 @@ function update(dt) {
   // 1) Let Combat drive game logic if available
   if (typeof combatUpdate === 'function') {
    combatUpdate(gs, dt);
+     // --- DIAG: nudge pathing + record movement (non-tunnel only) ---
+{
+  let moved = 0;
+  for (const e of gs.enemies) {
+    if (!e || e.dead || e.tunneling) continue;
+    const rep = state.pathUpdateAgent(e, dt, gs);  // your new adapter
+    if (rep && rep.moved) moved++;
+  }
+  if ((gs.__diagStep = (gs.__diagStep ?? 0) + 1) % 60 === 0) { // every ~1s at 60fps
+    console.log('[DIAG path step]', { movedLastSec: moved });
+  }
+}
+
 }
 
   // 2b) Dragon fire animation FX timer (visual only; optional)
