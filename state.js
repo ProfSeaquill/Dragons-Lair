@@ -506,6 +506,7 @@ export function ensureFreshPathing(gs = GameState) {
 
 // Convenience wrappers so the rest of your game can call pathing without importing pathing/*
 export function pathSpawnAgent(agent, gs = GameState) {
+  console.debug('[nav REG]', { id: e.id, type: e.type, pxPerSec: e.pxPerSec, dirX: e.dirX, dirY: e.dirY });
   const ctx = ensureFreshPathing(gs);
   _pathSpawn(agent, ctx);
 }
