@@ -11,7 +11,8 @@
 // - ordering:          The group array MUST be ordered [leader, f1, f2, ...].
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { isOpen as isPassable } from '../state.js';
+import * as state from '../state.js';
+import { dirFromTo } from '../grid/topology.js';
 
 // TUNABLE: small per-follower start delay in ticks (e.g., [0,0,0] = tight stack).
 // Length should be >= group size; extra entries are ignored.
@@ -58,7 +59,11 @@ export function stepFollowers(group) {
     const targetX = predPrev.x, targetY = predPrev.y;
 
     // BLOCKING POLICY: only move if passable AND not currently occupied
-    if (!isPassable(targetX, targetY)) continue;
+    // Must be within bounds and the edge from follower -> target must be open
+   if (!state.inBounds(targetX, targetY)) continue;
+   const dir = dirFromTo(follower.x|0, follower.y|0, targetX, targetY);
+   if (!dir) continue; // not an adjacent tile
+   if (!state.isOpen(state.GameState, follower.x|0, follower.y|0, dir)) continue;
     if (isOccupied(group, targetX, targetY)) continue;
 
     // Also: avoid swapping with own predecessor if they didn't move this tick
