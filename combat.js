@@ -643,14 +643,6 @@ e.id = (++__ENEMY_ID);
 if (type === 'engineer') {
   e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
 e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
-
-
-  const perim = dragonPerimeterTiles(gs);
-  shuffle(perim);
-  const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
-  e._tunnelDestCell = { x: spot.x, y: spot.y };
-
-
 }
 
   e.cx = state.ENTRY.x;
@@ -715,14 +707,6 @@ e.id = (++__ENEMY_ID);
 if (type === 'engineer') {
  e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
  e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
-
-
-  // pick and store a perimeter destination NOW (so we can animate toward it)
-  const perim = dragonPerimeterTiles(gs);
-  shuffle(perim);
-  const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
-  e._tunnelDestCell = { x: spot.x, y: spot.y };
-
 }
 
   e.groupId = groupId | 0;
@@ -774,13 +758,6 @@ e.id = (++__ENEMY_ID);
 if (type === 'engineer') {
   e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
   e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
-
-
-  const perim = dragonPerimeterTiles(gs);
-  shuffle(perim);
-  const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
-  e._tunnelDestCell = { x: spot.x, y: spot.y };
-
 }
 
     // spawn at entry, facing east
