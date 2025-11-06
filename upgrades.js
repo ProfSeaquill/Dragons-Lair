@@ -135,7 +135,7 @@ function buildUpgradeRows(gs) {
 });
 
 
-  const abilityRows = ABILITY_UPGRADES.map(def => {
+ const abilityRows = ABILITY_UPGRADES.map(def => {
   const level = abilityLvl(gs, def.key);
   const isMax = level >= ABILITY_MAX_LEVEL;
   return {
@@ -144,13 +144,12 @@ function buildUpgradeRows(gs) {
     level,
     cost: isMax ? 0 : abilityCostFor(gs, def.key, level),
     desc: abilityLive[def.key] || '',
-    max: undefined,
-    isMax: false,
     max: ABILITY_MAX_LEVEL,
     isMax,
     type: def.type,
   };
 });
+
 
   return [...statRows, ...abilityRows];
 }
@@ -262,9 +261,9 @@ export function buyUpgrade(gs = GameState, key) {
   let def = STAT_UPGRADES.find(d => d.key === key) || ABILITY_UPGRADES.find(d => d.key === key);
   if (!def) return false;
 
-  const level = (def.type === 'stat') ? statLvl(gs, key) : abilityLvl(gs, key);
-  if (level >= CAP_LEVEL) return false; // hard cap for upgrades
-  if (def.type === 'ability' && level >= ABILITY_MAX_LEVEL) return false; // hard cap for abilities
+ const level = (def.type === 'stat') ? statLvl(gs, key) : abilityLvl(gs, key);
+if (def.type === 'stat'     && level >= CAP_LEVEL)          return false; // hard cap for stats
+if (def.type === 'ability'  && level >= ABILITY_MAX_LEVEL)  return false; // hard cap for abilities
         
   const price = (def.type === 'stat')
     ? statCostFor(gs, key, level)
