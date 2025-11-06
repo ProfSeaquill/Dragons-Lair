@@ -1593,6 +1593,17 @@ for (const e of enemies) {
 
     const moved = pathUpdateAgent(e, dt, gs); // returns { moved, nx, ny } | null
     if (moved && moved.moved && Number.isInteger(moved.nx) && Number.isInteger(moved.ny)) {
+      if (!e.__navProbeOnce) {
+    e.__navProbeOnce = true;
+    console.log('[nav PROBE] no-move', {
+      id: e.id, type: e.type, cx: e.cx, cy: e.cy,
+      hasPxPerSec: typeof e.pxPerSec === 'number',
+      dir: e.dir, dirX: e.dirX, dirY: e.dirY,
+      commitLeft: e.commitTilesLeft,
+      tileXY: [e.tileX, e.tileY]
+    });
+  }
+}
       e.cx = e.tileX = moved.nx;
       e.cy = e.tileY = moved.ny;
 
@@ -1602,7 +1613,7 @@ for (const e of enemies) {
       e.y = (e.cy + 0.5) * tsize + (oy || 0);
     }
   }
-}
+
 
      // ---- FSM time shim ----
   const __now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
