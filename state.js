@@ -479,6 +479,8 @@ export function makeGridApiForState(gs) {
     }
     return out;
   };
+  // Expose the grid API to any pathing orchestrator
+  return { inBounds, isFree, neighbors4 };
 }
 
 /**
