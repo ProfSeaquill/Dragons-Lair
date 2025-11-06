@@ -167,16 +167,6 @@ export function getCooldowns() {
 }
 
 
-// Quick helper: any tile adjacent to any dragon cell?
-function isAdjacentToDragon(gs, cx, cy) {
-  if (!Number.isInteger(cx) || !Number.isInteger(cy)) return false;
-  // Manhattan distance 1 to any dragon cell
-  for (const c of state.dragonCells(gs)) {
-    if (Math.abs(c.x - cx) + Math.abs(c.y - cy) === 1) return true;
-  }
-  return false;
-}
-
 
 function dragonPerimeterTiles(gs) {
   const set = new Set();
