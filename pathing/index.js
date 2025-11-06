@@ -13,12 +13,24 @@ export function initPathing(/*gridApi, exit, opts*/) {
 
 // Spawn/Despawn simply attach/detach an FSM agent on your enemy object.
 export function spawnAgent(enemy /*, ctx */) {
-  // Accept either (x,y) or (cx,cy) conventions
-  const x = (enemy.x ?? enemy.cx) | 0;
-  const y = (enemy.y ?? enemy.cy) | 0;
-  const seed = (enemy.seed ?? enemy.id ?? Math.random() * 0xFFFFFFFF) | 0;
+  // Prefer tile coords; derive from pixels only if needed.
+  const tile = GRID.tile || 32;
+  const sx = Number.isInteger(enemy.cx)
+    ? enemy.cx
+    : Number.isFinite(enemy.x) ? Math.floor(enemy.x / tile) : EXIT.x;
+  const sy = Number.isInteger(enemy.cy)
+    ? enemy.cy
+    : Number.isFinite(enemy.y) ? Math.floor(enemy.y / tile) : EXIT.y;
 
-  enemy._fsm = createAgent({ x, y, targetX: EXIT.x, targetY: EXIT.y, seed });
+  const seed = (enemy.seed ?? enemy.id ?? (Math.random() * 0xFFFFFFFF)) | 0;
+
+  enemy._fsm = createAgent({ x: sx, y: sy, targetX: EXIT.x, targetY: EXIT.y, seed });
+
+  // Keep enemy.cx/cy authoritative; snap pixels to tile center for render
+  enemy.cx = sx; enemy.cy = sy;
+  enemy.x  = (sx + 0.5) * tile;
+  enemy.y  = (sy + 0.5) * tile;
+
   return enemy._fsm;
 }
 
@@ -31,16 +43,22 @@ export function updateAgent(enemy, /* dtSec, */ ctx) {
   if (!enemy || enemy.dead) return null;
   if (!enemy._fsm) spawnAgent(enemy, ctx);
 
-  // Advance FSM exactly one tile
-  tickFSM(enemy._fsm);
+  tickFSM(enemy._fsm); // one grid step
 
-  // Write back integer tile coords; your render already reads enemy.{x|cx,y|cy}
-  if ('cx' in enemy) { enemy.cx = enemy._fsm.x; enemy.cy = enemy._fsm.y; }
-  else { enemy.x = enemy._fsm.x; enemy.y = enemy._fsm.y; }
+  const tile = GRID.tile || 32;
+  const nx = enemy._fsm.x | 0;
+  const ny = enemy._fsm.y | 0;
 
-  // Return a minimal movement report (optional)
-  return { moved: true, x: enemy._fsm.x, y: enemy._fsm.y, state: getFSMState(enemy._fsm) };
+  // Authoritative tiles:
+  enemy.cx = nx; enemy.cy = ny;
+
+  // Pixels for render:
+  enemy.x = (nx + 0.5) * tile;
+  enemy.y = (ny + 0.5) * tile;
+
+  return { moved: true, x: nx, y: ny, state: getFSMState(enemy._fsm) };
 }
+
 
 // Visual-only sub-tile offset (separation.js, no occupancy)
 let __rosters = null;
