@@ -16,6 +16,9 @@ let clawCooldown  = 0;
 // Unique enemy IDs (module-local counter)
 let __ENEMY_ID = 0;
 
+// Back-compat: cap any single enemy's mix share
+const MAX_WAVE_CAP = 0.8; // default ceiling; can be tuned later
+
 // ===== Phase 9: object pools (prevent GC churn) =====
 const ENEMY_POOL = new Map();   // type -> array of recycled enemies
 const EFFECT_POOL = new Map();  // kind -> array of recycled effects
