@@ -23,14 +23,7 @@ import {
 } from "./directpath.js";
 
 import {
-  createMemory,
-  setSeed,
-  pushBreadcrumb,
-  nextUntriedExit,
-  peekBreadcrumb,
-  popBreadcrumb,
-  markEdgeExplored,
-  stepFrom,
+  createMemory, ensureMem, setSeed, pushBreadcrumb, nextUntriedExit, peekBreadcrumb, popBreadcrumb, markEdgeExplored, stepFrom,
 } from "./memory.js";
 
 //// TUNABLES ///////////////////////////////////////////////////////////////////
@@ -129,7 +122,7 @@ export function getState(agent) { return agent.state; }
 
 export function tick(agent) {
   if (agent.state === S.REACHED || agent.state === S.STOPPED) return agent.state;
-
+  agent.mem = ensureMem(agent.mem);
   agent.tickCount++;
   if (agent.tickCount > MAX_TICKS_PER_AGENT) {
     agent.state = S.STOPPED;
