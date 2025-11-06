@@ -1,7 +1,7 @@
 // main.js — boot, game loop, UI wiring, and combat integration (named imports)
 import * as Debug from './debugOverlay.js';
 import { getCooldowns } from './combat.js';
-
+import { installPermanentBones } from './grid/walls.js';
 import * as state from './state.js';
 import { ensureFreshPathing } from './state.js'; // new pathing API
 import { bindUI, UI } from './ui.js';
@@ -348,16 +348,6 @@ function boot() {
         state.getCfg(state.GameState)?.tuning?.waves
       );
 
-
-function installPermanentBones(gs = state.GameState) {
-  const PERMA = [
-    [21,  6, 'N'], [22,  6, 'N'], [23,  6, 'N'],
-    [21, 11, 'N'], [22, 11, 'N'], [23, 11, 'N'],
-    [21, 10, 'W'], [21,  6, 'W'],
-  ];
-  for (const [x, y, side] of PERMA) state.setEdgeWall(gs, x, y, side, true);
-  state.bumpTopology(gs, 'permanent-walls');  // single bump after batch
-}
 
 
 // After config load + before the game loop starts, do:
