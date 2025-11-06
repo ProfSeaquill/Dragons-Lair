@@ -352,7 +352,7 @@ function boot() {
 
 // After config load + before the game loop starts, do:
 state.applyConfig(state.GameState, cfg);
- installPermanentBones(state.GameState);
+ installPermanentWalls(state.GameState);
  state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1; // bump first
  ensureFreshPathing(state.GameState); // new pathing build
       
