@@ -457,7 +457,7 @@ const FLAGS = {
 
 // -------- Wave helpers --------
 // Progress gated by unlock (minWave): 0 before unlock; 1 at maxWave
-function unlockedProgress(wave, minWave = 1, maxWave = MAX_WAVE_CAP) {
+function unlockedProgress(wave, minWave = 1, maxWave = ENEMY_MAX_WAVE) {
   if (wave < (minWave | 0)) return 0;
   const span = Math.max(1, (maxWave - (minWave | 0)));
   const p = (wave - (minWave | 0)) / span;
@@ -1203,7 +1203,7 @@ function _curveShare(wave, cfg = {}) {
 
   if (wave < minW) return 0; 
 
-  const p = unlockedProgress(wave, minW, MAX_WAVE_CAP); // 0..1
+  const p = unlockedProgress(wave, minW, ENEMY_MAX_WAVE); // 0..1
   let s;
   if (cfg.shape === 'pow') {
     s = pow01(p, cfg.a ?? 1);
