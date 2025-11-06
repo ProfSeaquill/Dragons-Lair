@@ -31,18 +31,6 @@ export function maskHas(mask, dir) { return (mask & dirToBit(dir)) !== 0; }
 export function maskAdd(mask, dir) { return mask | dirToBit(dir); }
 export function maskRemove(mask, dir) { return mask & ~dirToBit(dir); }
 
-// --- Defensive memory helpers ---
-export function createMemory() {
-  return { stack: [], crumbs: [], visits: new Map(), last: null };
-}
-export function ensureMem(mem) {
-  if (!mem) return createMemory();
-  if (!Array.isArray(mem.stack)) mem.stack = [];
-  if (!Array.isArray(mem.crumbs)) mem.crumbs = [];
-  if (!mem.visits) mem.visits = new Map();
-  return mem;
-}
-
 /** Build a mask from an array like ["N","E"] */
 export function maskFromDirs(dirs) {
   let m = 0;
@@ -101,6 +89,13 @@ export function createMemory(seed = 0xCAFEBABE) {
   };
 }
 
+export function ensureMem(mem) {
+  if (!mem) return createMemory();
+  if (!Array.isArray(mem.stack)) mem.stack = [];
+  if (!Array.isArray(mem.crumbs)) mem.crumbs = [];
+  if (!mem.visits) mem.visits = new Map();
+  return mem;
+}
 export function setSeed(mem, seed) {
   mem.rng.setSeed(seed);
 }
