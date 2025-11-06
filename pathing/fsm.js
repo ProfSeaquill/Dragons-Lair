@@ -205,7 +205,7 @@ function tickDecision(agent) {
   if (agent.linger > 0) { agent.linger--; return agent.state; }
 
   // Gather exits excluding back edge; memory will also exclude edges already explored.
-  const exits = forwardOptions(agent.x, agent.y, agent.prevDir).map(n => n.dir);
+  const exits = forwardOptions(agent.x, agent.y, agent.prevDir).map(n => n.side);
   const { chosenDir } = pushBreadcrumb(
     agent.mem,
     agent.x, agent.y,
