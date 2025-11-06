@@ -1953,7 +1953,7 @@ if (e.type === 'engineer' && e.tunneling) {
       for (let i = gs.enemies.length - 1; i >= 0; i--) {
         const e = gs.enemies[i];
         if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-        if (isAdjacentToDragon(gs, e.cx, e.cy)) {
+        if (state.isAdjacentToDragon(gs, e.cx, e.cy)) {
           e.hp -= cs.dmg;
           markHit(e, cs.dmg);
           hitAny = true;
