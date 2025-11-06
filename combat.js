@@ -415,18 +415,6 @@ function initializeSpawnPrevAndCommit(e) {
 
 }
 
-// Return nearest dragon cell (tile coords) to a given tile (ox, oy)
-function nearestDragonCell(gs, ox, oy) {
-  const cells = state.dragonCells(gs); // assumes you exported this from state.js
-  let best = cells[0], bestD2 = Infinity;
-  for (const c of cells) {
-    const dx = c.x - ox, dy = c.y - oy;
-    const d2 = dx*dx + dy*dy;
-    if (d2 < bestD2) { bestD2 = d2; best = c; }
-  }
-  return best;
-}
-
 
 /* =========================
  * Enemy templates & scaling
