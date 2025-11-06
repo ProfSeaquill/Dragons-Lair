@@ -173,7 +173,7 @@ function dragonAnchor(gs) {
 
 function dragonMouthCell(gs) {
   const cells = dragonCells(gs);
-  if (!cells || !cells.length) return { x: state.EXIT.x, y: state.EXIT.y };
+  if (!cells || !cells.length) return { x: EXIT.x, y: EXIT.y };
   let best = cells[0];
   for (const c of cells) if (c.x < best.x) best = c;
   return best;
@@ -637,7 +637,7 @@ export function isOpenPhysical(gs, x, y, side) {
   }
   if (!inBounds(nx, ny)) return false;
   const there = ensureCell(gs, nx, ny);
-  return there[opp] === true;            // open if opposite isn’t walled
+  return there[opp] === false;           // open only if opposite isn’t walled
 }
 
 export function ensureCell(gs, x, y) {
