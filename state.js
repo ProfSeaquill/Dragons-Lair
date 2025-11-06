@@ -489,7 +489,7 @@ export function makeGridApiForState(gs) {
 export function ensureFreshPathing(gs = GameState) {
   // Rebuild whenever topology changes
   if (!gs._pathCtx || gs._pathTopoVersion !== (gs.topologyVersion | 0)) {
-    const gridApi = walls.createPathGrid(gs);
+    const gridApi = makeGridApiForState(gs);
     gs._pathCtx = initPathing(gridApi, EXIT, {
       enableDetourOnCrowd: true,
       softCap: 3,
