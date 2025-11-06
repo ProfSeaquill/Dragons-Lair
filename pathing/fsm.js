@@ -16,7 +16,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 import { stepStraight, forwardOptions, dirFromTo, isJunction, } from "../grid/topology.js";
-import { GRID, isOpen as isPassable, inBounds } from '../state.js';
+import { isOpen as isPassable } from '../state.js';
 import {
   aStarToTarget,
   planSegmentToFirstJunction,
