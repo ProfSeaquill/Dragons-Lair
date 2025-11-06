@@ -1,6 +1,6 @@
 // ui.js — edge-wall build mode + HUD + Next Wave preview + Dev Panel
 import * as state from './state.js';
-import * as api from './grid/api.js';
+import * as api from './grid/topology.js';
 import * as upgrades from './upgrades.js';
 
 // ---------- DOM helpers ----------
