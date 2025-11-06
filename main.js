@@ -53,7 +53,7 @@ const combatSpawnWave = combat.spawnWave ?? combat.startWave ?? null;
 
 
 // debug helper: expose state in window for console inspection
-if (typeof window !== 'undefined') window.__STATE = state;
+if (typeof window !== 'undefined') window.state = state;
 
 // Set up logical size
 const logicalW = state.GRID.cols * state.GRID.tile;
