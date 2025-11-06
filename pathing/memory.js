@@ -172,4 +172,30 @@ export function nextUntriedExit(mem) {
   return pick;
 }
 
-/** Clear all memory (fresh unit / fre**
+/** Clear all memory (fresh unit / fresh round). */
+export function resetMemory(mem) {
+  mem.edges.clear();
+  mem.stack.length = 0;
+}
+
+//// Small helpers //////////////////////////////////////////////////////////////
+
+/** Compute next grid coord from (x,y) taking dir "N","E","S","W". */
+export function stepFrom(x, y, dir) {
+  switch (dir) {
+    case "N": return [x, y - 1];
+    case "E": return [x + 1, y];
+    case "S": return [x, y + 1];
+    case "W": return [x - 1, y];
+    default:  return [x, y];
+  }
+}
+
+/** Convenience: record both directions as explored (undirected sense). */
+export function markCorridorBothWays(mem, ax, ay, bx, by) {
+  markEdgeExplored(mem, ax, ay, bx, by);
+  markEdgeExplored(mem, bx, by, ax, ay);
+}
+
+/** True if a direction bitmask has no options left. */
+export function maskEmpty(mask) { return (mask | 0) === 0; }
