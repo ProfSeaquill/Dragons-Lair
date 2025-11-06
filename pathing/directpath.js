@@ -14,8 +14,8 @@
 //                      after leaving start, so your FSM can run a Decision there.
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { neighbors4, dirFromTo, isJunction, } from "../grid/topology.js";
-import { GRID, isOpen as isPassable, inBounds } from '../state.js';
+import { neighbors4, dirFromTo, isJunction } from "../grid/topology.js";
+import { GRID, inBounds } from '../state.js';
 
 
 
