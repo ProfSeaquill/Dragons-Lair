@@ -69,6 +69,10 @@ let _lastWaveHUD = -1;
 let _lastBones = -1;
 let _lastHPStr = '';
 let _lastAuto = null;
+let _abilityLoopInit = false;
+let _hoverKey = null;
+let _hoverHasWall = null;
+
 
 // ---------- Optional small API for main/render ----------
 export const UI = { refreshHUD, tell, renderUpgradesPanel };
@@ -244,7 +248,9 @@ export function renderUpgradesPanel() {
     root.appendChild(row);
   });
 
-  // Live cooldown / lock updater
+ // Live cooldown / lock updater (start once)
+if (!_abilityLoopInit) {
+  _abilityLoopInit = true;
   (async function abilityUseUpdater() {
     const combat = await getCombat();
     if (typeof combat.getCooldowns !== 'function') return;
@@ -279,6 +285,7 @@ export function renderUpgradesPanel() {
   })();
 }
 
+
 // ---------- Wall instructional text ----------
 function renderGridHelp(gs) {
   const el = document.querySelector('.gridHelp');
@@ -309,22 +316,37 @@ function wireCanvasEdgeBuild() {
   cv.addEventListener('mousemove', (e) => {
     const gs = state.GameState;
 
-    // Hide the hover + do nothing while a wave is active
-    if (!state.canEditMaze(gs)) {
-      gs.uiHoverEdge = null;
-      return;
-    }
+// Hide the hover + do nothing while a wave is active
+if (!state.canEditMaze(gs)) {
+  gs.uiHoverEdge = null;
+  _hoverKey = null;
+  _hoverHasWall = null;
+  return;
+}
 
-    const hover = edgeHitTest(cv, e);
-    gs.uiHoverEdge = hover; // for render highlight
-    if (hover) {
-      const hasWall = api.edgeHasWall(gs, hover.x, hover.y, hover.side);
-      const verb = hasWall ? 'Remove' : 'Place';
-      const cost = hasWall
-        ? `(+${edgeRefund(gs)} bones)`
-        : `(${edgeCost(gs)} bones)`;
-      tell(`${verb} wall: (${hover.x},${hover.y}) ${hover.side} ${cost}`, '#9cf');
-    }
+const hover = edgeHitTest(cv, e);
+gs.uiHoverEdge = hover; // for render highlight
+if (!hover) {
+  if (_hoverKey !== null) {
+    _hoverKey = null;
+    _hoverHasWall = null;
+    tell(''); // clear any stale message
+  }
+  return;
+}
+
+const hasWall = api.edgeHasWall(gs, hover.x, hover.y, hover.side);
+const k = `${hover.x},${hover.y},${hover.side}`;
+if (k !== _hoverKey || hasWall !== _hoverHasWall) {
+  _hoverKey = k;
+  _hoverHasWall = hasWall;
+
+  const verb = hasWall ? 'Remove' : 'Place';
+  const cost = hasWall
+    ? `(+${edgeRefund(gs)} bones)`
+    : `(${edgeCost(gs)} bones)`;
+  tell(`${verb} wall: (${hover.x},${hover.y}) ${hover.side} ${cost}`, '#9cf');
+}
   });
 
   cv.addEventListener('mouseleave', () => {
