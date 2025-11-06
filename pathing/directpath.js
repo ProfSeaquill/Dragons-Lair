@@ -114,7 +114,8 @@ class MinHeap {
  */
 export function aStarToTarget(sx, sy, gx, gy) {
  // Tiles themselves are passable; edge blocking happens via neighbors4().
-  if (!inBounds(sx, sy) || !inBounds(gx, gy)) return null;
+  if (!inBounds(sx, sy) || !inBounds(gx, gy)) 
+    return null;
   }
   if (sx === gx && sy === gy) return [{ x: sx, y: sy }];
 
