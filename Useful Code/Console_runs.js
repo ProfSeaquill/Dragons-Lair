@@ -12,3 +12,19 @@
   }
   console.log('Final balance', bal, ' (0 is good)');
 })();
+
+
+// returns enemy presence and positions
+(() => {
+  const gs = window.state?.GameState;
+  if (!gs) return console.warn('No GameState');
+  const t = window.state?.GRID?.tile || 32;
+  const snapshot = (gs.enemies||[]).map(e => ({
+    id:e.id, type:e.type,
+    cx:e.cx, cy:e.cy,
+    x:e.x, y:e.y,
+    tunn:!!e.tunneling,
+    hasSprite: !!(e && (e.sprite || e.spriteKey || e.img))
+  }));
+  console.table(snapshot);
+})();
