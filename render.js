@@ -379,17 +379,28 @@ function drawEnemies(ctx, gs) {
 
   // Shallow copy + Y-sort for nicer overlap (closest is drawn last)
   const list = gs.enemies.slice().sort((a, b) => {
-    const ay = (typeof a.y === 'number') ? a.y : (a.cy + 0.5) * t;
-    const by = (typeof b.y === 'number') ? b.y : (b.cy + 0.5) * t;
-    return ay - by;
-  });
+  const ay = Number.isFinite(a.drawY) ? a.drawY
+           : Number.isFinite(a.y)     ? a.y
+           : (a.cy + 0.5) * t;
+  const by = Number.isFinite(b.drawY) ? b.drawY
+           : Number.isFinite(b.y)     ? b.y
+           : (b.cy + 0.5) * t;
+  return ay - by;
+});
+
 
   for (const e of list) {
     if (e.type === 'engineer' && e.tunneling) continue; // drawn by tunnel ring
 
-    // Resolve a pixel position
-  let ex = Number.isFinite(e.x) ? e.x : (Number.isInteger(e.cx) ? (e.cx + 0.5) * t : NaN);
-let ey = Number.isFinite(e.y) ? e.y : (Number.isInteger(e.cy) ? (e.cy + 0.5) * t : NaN);
+  // Resolve a pixel position (prefer smooth interpolants if present)
+let ex = Number.isFinite(e.drawX) ? e.drawX
+       : Number.isFinite(e.x)     ? e.x
+       : (Number.isInteger(e.cx) ? (e.cx + 0.5) * t : NaN);
+
+let ey = Number.isFinite(e.drawY) ? e.drawY
+       : Number.isFinite(e.y)     ? e.y
+       : (Number.isInteger(e.cy) ? (e.cy + 0.5) * t : NaN);
+
 
 // Final safety: if still not finite, try to recover; else skip drawing this enemy this frame.
 if (!Number.isFinite(ex) || !Number.isFinite(ey)) {
