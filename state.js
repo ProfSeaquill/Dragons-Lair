@@ -583,8 +583,28 @@ export const GameState = {
 function __useGS(g) { return g || GameState; }
 
 export function isOpen(gs, x, y, side) {
-  return edgeOpen(gs, x, y, side);
+  gs = gs || GameState;
+  if (!inBounds(x, y)) return false;
+
+  // Physical edge must be open (bounds + no wall)
+  if (!edgeOpen(gs, x, y, side)) return false;
+
+  // Compute destination tile
+  let nx = x, ny = y;
+  if (side === 'E') nx = x + 1;
+  else if (side === 'W') nx = x - 1;
+  else if (side === 'S') ny = y + 1;
+  else if (side === 'N') ny = y - 1;
+  else return false;
+
+  if (!inBounds(nx, ny)) return false;
+
+  // Virtual gate: do NOT allow moving *into* the dragon footprint.
+  if (isDragonCell(nx, ny, gs)) return false;
+
+  return true;
 }
+
 
 // --- Physical edges only (ignores ENTRY/DRAGON virtual gates) ---
 export function isOpenPhysical(gs, x, y, side) {
