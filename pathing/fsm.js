@@ -158,13 +158,12 @@ function tickWalkStraight(agent) {
   if (agent.x === agent.gx && agent.y === agent.gy) {
     agent.state = S.REACHED; return agent.state;
   }
-  const planned = planSegment(agent);
-  if (!planned) {
-    // If planning failed (rare), escalate to DECISION if we are at a junction,
-    // else mark STOPPED (or you could attempt small probes).
-    if (isJunction(agent.x, agent.y, agent.prevDir)) {
-      agent.state = S.DECISION;
-    } else {
+const planned = planSegment(agent);
+if (!planned) {
+  // Prefer staying active; probe via DECISION even outside a formal junction.
+  agent.state = S.DECISION;
+}
+     else {
       agent.state = S.STOPPED;
     }
   }
