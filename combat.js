@@ -783,23 +783,21 @@ if (type === 'engineer') {
     e.y = (e.cy + 0.5) * t;
     e.tileX = e.cx;
     e.tileY = e.cy;
+    
+ // speed in pixels/sec (navigator reads this)
+{
+  const tsize = state.GRID.tile || 32;
+  // tiles/sec (from makeEnemy scaling) → px/sec
+  e.pxPerSec = (typeof e.speed === 'number') ? e.speed * tsize : 80;
+  e.speedBase = e.speed;
+  e.speedTilesPerSec = (typeof e.speed === 'number') ? e.speed : (e.pxPerSec / tsize);
 
-    // ✅ make speed be *pixels per second*
-    // your makeEnemy() puts e.speed in tiles/sec → convert:
-    if (typeof e.pxPerSec !== 'number') {
-      if (typeof e.speed === 'number') {
-        e.pxPerSec = e.speed * t;      // tiles/sec → px/sec
-      } else {
-        e.pxPerSec = 80;               // safe fallback (~2.5 tiles/s at 32px)
-      }
-    }
-    e.speedBase = e.speed;
-
-    // ✅ give direction vectors expected by stepAlongDirection()
-    const dirMap = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
-    const v = dirMap[e.dir] || [1,0];
-    e.dirX = v[0];
-    e.dirY = v[1];
+  // heading unit vector consistent with e.dir
+  const dirMap = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
+  const v = dirMap[e.dir] || [1,0];
+  e.dirX = v[0];
+  e.dirY = v[1];
+}
 
     // normal spawn helpers
     initializeSpawnPrevAndCommit(e);
