@@ -43,37 +43,56 @@ export function updateAgent(enemy, dtSec = (state?.GameState?.dtSec ?? 1/60), ct
   if (!enemy || enemy.dead) return null;
   if (!enemy._fsm) spawnAgent(enemy, ctx);
 
-  // --- NEW: per-unit step pacing in tiles/sec ---
-  // Try to read your tuned enemy speed if it exists; fall back to 1.0 tiles/sec.
-  // (If you expose a better field name in your project, plug it in below.)
-  const tilesPerSec =
-    (enemy.speedTilesPerSec ?? enemy.speedTiles ?? enemy.tilesPerSec ?? 1.0);
-  const stepPeriod = 1 / Math.max(0.001, tilesPerSec); // seconds per tile
-
-  enemy._stepAcc = (enemy._stepAcc ?? 0) + dtSec;
-  if (enemy._stepAcc < stepPeriod) {
-    // Not time to advance a tile yet; keep pixel coords at current tile center
-    const tile = GRID.tile || 32;
-    enemy.x = (enemy.cx + 0.5) * tile;
-    enemy.y = (enemy.cy + 0.5) * tile;
-    return { moved: false, x: enemy.cx, y: enemy.cy, state: enemy._fsm?.state };
-  }
-  // Consume one step’s worth; if frame was long, keep a tiny remainder to stay smooth.
-  enemy._stepAcc -= stepPeriod;
-
-  // Advance exactly one tile in the FSM
-  tickFSM(enemy._fsm);
+  // --- pacing unchanged ---
+  const tilesPerSec = (enemy.speedTilesPerSec ?? enemy.speedTiles ?? enemy.tilesPerSec ?? 1.0);
+  const stepPeriod = 1 / Math.max(0.001, tilesPerSec);
 
   const tile = GRID.tile || 32;
-  const nx = enemy._fsm.x | 0;
-  const ny = enemy._fsm.y | 0;
 
-  enemy.cx = nx; enemy.cy = ny;
-  enemy.x = (nx + 0.5) * tile;
-  enemy.y = (ny + 0.5) * tile;
+  // Initialize interpolation endpoints once
+  if (enemy._fromPX == null) {
+    const px = ((enemy.cx ?? 0) + 0.5) * tile;
+    const py = ((enemy.cy ?? 0) + 0.5) * tile;
+    enemy._fromPX = px; enemy._fromPY = py;
+    enemy._toPX   = px; enemy._toPY   = py;
+    enemy.drawX   = px; enemy.drawY   = py;
+  }
 
-  // periodic diag unchanged...
-  return { moved: true, x: nx, y: ny, state: getFSMState(enemy._fsm) };
+  // Accumulate time since last grid step
+  enemy._stepAcc = (enemy._stepAcc ?? 0) + dtSec;
+
+  if (enemy._stepAcc >= stepPeriod) {
+    // We owe exactly ONE grid step; preserve remainder for smoothness
+    enemy._stepAcc -= stepPeriod;
+
+    // Keep previous "to" as new "from"
+    enemy._fromPX = enemy._toPX;
+    enemy._fromPY = enemy._toPY;
+
+    // Advance FSM exactly one tile
+    const prevCx = enemy.cx | 0;
+    const prevCy = enemy.cy | 0;
+    tickFSM(enemy._fsm);
+    const nx = enemy._fsm.x | 0;
+    const ny = enemy._fsm.y | 0;
+
+    // Authoritative grid coords and logic-center pixels
+    enemy.cx = nx; enemy.cy = ny;
+    enemy.x  = (nx + 0.5) * tile;
+    enemy.y  = (ny + 0.5) * tile;
+
+    // New interpolation target
+    enemy._toPX = enemy.x;
+    enemy._toPY = enemy.y;
+  }
+
+  // Interpolate draw position based on time since last step
+  const t = Math.max(0, Math.min(1, enemy._stepAcc / stepPeriod)); // 0..1
+  enemy.drawX = enemy._fromPX + (enemy._toPX - enemy._fromPX) * t;
+  enemy.drawY = enemy._fromPY + (enemy._toPY - enemy._fromPY) * t;
+
+  // (Renderer: draw at drawX/drawY; logic continues to use x/y, cx/cy)
+  return { moved: true, x: enemy.cx | 0, y: enemy.cy | 0, state: getFSMState(enemy._fsm) };
 }
 
 
