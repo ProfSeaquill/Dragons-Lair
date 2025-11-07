@@ -1591,27 +1591,32 @@ for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
     if (e.stunLeft > 0) continue;  // frozen by Roar/Stomp
 
-   const moved = pathUpdateAgent(e, dt, gs);
-if (moved && moved.moved && Number.isInteger(moved.nx) && Number.isInteger(moved.ny)) {
-  // (Optional) one-time probe, but the label should reflect that we DID move.
-  if (!e.__navProbeOnce) {
-    e.__navProbeOnce = true;
-    console.log('[nav PROBE] moved', {
-      id: e.id, type: e.type, cx: e.cx, cy: e.cy,
-      hasPxPerSec: typeof e.pxPerSec === 'number',
-      dir: e.dir, dirX: e.dirX, dirY: e.dirY,
-      commitLeft: e.commitTilesLeft,
-      tileXY: [e.tileX, e.tileY]
-    });
-  }
+   // Let the navigator advance e.cx/e.cy (most implementations mutate the agent directly).
+    const res = pathUpdateAgent(e, dt, gs);
 
-  e.cx = e.tileX = moved.nx;
-  e.cy = e.tileY = moved.ny;
+    // Prefer whatever the navigator wrote; otherwise accept res.nx/ny if it returns them.
+    const nx = Number.isInteger(e.cx) ? e.cx : (res && Number.isInteger(res.nx) ? res.nx : undefined);
+    const ny = Number.isInteger(e.cy) ? e.cy : (res && Number.isInteger(res.ny) ? res.ny : undefined);
 
-  const [ox, oy] = state.pathRenderOffset(e, tsize, gs);
-  e.x = (e.cx + 0.5) * tsize + (ox || 0);
-  e.y = (e.cy + 0.5) * tsize + (oy || 0);
-}
+    if (Number.isInteger(nx) && Number.isInteger(ny)) {
+      // Keep all grids in sync every frame (authoritative).
+      e.cx = nx; e.cy = ny;
+      e.tileX = nx; e.tileY = ny;
+
+      // Smooth pixel placement using the pathing's render offset.
+      const [ox, oy] = state.pathRenderOffset(e, tsize, gs);
+      e.x = (nx + 0.5) * tsize + (ox || 0);
+      e.y = (ny + 0.5) * tsize + (oy || 0);
+
+      // one-time probe (optional)
+      if (!e.__navProbeOnce) {
+        e.__navProbeOnce = true;
+        console.log('[nav PROBE] synced', {
+          id: e.id, type: e.type, cx: e.cx, cy: e.cy,
+          tile: [e.tileX, e.tileY], pxps: e.pxPerSec
+        });
+      }
+    }
   }
 }
 
