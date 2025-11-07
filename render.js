@@ -388,8 +388,8 @@ function drawEnemies(ctx, gs) {
     if (e.type === 'engineer' && e.tunneling) continue; // drawn by tunnel ring
 
     // Resolve a pixel position
-    let ex = (typeof e.x === 'number') ? e.x : (Number.isInteger(e.cx) ? (e.cx + 0.5) * t : NaN);
-let ey = (typeof e.y === 'number') ? e.y : (Number.isInteger(e.cy) ? (e.cy + 0.5) * t : NaN);
+  let ex = Number.isFinite(e.x) ? e.x : (Number.isInteger(e.cx) ? (e.cx + 0.5) * t : NaN);
+let ey = Number.isFinite(e.y) ? e.y : (Number.isInteger(e.cy) ? (e.cy + 0.5) * t : NaN);
 
 // Final safety: if still not finite, try to recover; else skip drawing this enemy this frame.
 if (!Number.isFinite(ex) || !Number.isFinite(ey)) {
