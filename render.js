@@ -388,10 +388,21 @@ function drawEnemies(ctx, gs) {
     if (e.type === 'engineer' && e.tunneling) continue; // drawn by tunnel ring
 
     // Resolve a pixel position
-    const ex = (typeof e.x === 'number') ? e.x : (e.cx + 0.5) * t;
-    const ey = (typeof e.y === 'number') ? e.y : (e.cy + 0.5) * t;
-    const size = (e.size || 1) * t * 0.9;
-    if (!isOnScreen(ex - size * 0.5, ey - size * 0.5, size, size, ctx.canvas.width, ctx.canvas.height)) continue;
+    let ex = (typeof e.x === 'number') ? e.x : (Number.isInteger(e.cx) ? (e.cx + 0.5) * t : NaN);
+let ey = (typeof e.y === 'number') ? e.y : (Number.isInteger(e.cy) ? (e.cy + 0.5) * t : NaN);
+
+// Final safety: if still not finite, try to recover; else skip drawing this enemy this frame.
+if (!Number.isFinite(ex) || !Number.isFinite(ey)) {
+  if (Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
+    ex = (e.tileX + 0.5) * t;
+    ey = (e.tileY + 0.5) * t;
+  } else {
+    continue;
+  }
+}
+
+const size = (e.size || 1) * t * 0.9;
+if (!isOnScreen(ex - size * 0.5, ey - size * 0.5, size, size, ctx.canvas.width, ctx.canvas.height)) continue;
 
     // Deterministic micro-offset to reduce perfect stacking
     const off = enemyRenderOffset(e, t);
