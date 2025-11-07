@@ -650,11 +650,11 @@ e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
   e.dir = 'E';
 
   {
-  const t = state.GRID.tile;
-  e.x = (e.cx + 0.5) * t;
-  e.y = (e.cy + 0.5) * t;
-  e.tileX = e.cx;
-  e.tileY = e.cy;
+  const t = state.GRID.tile || 32;
+e.x = (e.cx + 0.5) * t;
+e.y = (e.cy + 0.5) * t;
+e.tileX = e.cx | 0;
+e.tileY = e.cy | 0;
 }
 
   // speed in pixels/sec (navigator reads this)
@@ -735,11 +735,11 @@ if (type === 'engineer') {
   e.dir = 'E';
 
   {
-  const t = state.GRID.tile;
-  e.x = (e.cx + 0.5) * t;
-  e.y = (e.cy + 0.5) * t;
-  e.tileX = e.cx;
-  e.tileY = e.cy;
+  const t = state.GRID.tile || 32;
+e.x = (e.cx + 0.5) * t;
+e.y = (e.cy + 0.5) * t;
+e.tileX = e.cx | 0;
+e.tileY = e.cy | 0;
 }
 
   // Each member follows the current group leader (set after the first spawn)
