@@ -72,6 +72,7 @@ let _lastAuto = null;
 let _abilityLoopInit = false;
 let _hoverKey = null;
 let _hoverHasWall = null;
+let _abilityButtons = []; // [{ key, btn }]
 
 
 // ---------- Optional small API for main/render ----------
@@ -186,7 +187,7 @@ export function renderUpgradesPanel() {
   const list = Array.isArray(data) ? data : Object.values(data);
   root.innerHTML = '';
 
-  const useBtns = []; // { key, btn }
+  _abilityButtons = []; // reset the live list each render
 
   list.forEach(info => {
     const row = document.createElement('div');
@@ -242,7 +243,7 @@ export function renderUpgradesPanel() {
       });
 
       row.appendChild(use);
-      useBtns.push({ key: info.key, btn: use });
+_abilityButtons.push({ key: info.key, btn: use });
     }
 
     root.appendChild(row);
@@ -259,7 +260,7 @@ if (!_abilityLoopInit) {
 
     function tick() {
       const cds = combat.getCooldowns();
-      for (const { key, btn } of useBtns) {
+      for (const { key, btn } of _abilityButtons) {
         const U = state.GameState.upgrades || {};
         const level = (U[key] | 0);
         const locked = level <= 0;
