@@ -39,33 +39,56 @@ export function despawnAgent(enemy /*, ctx */) {
 }
 
 // One grid step per tick (your game runs “1 tile per tick” movement)
-export function updateAgent(enemy, /* dtSec, */ ctx) {
+export function updateAgent(enemy, dtSec = 0, ctx) {
   if (!enemy || enemy.dead) return null;
   if (!enemy._fsm) spawnAgent(enemy, ctx);
 
-  tickFSM(enemy._fsm); // one grid step
-
   const tile = GRID.tile || 32;
+
+  // Normalize speed (px/sec) with broad compatibility
+  const pxPerSec =
+    (typeof enemy.pxPerSec === 'number' && enemy.pxPerSec > 0) ? enemy.pxPerSec :
+    (typeof enemy.speedPx  === 'number' && enemy.speedPx  > 0) ? enemy.speedPx  :
+    (typeof enemy.speed    === 'number' && enemy.speed    > 0) ? (enemy.speed * tile) :
+    80;
+
+  // Accumulate pixel distance; convert to whole-tile steps
+  enemy._distAcc = (enemy._distAcc || 0) + (pxPerSec * (dtSec || 0));
+  let steps = 0;
+  if (enemy._distAcc >= tile) {
+    steps = Math.floor(enemy._distAcc / tile);
+    enemy._distAcc -= steps * tile;
+  }
+  // Ensure progress on zero-dt update cycles
+  if (!dtSec && steps === 0) steps = 1;
+
+  let moved = false;
+  for (let i = 0; i < steps; i++) {
+    const bx = enemy._fsm.x | 0, by = enemy._fsm.y | 0;
+    tickFSM(enemy._fsm);
+    const ax = enemy._fsm.x | 0, ay = enemy._fsm.y | 0;
+    if (ax !== bx || ay !== by) moved = true;
+  }
+
   const nx = enemy._fsm.x | 0;
   const ny = enemy._fsm.y | 0;
 
   // Authoritative tiles:
   enemy.cx = nx; enemy.cy = ny;
 
-  // Pixels for render:
+  // Pixel center (renderer may add sub-tile offset visually)
   enemy.x = (nx + 0.5) * tile;
   enemy.y = (ny + 0.5) * tile;
 
-  // DIAG: throttle peek per enemy
-if ((enemy.__peekT = (enemy.__peekT ?? 0) + 1) % 60 === 0) {
-  try {
-    const st = getFSMState(enemy._fsm);
-    console.log('[DIAG fsm]', { id: enemy.id, type: enemy.type, st, x: enemy._fsm.x, y: enemy._fsm.y });
-  } catch {}
+  // Return both old/common shapes to be 100% safe:
+  return {
+    moved,
+    nx, ny,           // explicit next tile
+    x: nx, y: ny,     // legacy tile alias
+    state: getFSMState(enemy._fsm)
+  };
 }
 
-  return { moved: true, x: nx, y: ny, state: getFSMState(enemy._fsm) };
-}
 
 
 // Visual-only sub-tile offset (separation.js, no occupancy)
