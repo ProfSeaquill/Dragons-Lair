@@ -1557,11 +1557,12 @@ for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
     if (e.stunLeft > 0) continue;  // frozen by Roar/Stomp
 
-    const moved = pathUpdateAgent(e, dt, gs); // returns { moved, nx, ny } | null
-    if (moved && moved.moved && Number.isInteger(moved.nx) && Number.isInteger(moved.ny)) {
-      if (!e.__navProbeOnce) {
+   const moved = pathUpdateAgent(e, dt, gs);
+if (moved && moved.moved && Number.isInteger(moved.nx) && Number.isInteger(moved.ny)) {
+  // (Optional) one-time probe, but the label should reflect that we DID move.
+  if (!e.__navProbeOnce) {
     e.__navProbeOnce = true;
-    console.log('[nav PROBE] no-move', {
+    console.log('[nav PROBE] moved', {
       id: e.id, type: e.type, cx: e.cx, cy: e.cy,
       hasPxPerSec: typeof e.pxPerSec === 'number',
       dir: e.dir, dirX: e.dirX, dirY: e.dirY,
@@ -1569,16 +1570,16 @@ for (const e of enemies) {
       tileXY: [e.tileX, e.tileY]
     });
   }
-}
-      e.cx = e.tileX = moved.nx;
-      e.cy = e.tileY = moved.ny;
 
-      // Optional: smooth sub-tile swizzle (visual-only separation)
-      const [ox, oy] = state.pathRenderOffset(e, tsize, gs);
-      e.x = (e.cx + 0.5) * tsize + (ox || 0);
-      e.y = (e.cy + 0.5) * tsize + (oy || 0);
-    }
+  e.cx = e.tileX = moved.nx;
+  e.cy = e.tileY = moved.ny;
+
+  const [ox, oy] = state.pathRenderOffset(e, tsize, gs);
+  e.x = (e.cx + 0.5) * tsize + (ox || 0);
+  e.y = (e.cy + 0.5) * tsize + (oy || 0);
+}
   }
+}
 
 
      // ---- FSM time shim ----
