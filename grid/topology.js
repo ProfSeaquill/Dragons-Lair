@@ -12,13 +12,14 @@ export function setGridApi(api) { __grid = api || null; }
 // Fallback adapter: use state.neighborsByEdges(GameState, x, y)
 function _neighbors4WithSides(x, y) {
   if (__grid && typeof __grid.neighbors4 === 'function') {
-    // allow either shape: [{x,y}] or [{x,y,side}]
     const out = __grid.neighbors4(x, y) || [];
-    return out.map(n => (n.side ? n : { x: n.x, y: n.y, side: guessSide(n, x, y) }));
+    return out
+      .map(n => (n.side ? n : { x: n.x, y: n.y, side: guessSide(n, x, y) }))
+      .filter(n => n.side && state.isOpen(state.GameState, x, y, n.side)); // <-- add this
   }
   const gs = state.GameState;
-  // state.neighborsByEdges returns [{x,y,side}]
-  return state.neighborsByEdges(gs, x, y);
+  const raw = state.neighborsByEdges(gs, x, y) || [];
+  return raw.filter(n => n.side && state.isOpen(gs, x, y, n.side)); // <-- and this
 }
 
 function guessSide(n, x, y) {
