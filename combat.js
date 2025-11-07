@@ -98,6 +98,10 @@ e.speedMul = 1;
       curiosity: Number(B.curiosity) || 0,
     };
   }
+// wipe any nav/lerp scratch that a pooled enemy could carry over
+e.fromXY = null;        // some pathers keep a [x,y] start of segment
+delete e._fromX; delete e._fromY;
+delete e._seg; delete e._acc; delete e._lerp; delete e._t;
 
   if (initFn) initFn(e);
   return e;
