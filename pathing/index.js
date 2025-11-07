@@ -4,7 +4,7 @@
 import { createAgent, tick as tickFSM, getState as getFSMState } from './fsm.js';
 import { planSegmentToFirstJunction } from './directpath.js';
 import { buildTileRosters, renderOffsetNoOcc } from './separation.js';
-import { EXIT, GRID } from '../state.js';
+import { EXIT, GRID, GameState } from '../state.js';
 
 // Optional context bag (kept for parity with your old initPathing signature)
 export function initPathing(/*gridApi, exit, opts*/) {
@@ -38,56 +38,67 @@ export function despawnAgent(enemy /*, ctx */) {
   enemy._fsm = null;
 }
 
-// One grid step per tick (your game runs “1 tile per tick” movement)
-export function updateAgent(enemy, dtSec = 0, ctx) {
+// One grid step per tick, with a lightweight visual tween between tiles.
+export function updateAgent(enemy, /* dtSec, */ ctx) {
   if (!enemy || enemy.dead) return null;
-  if (!enemy._fsm) spawnAgent(enemy, ctx);
 
   const tile = GRID.tile || 32;
 
-  // Normalize speed (px/sec) with broad compatibility
-  const pxPerSec =
-    (typeof enemy.pxPerSec === 'number' && enemy.pxPerSec > 0) ? enemy.pxPerSec :
-    (typeof enemy.speedPx  === 'number' && enemy.speedPx  > 0) ? enemy.speedPx  :
-    (typeof enemy.speed    === 'number' && enemy.speed    > 0) ? (enemy.speed * tile) :
-    80;
+  // Spawn FSM if needed
+  if (!enemy._fsm) spawnAgent(enemy, ctx);
 
-  // Accumulate pixel distance; convert to whole-tile steps
-  enemy._distAcc = (enemy._distAcc || 0) + (pxPerSec * (dtSec || 0));
-  let steps = 0;
-  if (enemy._distAcc >= tile) {
-    steps = Math.floor(enemy._distAcc / tile);
-    enemy._distAcc -= steps * tile;
-  }
-  // Ensure progress on zero-dt update cycles
-  if (!dtSec && steps === 0) steps = 1;
+  // === Render tween state ===
+  // enemy._lerp = { px, py, nx, ny, t, dur }
+  const lerpFrames = ((GameState?.cfg?.tuning?.nav?.lerpFrames) ?? 6) | 0; // 4–8 looks good
 
-  let moved = false;
-  for (let i = 0; i < steps; i++) {
-    const bx = enemy._fsm.x | 0, by = enemy._fsm.y | 0;
-    tickFSM(enemy._fsm);
-    const ax = enemy._fsm.x | 0, ay = enemy._fsm.y | 0;
-    if (ax !== bx || ay !== by) moved = true;
+  // If we are mid-tween, advance the interpolation and do NOT tick the FSM yet.
+  if (enemy._lerp && enemy._lerp.t < enemy._lerp.dur) {
+    enemy._lerp.t++;
+    const a = enemy._lerp.t / enemy._lerp.dur;
+    const ix = enemy._lerp.px + (enemy._lerp.nx - enemy._lerp.px) * a;
+    const iy = enemy._lerp.py + (enemy._lerp.ny - enemy._lerp.py) * a;
+    enemy.x = ix;
+    enemy.y = iy;
+    // Keep authoritative tile coords already set when the step began.
+    return { moved: true, x: enemy.cx | 0, y: enemy.cy | 0, state: getFSMState(enemy._fsm) };
   }
 
+  // === Begin a new tile step ===
+  // Remember current pixel pos (start of tween)
+  const startX = enemy.x ?? ((enemy.cx + 0.5) * tile);
+  const startY = enemy.y ?? ((enemy.cy + 0.5) * tile);
+
+  // Advance FSM exactly one tile
+  const prevTx = enemy._fsm.x | 0, prevTy = enemy._fsm.y | 0;
+  tickFSM(enemy._fsm);
   const nx = enemy._fsm.x | 0;
   const ny = enemy._fsm.y | 0;
 
-  // Authoritative tiles:
+  // Update authoritative tile coords immediately
   enemy.cx = nx; enemy.cy = ny;
 
-  // Pixel center (renderer may add sub-tile offset visually)
-  enemy.x = (nx + 0.5) * tile;
-  enemy.y = (ny + 0.5) * tile;
+  // Compute end pixel for tween
+  const endX = (nx + 0.5) * tile;
+  const endY = (ny + 0.5) * tile;
 
-  // Return both old/common shapes to be 100% safe:
-  return {
-    moved,
-    nx, ny,           // explicit next tile
-    x: nx, y: ny,     // legacy tile alias
-    state: getFSMState(enemy._fsm)
-  };
+  // Initialize (or reset) tween
+  enemy._lerp = { px: startX, py: startY, nx: endX, ny: endY, t: 0, dur: Math.max(1, lerpFrames) };
+
+  // Put render position at the very start of the tween this frame
+  enemy.x = startX;
+  enemy.y = startY;
+
+  // Optional: periodic peek (kept from your original)
+  if ((enemy.__peekT = (enemy.__peekT ?? 0) + 1) % 60 === 0) {
+    try {
+      const st = getFSMState(enemy._fsm);
+      console.log('[DIAG fsm]', { id: enemy.id, type: enemy.type, st, x: enemy._fsm.x, y: enemy._fsm.y });
+    } catch {}
+  }
+
+  return { moved: true, x: nx, y: ny, state: getFSMState(enemy._fsm) };
 }
+
 
 
 
