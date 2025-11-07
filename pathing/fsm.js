@@ -145,16 +145,24 @@ function tickWalkStraight(agent) {
   // Rule #1: walk east by default, but "straight" maintains current prevDir.
   // Try to continue straight if passable and NOT a junction ahead.
   const straight = stepStraight(GameState, agent.x, agent.y, agent.prevDir);
-  if (straight && !isJunction(straight.x, straight.y, agent.prevDir)) {
+  if (straight) {
     moveOne(agent, straight.x, straight.y);
-    // Check goal
     if (agent.x === agent.gx && agent.y === agent.gy) {
-      agent.state = S.REACHED;
-      return agent.state;
+      agent.state = S.REACHED; return agent.state;
     }
     return agent.state;
   }
 
+  // Straight blocked → plan a segment toward goal
+  if (agent.x === agent.gx && agent.y === agent.gy) {
+    agent.state = S.REACHED; return agent.state;
+  }
+  const planned = planSegment(agent);
+  if (!planned) {
+    agent.state = S.DECISION; // probe locally if planning failed
+  }
+  return agent.state;
+}
   // If next straight step is blocked or the next tile is a junction, plan a segment.
   if (agent.x === agent.gx && agent.y === agent.gy) {
     agent.state = S.REACHED;
