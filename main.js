@@ -541,16 +541,16 @@ function update(dt) {
     eff.headIdx = Math.min((eff.path?.length ?? 0) - 1, head);
     if (eff.t > (eff.dur || 0.7)) eff.dead = true;
   }
-  {
-  const arr = gs.effects || [];
-  let w = 0;
-  for (let i = 0; i < arr.length; i++) {
-    const fx = arr[i];
-    if (fx && !fx.dead) arr[w++] = fx;
+    {
+    const arr = gs.effects || [];
+    let w = 0;
+    for (let i = 0; i < arr.length; i++) {
+      const fx = arr[i];
+      if (fx && !fx.dead) arr[w++] = fx;
+    }
+    arr.length = w; // ← mutate in place; DO NOT reassign gs.effects
   }
-  arr.length = w;
-  gs.effects = arr;
-}
+
 
 
   // 3) Auto-start waves if enabled and field is clear
@@ -584,7 +584,6 @@ function update(dt) {
       if (fx && !fx.dead) arr[w++] = fx;
     }
     arr.length = w;
-    gs.effects = arr;
   }
 }
 
