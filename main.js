@@ -521,19 +521,6 @@ function update(dt) {
   // 1) Let Combat drive game logic if available
   if (typeof combatUpdate === 'function') {
    combatUpdate(gs, dt);
-     // --- DIAG: nudge pathing + record movement (non-tunnel only) ---
-{
-  let moved = 0;
-  for (const e of gs.enemies) {
-    if (!e || e.dead || e.tunneling) continue;
-    const rep = state.pathUpdateAgent(e, dt, gs);  // your new adapter
-    if (rep && rep.moved) moved++;
-  }
-  if ((gs.__diagStep = (gs.__diagStep ?? 0) + 1) % 60 === 0) { // every ~1s at 60fps
-    console.log('[DIAG path step]', { movedLastSec: moved });
-  }
-}
-
 }
 
   // 2b) Dragon fire animation FX timer (visual only; optional)
