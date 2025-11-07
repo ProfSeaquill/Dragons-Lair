@@ -917,7 +917,8 @@ function dragonBreathTick(gs, dt, ds) {
 
   const tileSize = state.GRID.tile || 32;
   const maxTiles = Math.max(1, Math.round(ds.breathRange / tileSize));
-  const mouth = state.dragonMouthCell(gs);
+  const mouth = (state.dragonMouthCell?.(gs)) || dragonMouthCellLocal(gs);
+
 
     // One BFS from mouth → reconstruct per-enemy corridors (cheap on 24×16)
   const { dist, prev } = bfsFrom(gs, mouth.x, mouth.y, maxTiles);
