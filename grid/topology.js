@@ -1,7 +1,5 @@
 // grid/topology.js
 import * as state from '../state.js';
-import { isOpenEdge } from './edges.js';
-
 
 const OPP = { N:'S', S:'N', E:'W', W:'E' };
 const useGS = (maybeGs) => (maybeGs && maybeGs.GRID ? maybeGs : state.GameState);
