@@ -661,6 +661,7 @@ e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
   e.cy = state.ENTRY.y;
   e.dir = 'E';
 
+ // tile/pixel assignment
   {
   const t = state.GRID.tile || 32;
 e.x = (e.cx + 0.5) * t;
@@ -672,15 +673,18 @@ e.tileY = e.cy | 0;
   // speed in pixels/sec (navigator reads this)
 {
   const tsize = state.GRID.tile || 32;
-  e.pxPerSec = (typeof e.speed === 'number') ? e.speed * tsize : 80; // tiles→px
+  // tiles/sec (from makeEnemy scaling) → px/sec
+  e.pxPerSec = (typeof e.speed === 'number') ? e.speed * tsize : 80;
   e.speedBase = e.speed;
+  e.speedTilesPerSec = (typeof e.speed === 'number') ? e.speed : (e.pxPerSec / tsize);
 
-  // heading vector consistent with e.dir
+  // heading unit vector consistent with e.dir
   const dirMap = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
   const v = dirMap[e.dir] || [1,0];
   e.dirX = v[0];
   e.dirY = v[1];
 }
+
 
   // initialize prev/commit so freshly-spawned enemies head straight initially
   initializeSpawnPrevAndCommit(e);
@@ -718,6 +722,18 @@ e.x = (e.cx + 0.5) * t;
 e.y = (e.cy + 0.5) * t;
 e.tileX = e.cx | 0;
 e.tileY = e.cy | 0;
+}
+
+  {
+  const tsize = state.GRID.tile || 32;
+  e.pxPerSec = (typeof e.speed === 'number') ? e.speed * tsize : 80;
+  e.speedBase = e.speed;
+  e.speedTilesPerSec = (typeof e.speed === 'number') ? e.speed : (e.pxPerSec / tsize);
+
+  const dirMap = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
+  const v = dirMap[e.dir] || [1,0];
+  e.dirX = v[0];
+  e.dirY = v[1];
 }
 
   // Each member follows the current group leader (set after the first spawn)
