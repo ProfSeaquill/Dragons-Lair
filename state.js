@@ -174,13 +174,23 @@ export function dragonAnchor(gs) {
   return { cx, cy };
 }
 
-export function dragonMouthCell(gs) {
-  const cells = dragonCells(gs);
-  if (!cells || !cells.length) return { x: EXIT.x, y: EXIT.y };
-  let best = cells[0];
-  for (const c of cells) if (c.x < best.x) best = c;
-  return best;
+// In state.js
+export function dragonMouthCell(gs = GameState) {
+  // EXIT is the dragon’s center tile by design.
+  const cx = EXIT.x, cy = EXIT.y;
+
+  // Width/height of dragon footprint (defaults if not present)
+  const hb = (typeof DRAGON_HITBOX !== 'undefined' && DRAGON_HITBOX) ? DRAGON_HITBOX : { w: 3, h: 3 };
+
+  // Westmost *inside* dragon tile is cx - floor(w/2).
+  const westInsideX = cx - Math.floor(hb.w / 2);
+
+  // Mouth sits one tile *outside* that, same row as the dragon center.
+  const mouthX = Math.max(0, westInsideX - 1);
+  const mouthY = cy;
+  return { x: mouthX, y: mouthY };
 }
+
 
 // ===== Ability Upgrade Levels =====
 // (0 = base; you can unlock/level these however you like)
