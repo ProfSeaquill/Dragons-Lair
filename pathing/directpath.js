@@ -26,8 +26,8 @@ import { GRID, inBounds } from '../state.js';
 const HEURISTIC_WEIGHT = 1.0; // TUNABLE: 0.9..1.5 is a sensible range
 
 // Safety caps for mobile; keep small to avoid frame spikes.
-const MAX_NODES  = 5000;    // TUNABLE: upper bound on opened nodes
-const MAX_MICROS = 2_000;   // TUNABLE: ~2ms budget per call in microseconds
+const MAX_NODES  = 12000;    // TUNABLE: upper bound on opened nodes
+const MAX_MICROS = 6_000;   // TUNABLE: ~2ms budget per call in microseconds
 
 // Optional: prefer continuing straight (small bonus) when breaking ties.
 const STRAIGHT_TIE_BONUS = 0.05; // TUNABLE: 0 (off) .. 0.1 (subtle)
