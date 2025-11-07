@@ -6,6 +6,7 @@ import * as walls from './grid/walls.js';
 import * as topo  from './grid/topology.js';
 import { edgeOpen } from './grid/edges.js';
 
+
 // ===== Grid & Entry/Exit =====
 export const GRID = { cols: 24, rows: 16, tile: 32 };
 
@@ -581,6 +582,8 @@ function __useGS(g) { return g || GameState; }
 
 export function isOpen(gs, x, y, side) {
   return edgeOpen(gs, x, y, side);
+}
+
 
 // Figure out destination to test dragon footprint entry
 const dxy = DIR[side] || [0,0];
@@ -665,8 +668,13 @@ export function neighborsByEdges(gs, cx, cy) {
 }
 
 export function setEdgeWall(gs, x, y, side, hasWall) {
-   return edgesSetWall(gs, x, y, side, hasWall);
- }
+  const want = !!hasWall;
+  const cur  = edgeHasWall(gs, x, y, side);
+  if (cur === want) return cur;        // already desired state
+  const final = toggleEdge(gs, x, y, side); // toggle once; guard prevents full blocks
+  return final;                        // true if wall now present, false if absent
+}
+
 
 // --- Maze presets: serialize/apply just the walls (no gold/wave changes) ---
 export function serializeMaze(gs) {
