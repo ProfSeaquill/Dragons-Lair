@@ -785,6 +785,7 @@ if (type === 'engineer') {
     e.dir = 'E';
 
     // pixel + tile coords
+    const t = state.GRID.tile || 32;
     e.x = (e.cx + 0.5) * t;
     e.y = (e.cy + 0.5) * t;
     e.tileX = e.cx;
