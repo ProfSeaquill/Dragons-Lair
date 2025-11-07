@@ -674,6 +674,11 @@ e.tileX = e.cx | 0;
 e.tileY = e.cy | 0;
 }
 
+  // seed a stable 'from' for the very first render lerp
+e.fromXY = [e.cx, e.cy];
+// mark spawn time so we can suppress offsets for a heartbeat
+e._spawnAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
   // speed in pixels/sec (navigator reads this)
 {
   const tsize = state.GRID.tile || 32;
@@ -695,6 +700,8 @@ e.tileY = e.cy | 0;
 
   // Register with new pathing
   pathSpawnAgent(e, gs);
+  // seed navigator once so its internal chain is fresh
+try { pathUpdateAgent(e, 0, gs); } catch (_) {}
 
 
   gs.enemies.push(e);
@@ -728,6 +735,11 @@ e.tileX = e.cx | 0;
 e.tileY = e.cy | 0;
 }
 
+  // seed a stable 'from' for the very first render lerp
+e.fromXY = [e.cx, e.cy];
+// mark spawn time so we can suppress offsets for a heartbeat
+e._spawnAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
   {
   const tsize = state.GRID.tile || 32;
   e.pxPerSec = (typeof e.speed === 'number') ? e.speed * tsize : 80;
@@ -753,6 +765,8 @@ try {
   
   initializeSpawnPrevAndCommit(e);
   pathSpawnAgent(e, gs);
+  // seed navigator once so its internal chain is fresh
+try { pathUpdateAgent(e, 0, gs); } catch (_) {}
 
   (gs.enemies || (gs.enemies = [])).push(e);
 
@@ -1608,9 +1622,19 @@ for (const e of enemies) {
       e.tileX = nx; e.tileY = ny;
 
       // Smooth pixel placement using the pathing's render offset.
-      const [ox, oy] = state.pathRenderOffset(e, tsize, gs);
-      e.x = (nx + 0.5) * tsize + (ox || 0);
-      e.y = (ny + 0.5) * tsize + (oy || 0);
+     let ox = 0, oy = 0;
+if (typeof state.pathRenderOffset === 'function') {
+  const tmp = state.pathRenderOffset(e, tsize, gs) || [0,0];
+  ox = tmp[0] || 0; oy = tmp[1] || 0;
+}
+
+// For the first ~120ms of an enemy's life, clamp offsets to zero
+const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+if (e._spawnAt && (nowMs - e._spawnAt) < 120) { ox = 0; oy = 0; }
+
+e.x = (e.cx + 0.5) * tsize + ox;
+e.y = (e.cy + 0.5) * tsize + oy;
+
 
       // one-time probe (optional)
       if (!e.__navProbeOnce) {
