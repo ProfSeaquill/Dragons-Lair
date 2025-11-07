@@ -687,40 +687,6 @@ if (typeof e.trailStrength === 'number') {
 function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
   const e = acquireEnemy(type, gs.wave | 0);
 
-  // --- spawn snap & init (prevents non-adjacent first heads) ---
-{
-  const t = state.GRID.tile || 32;
-  // If you already compute spawn tile as integers, keep them; otherwise derive:
-  let scx = Number.isInteger(e.tileX) ? e.tileX : Math.floor((e.x ?? ((state.ENTRY.x + 0.5) * t)) / t);
-  let scy = Number.isInteger(e.tileY) ? e.tileY : Math.floor((e.y ?? ((state.ENTRY.y + 0.5) * t)) / t);
-  e.tileX = scx | 0;
-  e.tileY = scy | 0;
-
-  // Snap pixel position to tile center to avoid fractional drift at birth
-  e.x = (e.tileX + 0.5) * t;
-  e.y = (e.tileY + 0.5) * t;
-
-  // ensure px/sec exists for navigator
-{
-  const tsize = state.GRID.tile || 32;
-  e.pxPerSec = (typeof e.speed === 'number') ? e.speed * tsize : 80;
-  e.speedBase = e.speed;
-}
-
-  // Clear any stale navigation intent
-  e.path = null;
-  e.commitTilesLeft = 0;
-  e._blockedForward = false;
-
-  // Coherent initial facing (toward exit by default)
-  if (typeof e.dirX !== 'number' || typeof e.dirY !== 'number') {
-    const dx = Math.sign(state.EXIT.x - e.tileX);
-    e.dirX = dx !== 0 ? dx : 1;
-    e.dirY = dx !== 0 ? 0 : Math.sign(state.EXIT.y - e.tileY);
-    e.dir  = e.dirX > 0 ? 'E' : e.dirX < 0 ? 'W' : (e.dirY > 0 ? 'S' : 'N');
-  }
-}
-
 e.id = (++__ENEMY_ID);
 
 if (type === 'engineer') {
@@ -768,7 +734,7 @@ if (typeof e.trailStrength === 'number') {
 /* --- Dev / Playtest helpers --- */
 export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
   n = Math.max(1, n | 0);
-  const t = state.GRID.tile;
+  const t = state.GRID.tile || 32;
 
   for (let i = 0; i < n; i++) {
     const e = acquireEnemy(type, gs.wave | 0);
@@ -785,7 +751,6 @@ if (type === 'engineer') {
     e.dir = 'E';
 
     // pixel + tile coords
-    const t = state.GRID.tile || 32;
     e.x = (e.cx + 0.5) * t;
     e.y = (e.cy + 0.5) * t;
     e.tileX = e.cx;
