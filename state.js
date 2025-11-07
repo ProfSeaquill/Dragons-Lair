@@ -581,7 +581,6 @@ function __useGS(g) { return g || GameState; }
 
 export function isOpen(gs, x, y, side) {
   return edgeOpen(gs, x, y, side);
-}
 
 // Figure out destination to test dragon footprint entry
 const dxy = DIR[side] || [0,0];
