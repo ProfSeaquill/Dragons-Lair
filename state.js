@@ -467,17 +467,19 @@ export function makeGridApiForState(gs) {
       if (!inBounds(nx, ny)) continue;
       if (!isFree(nx, ny)) continue;
 
-      // --- Dragon virtual gates on transitions ---
-      const nextIsDragon = inDragon(nx, ny);
+     // --- Dragon virtual gates (hard block) ---
+    const nextIsDragon = inDragon(nx, ny);
+    const hereIsDragon = inDragon(x, y);
 
-      // Inside dragon: only WEST is allowed (attackers exit to the left)
-      if (hereIsDragon && side !== 'W') continue;
+    // Never allow entering the dragon footprint at all
+    if (nextIsDragon) continue;
 
-      // Entering dragon: only from WEST neighbor (i.e., crossing with side === 'E')
-      if (!hereIsDragon && nextIsDragon && side !== 'E') continue;
+    // (Defensive) If something ever ended up inside, don't let it move further
+    if (hereIsDragon) continue;
 
-      // Single source of truth (virtual gates + walls):
-      if (!edgeOpen(gs, x, y, side)) continue;
+    // Single source of truth (virtual gates + walls):
+    if (!edgeOpen(gs, x, y, side)) continue;
+
 
       out.push({ x: nx, y: ny });
     }
