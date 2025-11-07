@@ -1,6 +1,9 @@
 // grid/edges.js
+import * as state from '../state.js';
+
 export function edgeOpen(gs, x, y, dir) {
-  return isOpen(gs, x, y, dir); // single, explicit name
+  // delegate to state.isOpen (your existing canonical edge check)
+  return state.isOpen(gs, x, y, dir);
 }
 
 export function adjacentOpen(gs, ax, ay, bx, by) {
@@ -9,5 +12,5 @@ export function adjacentOpen(gs, ax, ay, bx, by) {
            : (bx === ax && by === ay+1) ? 'S'
            : (bx === ax && by === ay-1) ? 'N'
            : null;
-  return dir ? isOpen(gs, ax, ay, dir) : false;
+  return dir ? state.isOpen(gs, ax, ay, dir) : false;
 }
