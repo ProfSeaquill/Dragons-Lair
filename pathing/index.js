@@ -38,41 +38,44 @@ export function despawnAgent(enemy /*, ctx */) {
   enemy._fsm = null;
 }
 
-// One grid step per tick, with a lightweight visual tween between tiles.
-export function updateAgent(enemy, /* dtSec, */ ctx) {
+// One grid step when enough time has accumulated
+export function updateAgent(enemy, dtSec = (state?.GameState?.dtSec ?? 1/60), ctx) {
   if (!enemy || enemy.dead) return null;
   if (!enemy._fsm) spawnAgent(enemy, ctx);
 
-  // Advance FSM one grid step
+  // --- NEW: per-unit step pacing in tiles/sec ---
+  // Try to read your tuned enemy speed if it exists; fall back to 1.0 tiles/sec.
+  // (If you expose a better field name in your project, plug it in below.)
+  const tilesPerSec =
+    (enemy.speedTilesPerSec ?? enemy.speedTiles ?? enemy.tilesPerSec ?? 1.0);
+  const stepPeriod = 1 / Math.max(0.001, tilesPerSec); // seconds per tile
+
+  enemy._stepAcc = (enemy._stepAcc ?? 0) + dtSec;
+  if (enemy._stepAcc < stepPeriod) {
+    // Not time to advance a tile yet; keep pixel coords at current tile center
+    const tile = GRID.tile || 32;
+    enemy.x = (enemy.cx + 0.5) * tile;
+    enemy.y = (enemy.cy + 0.5) * tile;
+    return { moved: false, x: enemy.cx, y: enemy.cy, state: enemy._fsm?.state };
+  }
+  // Consume one step’s worth; if frame was long, keep a tiny remainder to stay smooth.
+  enemy._stepAcc -= stepPeriod;
+
+  // Advance exactly one tile in the FSM
   tickFSM(enemy._fsm);
 
   const tile = GRID.tile || 32;
   const nx = enemy._fsm.x | 0;
   const ny = enemy._fsm.y | 0;
 
-  // Authoritative tiles:
   enemy.cx = nx; enemy.cy = ny;
+  enemy.x = (nx + 0.5) * tile;
+  enemy.y = (ny + 0.5) * tile;
 
-  // Target pixel (tile center)
-  const tx = (nx + 0.5) * tile;
-  const ty = (ny + 0.5) * tile;
-
-  // Initialize draw coords once
-  if (enemy.drawX == null) enemy.drawX = enemy.x ?? tx;
-  if (enemy.drawY == null) enemy.drawY = enemy.y ?? ty;
-
-  // Update the "true" x/y immediately (for hit tests, ranges, etc.)
-  enemy.x = tx; 
-  enemy.y = ty;
-
-  // Ease draw position toward target for smooth motion
-  const LERP = 0.35; // tweak 0.25..0.5 to taste
-  enemy.drawX += (tx - enemy.drawX) * LERP;
-  enemy.drawY += (ty - enemy.drawY) * LERP;
-
-  // (Renderer: use drawX/drawY when drawing sprites/circles)
+  // periodic diag unchanged...
   return { moved: true, x: nx, y: ny, state: getFSMState(enemy._fsm) };
 }
+
 
 
 // Visual-only sub-tile offset (separation.js, no occupancy)
