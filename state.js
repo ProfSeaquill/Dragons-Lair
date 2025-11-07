@@ -584,44 +584,6 @@ export function isOpen(gs, x, y, side) {
   return edgeOpen(gs, x, y, side);
 }
 
-
-// Figure out destination to test dragon footprint entry
-const dxy = DIR[side] || [0,0];
-const nx1 = x + dxy[0];
-const ny1 = y + dxy[1];
-
-const inDragon = (cx, cy) => {
-  const cs = dragonCells(gs);
-  for (let i = 0; i < cs.length; i++) if (cs[i].x === cx && cs[i].y === cy) return true;
-  return false;
-};
-
-// Only ENTER the dragon footprint from the West (i.e., crossing side === 'E')
-if (inDragon(nx1, ny1) && side !== 'E') return false;
-
-// Inside dragon cells: only West is open (attackers always face from the left)
-if (inDragon(x, y)) return side === 'W';
-
-// ---- fall through to the normal edge-wall logic below ----
-
-  gs = __useGS(gs);
-  if (!inBounds(x, y)) return false;
-  const here = ensureCell(gs, x, y);
-  if (here[side] === true) return false;
-
-  let nx = x, ny = y, opp;
-  switch (side) {
-    case 'N': ny = y - 1; opp = 'S'; break;
-    case 'S': ny = y + 1; opp = 'N'; break;
-    case 'E': nx = x + 1; opp = 'W'; break;
-    case 'W': nx = x - 1; opp = 'E'; break;
-    default: return false;
-  }
-  if (!inBounds(nx, ny)) return false;
-  const there = ensureCell(gs, nx, ny);
-  return there[opp] === false;
-}
-
 // --- Physical edges only (ignores ENTRY/DRAGON virtual gates) ---
 export function isOpenPhysical(gs, x, y, side) {
   gs = __useGS(gs);
