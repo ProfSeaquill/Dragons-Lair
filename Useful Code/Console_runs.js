@@ -28,3 +28,13 @@
   }));
   console.table(snapshot);
 })();
+
+
+
+// turns junctions OFF (A* only)
+DL_NAV = { noJunctions: true }; console.log('Junctions OFF');
+
+
+// turns junctions back ON
+DL_NAV = { noJunctions: false }; console.log('Junctions ON');
+
