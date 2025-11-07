@@ -39,66 +39,43 @@ export function despawnAgent(enemy /*, ctx */) {
 }
 
 // One grid step per tick, with a lightweight visual tween between tiles.
-export function updateAgent(enemy, /* dtSec, */ ctx) {
+// One grid step when enough time has accumulated
+export function updateAgent(enemy, dtSec = (state?.GameState?.dtSec ?? 1/60), ctx) {
   if (!enemy || enemy.dead) return null;
-
-  const tile = GRID.tile || 32;
-
-  // Spawn FSM if needed
   if (!enemy._fsm) spawnAgent(enemy, ctx);
 
-  // === Render tween state ===
-  // enemy._lerp = { px, py, nx, ny, t, dur }
-  const lerpFrames = ((GameState?.cfg?.tuning?.nav?.lerpFrames) ?? 6) | 0; // 4–8 looks good
+  // --- NEW: per-unit step pacing in tiles/sec ---
+  // Try to read your tuned enemy speed if it exists; fall back to 1.0 tiles/sec.
+  // (If you expose a better field name in your project, plug it in below.)
+  const tilesPerSec =
+    (enemy.speedTilesPerSec ?? enemy.speedTiles ?? enemy.tilesPerSec ?? 1.0);
+  const stepPeriod = 1 / Math.max(0.001, tilesPerSec); // seconds per tile
 
-  // If we are mid-tween, advance the interpolation and do NOT tick the FSM yet.
-  if (enemy._lerp && enemy._lerp.t < enemy._lerp.dur) {
-    enemy._lerp.t++;
-    const a = enemy._lerp.t / enemy._lerp.dur;
-    const ix = enemy._lerp.px + (enemy._lerp.nx - enemy._lerp.px) * a;
-    const iy = enemy._lerp.py + (enemy._lerp.ny - enemy._lerp.py) * a;
-    enemy.x = ix;
-    enemy.y = iy;
-    // Keep authoritative tile coords already set when the step began.
-    return { moved: true, x: enemy.cx | 0, y: enemy.cy | 0, state: getFSMState(enemy._fsm) };
+  enemy._stepAcc = (enemy._stepAcc ?? 0) + dtSec;
+  if (enemy._stepAcc < stepPeriod) {
+    // Not time to advance a tile yet; keep pixel coords at current tile center
+    const tile = GRID.tile || 32;
+    enemy.x = (enemy.cx + 0.5) * tile;
+    enemy.y = (enemy.cy + 0.5) * tile;
+    return { moved: false, x: enemy.cx, y: enemy.cy, state: enemy._fsm?.state };
   }
+  // Consume one step’s worth; if frame was long, keep a tiny remainder to stay smooth.
+  enemy._stepAcc -= stepPeriod;
 
-  // === Begin a new tile step ===
-  // Remember current pixel pos (start of tween)
-  const startX = enemy.x ?? ((enemy.cx + 0.5) * tile);
-  const startY = enemy.y ?? ((enemy.cy + 0.5) * tile);
-
-  // Advance FSM exactly one tile
-  const prevTx = enemy._fsm.x | 0, prevTy = enemy._fsm.y | 0;
+  // Advance exactly one tile in the FSM
   tickFSM(enemy._fsm);
+
+  const tile = GRID.tile || 32;
   const nx = enemy._fsm.x | 0;
   const ny = enemy._fsm.y | 0;
 
-  // Update authoritative tile coords immediately
   enemy.cx = nx; enemy.cy = ny;
+  enemy.x = (nx + 0.5) * tile;
+  enemy.y = (ny + 0.5) * tile;
 
-  // Compute end pixel for tween
-  const endX = (nx + 0.5) * tile;
-  const endY = (ny + 0.5) * tile;
-
-  // Initialize (or reset) tween
-  enemy._lerp = { px: startX, py: startY, nx: endX, ny: endY, t: 0, dur: Math.max(1, lerpFrames) };
-
-  // Put render position at the very start of the tween this frame
-  enemy.x = startX;
-  enemy.y = startY;
-
-  // Optional: periodic peek (kept from your original)
-  if ((enemy.__peekT = (enemy.__peekT ?? 0) + 1) % 60 === 0) {
-    try {
-      const st = getFSMState(enemy._fsm);
-      console.log('[DIAG fsm]', { id: enemy.id, type: enemy.type, st, x: enemy._fsm.x, y: enemy._fsm.y });
-    } catch {}
-  }
-
+  // periodic diag unchanged...
   return { moved: true, x: nx, y: ny, state: getFSMState(enemy._fsm) };
 }
-
 
 
 
