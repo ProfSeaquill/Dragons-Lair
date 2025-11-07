@@ -27,6 +27,9 @@ import {
   createMemory, ensureMem, setSeed, pushBreadcrumb, nextUntriedExit, peekBreadcrumb, popBreadcrumb, markEdgeExplored, stepFrom,
 } from "./memory.js";
 
+
+const NAV = () => (globalThis.DL_NAV || {}); // console-toggle hook
+
 //// TUNABLES ///////////////////////////////////////////////////////////////////
 
 // Pause (in ticks) when we arrive at a junction before making a choice.
@@ -92,6 +95,16 @@ function moveOne(agent, nx, ny) {
 
 /** Queue a new A* segment that ends at the first junction (or goal). */
 function planSegment(agent) {
+  if (NAV().noJunctions) {
+  const full = aStarToTarget(agent.x, agent.y, agent.gx, agent.gy);
+  if (!full || full.length <= 1) { agent.plan = null; return false; }
+  agent.plan = full; agent.planIdx = 1;
+  agent.planFlags.clippedAtJunction = false;
+  agent.planFlags.reachedGoal = true;
+  agent.state = S.FOLLOW_PLAN;
+  return true;
+}
+
   const seg = planSegmentToFirstJunction(agent.x, agent.y, agent.gx, agent.gy);
   if (!seg || !seg.path || seg.path.length <= 1) {
     agent.plan = null;
@@ -212,6 +225,11 @@ function tickFollowPlan(agent) {
 }
 
 function tickDecision(agent) {
+  if (NAV().noJunctions) {
+  if (!planSegment(agent)) agent.state = S.STOPPED;
+  return agent.state;
+}
+
   // Optional small linger
   if (agent.linger > 0) { agent.linger--; return agent.state; }
 
