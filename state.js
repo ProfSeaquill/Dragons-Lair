@@ -4,7 +4,7 @@
 import { initPathing, spawnAgent as _pathSpawn, despawnAgent as _pathDespawn, updateAgent as _pathUpdate, renderOffset as _pathRenderOffset } from './pathing/index.js';
 import * as walls from './grid/walls.js';
 import * as topo  from './grid/topology.js';
-import { edgeOpen, edgeHasWall, setEdgeWall as edgesSetWall } from './grid/edges.js';
+import { edgeOpen } from './grid/edges.js';
 
 // ===== Grid & Entry/Exit =====
 export const GRID = { cols: 24, rows: 16, tile: 32 };
