@@ -4,6 +4,7 @@
 import { initPathing, spawnAgent as _pathSpawn, despawnAgent as _pathDespawn, updateAgent as _pathUpdate, renderOffset as _pathRenderOffset } from './pathing/index.js';
 import * as walls from './grid/walls.js';
 import * as topo  from './grid/topology.js';
+import { edgeOpen, edgeHasWall, setEdgeWall as edgesSetWall } from './grid/edges.js';
 
 // ===== Grid & Entry/Exit =====
 export const GRID = { cols: 24, rows: 16, tile: 32 };
@@ -474,8 +475,8 @@ export function makeGridApiForState(gs) {
       // Entering dragon: only from WEST neighbor (i.e., crossing with side === 'E')
       if (!hereIsDragon && nextIsDragon && side !== 'E') continue;
 
-      // Physical edge wall blocks?
-      if (walls.edgeHasWall(gs, x, y, side)) continue;
+      // Single source of truth (virtual gates + walls):
+      if (!edgeOpen(gs, x, y, side)) continue;
 
       out.push({ x: nx, y: ny });
     }
@@ -579,12 +580,7 @@ export const GameState = {
 function __useGS(g) { return g || GameState; }
 
 export function isOpen(gs, x, y, side) {
-  // ---- VIRTUAL GATES (logic-only; no visuals) ----
-const DIR = { N:[0,-1], E:[1,0], S:[0,1], W:[-1,0] };
-
-// Entry: only allow leaving to the East
-if (x === ENTRY.x && y === ENTRY.y) {
-  return side === 'E';
+  return edgeOpen(gs, x, y, side);
 }
 
 // Figure out destination to test dragon footprint entry
@@ -670,25 +666,8 @@ export function neighborsByEdges(gs, cx, cy) {
 }
 
 export function setEdgeWall(gs, x, y, side, hasWall) {
-  gs = __useGS(gs);
-  if (!inBounds(x, y)) return false;
-  const here = ensureCell(gs, x, y);
-  let nx = x, ny = y, opp;
-  switch (side) {
-    case 'N': ny = y - 1; opp = 'S'; break;
-    case 'S': ny = y + 1; opp = 'N'; break;
-    case 'E': nx = x + 1; opp = 'W'; break;
-    case 'W': nx = x - 1; opp = 'E'; break;
-    default: return false;
-  }
-  if (!inBounds(nx, ny)) return false;
-
-  const there = ensureCell(gs, nx, ny);
-  here[side] = !!hasWall;
-there[opp] = !!hasWall;
-return true; // no bump here; caller (toggleEdge/applyMaze) decides
-
-}
+   return edgesSetWall(gs, x, y, side, hasWall);
+ }
 
 // --- Maze presets: serialize/apply just the walls (no gold/wave changes) ---
 export function serializeMaze(gs) {
