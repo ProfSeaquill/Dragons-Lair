@@ -868,10 +868,17 @@ let bombAccum = 0;
 
 // One place to read an enemy's current tile (keeps combat/AI in sync)
 function enemyTile(e) {
-  if (Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) return { x: e.tileX, y: e.tileY };
-  if (Number.isInteger(e.cx)    && Number.isInteger(e.cy))    return { x: e.cx,    y: e.cy    };
+  // Prefer the navigator's authoritative grid coords:
+  if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
+    return { x: e.cx, y: e.cy };
+  }
+  // Fallback to the cached tile coords if present:
+  if (Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
+    return { x: e.tileX, y: e.tileY };
+  }
+  // Last resort: derive from pixels:
   const t = state.GRID.tile || 32;
-  return { x: Math.floor((e.x||0)/t), y: Math.floor((e.y||0)/t) };
+  return { x: Math.floor((e.x || 0) / t), y: Math.floor((e.y || 0) / t) };
 }
 
 // BFS from start (sx,sy) up to maxTiles; respects edge walls via state.isOpen(...)
