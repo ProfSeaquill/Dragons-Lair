@@ -39,7 +39,7 @@ export function despawnAgent(enemy /*, ctx */) {
 }
 
 // One grid step when enough time has accumulated
-export function updateAgent(enemy, dtSec = (state?.GameState?.dtSec ?? 1/60), ctx) {
+export function updateAgent(enemy, dtSec = ((GameState && GameState.dtSec) || 1/60), ctx) {
   if (!enemy || enemy.dead) return null;
   if (!enemy._fsm) spawnAgent(enemy, ctx);
 
