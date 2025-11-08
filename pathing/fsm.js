@@ -41,7 +41,7 @@ const JUNCTION_LINGER_TICKS = 0; // TUNABLE: set e.g. 3–6 for a subtle pause
 const EMPTY_STACK_POLICY = "replan"; // TUNABLE: "replan" | "halt"
 
 // Safety cap: prevent endless wandering if target is unreachable.
-const MAX_TICKS_PER_AGENT = 50_000; // TUNABLE: large enough for your maps
+const MAX_TICKS_PER_AGENT = 30; // TUNABLE: large enough for your maps
 
 //// Agent & FSM ////////////////////////////////////////////////////////////////
 
