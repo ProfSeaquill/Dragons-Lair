@@ -410,6 +410,13 @@ function boot() {
       UI.tell?.('Not enough gold');
     }
   });
+   
+   // When combat performs a hard end-of-wave wipe, clear light caches here too.
+window.addEventListener('dl-wave-hardened-wipe', () => {
+  try { TorchLights.clear?.(); } catch(_) {}
+  try { __firstSeen.clear?.(); } catch(_) {}
+});
+
 
   // ---- Load config, apply, then wire UI and finish boot ----
   loadConfigFiles()
