@@ -1667,7 +1667,9 @@ for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
     if (e.stunLeft > 0) continue;  // frozen by Roar/Stomp
 
-     // Freeze only on the WEST front ring tiles *and* only if the east edge is open
+     // West-front band clamp:
+// - If EAST edge is open → lock and attack
+// - If EAST edge is closed → lock in place (do NOT call navigator)
 {
   const cells = state.dragonCells(gs);
   let west = Infinity, minY = Infinity, maxY = -Infinity;
@@ -1676,21 +1678,36 @@ for (const e of enemies) {
     if (c.y < minY) minY = c.y;
     if (c.y > maxY) maxY = c.y;
   }
-  const onWestFrontBand = Number.isInteger(e.cx) && Number.isInteger(e.cy) &&
-                          (e.cx === west - 1) && (e.cy >= minY && e.cy <= maxY);
 
-  // Critical: only “lock to attack” if the shared edge into the dragon band is physically open.
-  const eastEdgeOpen = onWestFrontBand && state.isOpen(gs, e.cx, e.cy, 'E');
+  const onWestFrontBand =
+    Number.isInteger(e.cx) && Number.isInteger(e.cy) &&
+    (e.cx === west - 1) && (e.cy >= minY && e.cy <= maxY);
 
-  if (eastEdgeOpen) {
-    e.pausedForAttack = true;
-    e.isAttacking     = true;
+  if (onWestFrontBand) {
+    const eastEdgeOpen = state.isOpen(gs, e.cx, e.cy, 'E');
+
+    // Never hand motion to the navigator while on the band.
     e.commitDir = null;
+    e.commitSteps = 0;
     e.commitTilesLeft = 0;
-    e.dir = 'W'; // optional
+    e.vx = 0; e.vy = 0;
+
+    if (eastEdgeOpen) {
+      // Park & attack
+      e.pausedForAttack = true;
+      e.isAttacking = true;
+      e.dir = 'W'; // cosmetic
+    } else {
+      // Hold position against the lair; no sliding/retreat
+      e.pausedForAttack = false;
+      e.isAttacking = false;
+    }
+
+    // Important: skip navigator for this frame in BOTH cases.
     continue;
   }
 }
+
 
 
 
