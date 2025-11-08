@@ -239,6 +239,18 @@ function dragonPerimeterTiles(gs) {
   return out;
 }
 
+// West band column immediately in front of the dragon’s west face
+function dragonWestBand(gs) {
+  const cells = state.dragonCells(gs);
+  let minX = Infinity, minY = Infinity, maxY = -Infinity;
+  for (const c of cells) {
+    if (c.x < minX) minX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.y > maxY) maxY = c.y;
+  }
+  return { bandX: (minX|0) - 1, minY: (minY|0), maxY: (maxY|0) };
+}
+
 
 // Push one step along grid if the edge is open (no walls). Returns new (x,y).
 function stepIfOpen(gs, x, y, dir) {
@@ -1667,47 +1679,45 @@ for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
     if (e.stunLeft > 0) continue;  // frozen by Roar/Stomp
 
-     // West-front band clamp:
-// - If EAST edge is open → lock and attack
-// - If EAST edge is closed → lock in place (do NOT call navigator)
+// -- Dragon west-front band logic (fix off-by-one + only lock on the band) --
 {
-  const cells = state.dragonCells(gs);
-  let west = Infinity, minY = Infinity, maxY = -Infinity;
-  for (const c of cells) {
-    if (c.x < west) west = c.x;
-    if (c.y < minY) minY = c.y;
-    if (c.y > maxY) maxY = c.y;
+  const { bandX, minY, maxY } = dragonWestBand(gs);
+
+  const onBand = Number.isInteger(e.cx) && Number.isInteger(e.cy)
+              && e.cx === bandX && e.cy >= minY && e.cy <= maxY;
+
+  const atApproach = Number.isInteger(e.cx) && Number.isInteger(e.cy)
+                  && e.cx === bandX - 1 && e.cy >= minY && e.cy <= maxY;
+
+  const eastOpenHere = Number.isInteger(e.cx) && Number.isInteger(e.cy)
+                    && state.isOpen(gs, e.cx, e.cy, 'E');
+
+  // If we’re one tile BEFORE the band and the east edge is open, force a single
+  // step onto the band so they don’t “stop a tile early”.
+  if (atApproach && eastOpenHere) {
+    const t = state.GRID.tile || 32;
+    e.cx = e.tileX = (e.cx + 1);
+    // keep same row
+    e.x = (e.cx + 0.5) * t;
+    e.y = (e.cy + 0.5) * t;
+    e.dir = 'E';
+    e.commitDir = null;
+    e.commitTilesLeft = 0;
+    continue; // we consumed our move this frame
   }
 
-  const onWestFrontBand =
-    Number.isInteger(e.cx) && Number.isInteger(e.cy) &&
-    (e.cx === west - 1) && (e.cy >= minY && e.cy <= maxY);
-
-  if (onWestFrontBand) {
-    const eastEdgeOpen = state.isOpen(gs, e.cx, e.cy, 'E');
-
-    // Never hand motion to the navigator while on the band.
+  // If we’re ON the band, lock/attack only when the shared east edge into the
+  // dragon’s west face is physically open. Otherwise let navigator keep control
+  // so north/south separation and wall sliding still work.
+  if (onBand && eastOpenHere) {
+    e.pausedForAttack = true;
+    e.isAttacking     = true;
     e.commitDir = null;
-    e.commitSteps = 0;
     e.commitTilesLeft = 0;
-    e.vx = 0; e.vy = 0;
-
-    if (eastEdgeOpen) {
-      // Park & attack
-      e.pausedForAttack = true;
-      e.isAttacking = true;
-      e.dir = 'W'; // cosmetic
-    } else {
-      // Hold position against the lair; no sliding/retreat
-      e.pausedForAttack = false;
-      e.isAttacking = false;
-    }
-
-    // Important: skip navigator for this frame in BOTH cases.
-    continue;
+    e.dir = 'W'; // cosmetic: face the lair
+    continue;    // skip navigator → prevents U-turns
   }
 }
-
 
 
 
