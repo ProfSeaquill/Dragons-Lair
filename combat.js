@@ -2003,6 +2003,19 @@ if (e.type === 'engineer' && e.tunneling) {
     if (e.slowLeft > 0) e.slowLeft -= dt;
     if (e.roarBuffLeft > 0) e.roarBuffLeft -= dt;
 
+    // --- Contact attack to chip dragon HP when adjacent ---
+if (Number.isInteger(e.cx) && Number.isInteger(e.cy) &&
+    state.isAdjacentToDragon(gs, e.cx, e.cy) &&
+    !(e.type === 'engineer' && e.tunneling)) {
+  e._atkCD = (e._atkCD ?? 0) - dt;
+  if (e._atkCD <= 0) {
+    const rate = Math.max(0.05, e.rate || 0.5);  // attacks/sec from enemies.json
+    const dmg  = Math.max(1, e.damage | 0);      // per-hit (already scaled in makeEnemy)
+    gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - dmg);
+    e._atkCD = 1 / rate;
+  }
+}
+
     // Death -> rewards (DoT, projectiles, or other effects may have killed them)
     if (e.hp <= 0) {
   const eg = (typeof e.gold  === 'number') ? (e.gold  | 0) : 5;
