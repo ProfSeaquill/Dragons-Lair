@@ -175,21 +175,19 @@ export function dragonAnchor(gs) {
 }
 
 export function dragonMouthCell(gs = GameState) {
-  // Prefer the westmost dragon tile on the center row (EXIT.y)
-  const cells = typeof dragonCells === 'function' ? dragonCells(gs) : null;
-  if (Array.isArray(cells) && cells.length) {
-    const row = cells.filter(c => c.y === EXIT.y);
-    if (row.length) {
-      let west = row[0];
-      for (const c of row) if (c.x < west.x) west = c;
-      return west; // e.g. { x: 21, y: 8 } in your layout
-    }
-    // Fallback: overall westmost dragon tile
-    let west = cells[0];
-    for (const c of cells) if (c.x < west.x) west = c;
-    return west;
-  }
+  // EXIT is the dragon’s center tile by design.
+  const cx = EXIT.x, cy = EXIT.y;
+
+  const hb = (typeof DRAGON_HITBOX !== 'undefined' && DRAGON_HITBOX) ? DRAGON_HITBOX : { w: 3, h: 3 };
+
+  const westInsideX = cx - Math.floor(hb.w / 2);
+
+  // Mouth sits one tile *outside* that, same row as the dragon center.
+  const mouthX = Math.max(0, westInsideX - 1);
+  const mouthY = cy;
+  return { x: mouthX, y: mouthY };
 }
+
 
 
 // ===== Ability Upgrade Levels =====
