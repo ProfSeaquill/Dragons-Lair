@@ -806,17 +806,29 @@ if (type === 'engineer') {
   e.dirY = v[1];
 }
 
+        // seed a stable 'from' for the very first render lerp
+    e.fromXY = [e.cx, e.cy];
+    // mark spawn time so we can suppress offsets for a heartbeat
+    e._spawnAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
     // normal spawn helpers
     initializeSpawnPrevAndCommit(e);
+
+    // give dev spawns a routeSeed too so steering randomness matches waves
+    e.routeSeed = e.routeSeed ?? ((Math.random() * 1e9) | 0);
+
+    // register with new pathing and seed once (this is the missing piece)
     pathSpawnAgent(e, gs);
-    
+    try { pathUpdateAgent(e, 0, gs); } catch (_) {}
+
     (gs.enemies || (gs.enemies = [])).push(e);
 
     if (typeof e.trailStrength === 'number') {
       bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
     }
+
+    }
   }
-}
 
 
 export function devClearEnemies(gs = state.GameState) {
