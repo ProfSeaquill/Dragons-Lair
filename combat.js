@@ -1598,7 +1598,7 @@ for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
     if (e.stunLeft > 0) continue;  // frozen by Roar/Stomp
 
-     // Freeze only on the WEST front ring tiles (no corner/side adjacency)
+     // Freeze only on the WEST front ring tiles *and* only if the east edge is open
 {
   const cells = state.dragonCells(gs);
   let west = Infinity, minY = Infinity, maxY = -Infinity;
@@ -1607,10 +1607,13 @@ for (const e of enemies) {
     if (c.y < minY) minY = c.y;
     if (c.y > maxY) maxY = c.y;
   }
-  const onWestFront = Number.isInteger(e.cx) && Number.isInteger(e.cy) &&
-                      (e.cx === west - 1) && (e.cy >= minY && e.cy <= maxY);
+  const onWestFrontBand = Number.isInteger(e.cx) && Number.isInteger(e.cy) &&
+                          (e.cx === west - 1) && (e.cy >= minY && e.cy <= maxY);
 
-  if (onWestFront) {
+  // Critical: only “lock to attack” if the shared edge into the dragon band is physically open.
+  const eastEdgeOpen = onWestFrontBand && state.isOpen(gs, e.cx, e.cy, 'E');
+
+  if (eastEdgeOpen) {
     e.pausedForAttack = true;
     e.isAttacking     = true;
     e.commitDir = null;
@@ -1619,6 +1622,7 @@ for (const e of enemies) {
     continue;
   }
 }
+
 
 
    // Let the navigator advance e.cx/e.cy (most implementations mutate the agent directly).
