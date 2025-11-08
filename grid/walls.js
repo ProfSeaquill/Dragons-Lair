@@ -58,6 +58,7 @@ export function installPermanentWalls(gs)
  for (
    const [x, y, side] of PERMA) 
    setEdge(gs, x, y, side, true); 
+ state.bumpTopology?.(gs, 'walls:install-permanent');
 }
 
 
