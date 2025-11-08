@@ -1813,6 +1813,15 @@ if (bombAccum >= 1.0) {
         const dMan = Math.abs(c.x - bx) + Math.abs(c.y - by);
         if (dMan <= R) { hitDragon = true; break; }
       }
+      // TEMP DIAG — log any dragon damage with the attacker’s tile and adjacency status
+{
+  const at = (typeof e !== 'undefined' && e) ? e : null;
+  const cx = Number.isInteger(at?.cx) ? at.cx : null;
+  const cy = Number.isInteger(at?.cy) ? at.cy : null;
+  const adj = (cx!=null && cy!=null) ? state.isAdjacentToDragon(gs, cx, cy) : null;
+  console.log('[DD] Dragon dmg', { reason: 'HERE_LABEL', byId: at?.id, cx, cy, adj });
+}
+
       if (hitDragon) {
         gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - (fx.dmg | 0));
       }
@@ -2002,16 +2011,39 @@ if (e.type === 'engineer' && e.tunneling) {
     if (e.slowLeft > 0) e.slowLeft -= dt;
     if (e.roarBuffLeft > 0) e.roarBuffLeft -= dt;
 
-    // --- Contact attack to chip dragon HP when adjacent ---
+// --- Contact attack to chip dragon HP when adjacent *and the edge is open* ---
 if (Number.isInteger(e.cx) && Number.isInteger(e.cy) &&
-    state.isAdjacentToDragon(gs, e.cx, e.cy) &&
     !(e.type === 'engineer' && e.tunneling)) {
-  e._atkCD = (e._atkCD ?? 0) - dt;
-  if (e._atkCD <= 0) {
-    const rate = Math.max(0.05, e.rate || 0.5);  // attacks/sec from enemies.json
-    const dmg  = Math.max(1, e.damage | 0);      // per-hit (already scaled in makeEnemy)
-    gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - dmg);
-    e._atkCD = 1 / rate;
+
+  // Inline wall-aware adjacency: true iff enemy is 4-neighbor to ANY dragon cell AND the shared edge is open.
+  let canContact = false;
+  DRAGON_CONTACT: for (const dc of state.dragonCells(gs)) {
+    const dx = dc.x - e.cx, dy = dc.y - e.cy;
+    if (Math.abs(dx) + Math.abs(dy) !== 1) continue; // not a 4-neighbor
+    const side =
+      dx ===  1 ? 'E' :
+      dx === -1 ? 'W' :
+      dy ===  1 ? 'S' :
+                  'N';
+    if (state.isOpen(gs, e.cx, e.cy, side)) { canContact = true; break DRAGON_CONTACT; }
+  }
+
+  if (canContact) {
+    e._atkCD = (e._atkCD ?? 0) - dt;
+    if (e._atkCD <= 0) {
+      const rate = Math.max(0.05, e.rate || 0.5);  // attacks/sec from enemies.json
+      const dmg  = Math.max(1, e.damage | 0);      // per-hit (scaled in makeEnemy)
+
+      // DIAG: label this site explicitly
+      {
+        const cx = e.cx, cy = e.cy;
+        const adj = state.isAdjacentToDragon(gs, cx, cy);
+        console.log('[DD] Dragon dmg', { reason: 'chip', byId: e.id, cx, cy, adj });
+      }
+
+      gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - dmg);
+      e._atkCD = 1 / rate;
+    }
   }
 }
 
