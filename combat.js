@@ -177,6 +177,41 @@ function ensureSuccessTrail(gs) {
   }
 }
 
+// --- Wave-end hard wipe (actors + per-wave scratch) -------------------------
+function hardWipeActors(gs) {
+  // 1) Enemies → release to pool, then empty array
+  if (Array.isArray(gs.enemies)) {
+    for (let i = gs.enemies.length - 1; i >= 0; i--) {
+      const e = gs.enemies[i];
+      if (e) releaseEnemy(e);
+    }
+    gs.enemies.length = 0;
+  } else {
+    gs.enemies = [];
+  }
+
+  // 2) Nuke transient effects (visuals, tunnels, bombs, splashes, etc.)
+  if (Array.isArray(gs.effects)) {
+    gs.effects.length = 0;
+  } else {
+    gs.effects = [];
+  }
+
+  // 3) Pathing/nav registry cleanup if your state exposes it
+  try {
+    if (typeof state.pathReset === 'function')       state.pathReset(gs);
+    else if (typeof state.pathForgetAll === 'function') state.pathForgetAll(gs);
+  } catch (_) { /* optional */ }
+
+  // 4) Per-wave systems reset
+  ensureSuccessTrail(gs);        // fresh herding/scent map
+  gs._straysActive = 0;          // curiosity limiter
+  gs.__firstTorchGiven = false;  // force re-pick next wave
+  gs.__torchWaveId = (gs.__torchWaveId | 0) + 1; // de-sync any stale light ties
+
+  // 5) Let main.js clear its light pools / firstSeen cache
+  try { window.dispatchEvent?.(new CustomEvent('dl-wave-hardened-wipe')); } catch(_) {}
+}
 
 // expose cooldowns for UI
 export function getCooldowns() {
