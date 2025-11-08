@@ -477,7 +477,6 @@ export function makeGridApiForState(gs) {
 
      // --- Dragon virtual gates (hard block) ---
     const nextIsDragon = inDragon(nx, ny);
-    const hereIsDragon = inDragon(x, y);
 
     // Never allow entering the dragon footprint at all
     if (nextIsDragon) continue;
