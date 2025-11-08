@@ -371,7 +371,6 @@ function enemyRenderOffset(e, tsize) {
 /* ===================== enemies, dragon, fire, shimmer ===================== */
 
 function drawEnemies(ctx, gs) {
-  console.log('[RENDER] about to draw enemies', (gs.enemies||[]).length);
   if (!Array.isArray(gs.enemies)) return;
   const t = state.GRID.tile;
   const r = Math.max(3, t * 0.22);
