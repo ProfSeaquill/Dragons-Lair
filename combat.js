@@ -1638,10 +1638,15 @@ for (const e of enemies) {
       e.tileX = nx; e.tileY = ny;
 
       // Smooth pixel placement using the pathing's render offset.
-     let ox = 0, oy = 0;
-  if (pathRenderOffset) {
-  const tmp = pathRenderOffset ? pathRenderOffset(e, tsize, gs) : [0,0];
-  const [ox, oy] = pathRenderOffset(agent);
+let ox = 0, oy = 0;
+if (typeof pathRenderOffset === 'function') {
+  try {
+    const off = pathRenderOffset(e, tsize, gs); // extra args are fine if ignored
+    if (Array.isArray(off) && off.length >= 2) {
+      ox = Number(off[0]) || 0;
+      oy = Number(off[1]) || 0;
+    }
+  } catch (_) { /* ignore offset errors */ }
 }
 
 // For the first ~120ms of an enemy's life, clamp offsets to zero
