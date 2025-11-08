@@ -59,9 +59,19 @@ function acquireEnemy(type, wave, initFn) {
   e.pausedForAttack = false; e.isAttacking = false;
   e.hp = e.maxHp; e.lastHitAt = 0; e.showHpUntil = 0;
 
-  // --- reset positional / steering state (important for pooled enemies) ---
-e.x = undefined;
-e.y = undefined;
+    // --- reset positional / steering state (important for pooled enemies) ---
+  e.x = undefined;
+  e.y = undefined;
+
+  // 💥 kill any stale render-smoothing carried by the pool
+  e.drawX = undefined;
+  e.drawY = undefined;
+  e.prevX = undefined;
+  e.prevY = undefined;
+  e.ox = 0;
+  e.oy = 0;
+  e.tBorn = 0;        // set on spawn
+
 e.cx = 0;
 e.cy = 0;
 e.tileX = undefined;
@@ -663,6 +673,16 @@ e.tileX = e.cx | 0;
 e.tileY = e.cy | 0;
 }
 
+    // 🔧 render smoothing reset on birth
+  e.drawX = e.x;
+  e.drawY = e.y;
+  e.prevX = e.x;
+  e.prevY = e.y;
+  e.ox = 0;
+  e.oy = 0;
+  e.tBorn = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+
   // seed a stable 'from' for the very first render lerp
 e.fromXY = [e.cx, e.cy];
 // mark spawn time so we can suppress offsets for a heartbeat
@@ -723,6 +743,15 @@ e.y = (e.cy + 0.5) * t;
 e.tileX = e.cx | 0;
 e.tileY = e.cy | 0;
 }
+
+    // 🔧 render smoothing reset on birth
+  e.drawX = e.x;
+  e.drawY = e.y;
+  e.prevX = e.x;
+  e.prevY = e.y;
+  e.ox = 0;
+  e.oy = 0;
+  e.tBorn = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
   // seed a stable 'from' for the very first render lerp
 e.fromXY = [e.cx, e.cy];
@@ -790,7 +819,16 @@ if (type === 'engineer') {
     e.y = (e.cy + 0.5) * t;
     e.tileX = e.cx;
     e.tileY = e.cy;
-    
+
+        // 🔧 render smoothing reset on birth
+    e.drawX = e.x;
+    e.drawY = e.y;
+    e.prevX = e.x;
+    e.prevY = e.y;
+    e.ox = 0;
+    e.oy = 0;
+    e.tBorn = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
  // speed in pixels/sec (navigator reads this)
 {
   const tsize = state.GRID.tile || 32;
