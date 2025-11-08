@@ -1609,6 +1609,19 @@ for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
     if (e.stunLeft > 0) continue;  // frozen by Roar/Stomp
 
+     // ✅ NEW: freeze pathing when adjacent to the dragon so they don't sidestep
+    if (Number.isInteger(e.cx) && Number.isInteger(e.cy) &&
+        state.isAdjacentToDragon(gs, e.cx, e.cy)) {
+      e.pausedForAttack = true;   // stop any movement/commit logic
+      e.isAttacking     = true;   // (optional) flag for your UI/FX
+      e.commitDir = null;
+      e.commitTilesLeft = 0;
+      // (optional) face west, toward the lair/mouth art
+      e.dir = 'W';
+      // Skip pathUpdateAgent this frame
+      continue;
+    }
+
    // Let the navigator advance e.cx/e.cy (most implementations mutate the agent directly).
     const res = pathUpdateAgent(e, dt, gs);
 
