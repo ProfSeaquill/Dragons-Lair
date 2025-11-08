@@ -2202,11 +2202,17 @@ if (enemies.length > 0) {
 }
 
 
- // 5) Wave completion
+ // 5) Wave completion (hard wipe at END of wave)
 if (R.waveActive && !_jsonPlan && enemies.length === 0) {
+  // Clean absolutely everything that could leak into the next wave
+  hardWipeActors(gs);
+
   globalThis.Telemetry?.log('wave:end', { wave: gs.wave | 0 });
   R.waveActive = false;
   R.spawning   = false;
-  gs.wave = (gs.wave | 0) + 1;
+
+  // Return to build phase, then advance the wave counter
+  gs.phase = 'build';
+  gs.wave  = (gs.wave | 0) + 1;
 }
 }
