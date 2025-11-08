@@ -231,26 +231,39 @@ function shortestPathCells(gs, sx, sy, tx, ty) {
 }
 
 function enemyPixel(e, t) {
-  // start with the smooth, interpolated draw position if available
-  let px = Number.isFinite(e.drawX) ? e.drawX
-           : Number.isFinite(e.x)   ? e.x
-           : Number.isInteger(e.cx) ? (e.cx + 0.5) * t
-           : null;
-  let py = Number.isFinite(e.drawY) ? e.drawY
-           : Number.isFinite(e.y)   ? e.y
-           : Number.isInteger(e.cy) ? (e.cy + 0.5) * t
-           : null;
-  if (px == null || py == null) return null;
+  // Prefer physics coords as the base
+  const baseX = Number.isFinite(e.x) ? e.x
+               : Number.isInteger(e.cx) ? (e.cx + 0.5) * t
+               : null;
+  const baseY = Number.isFinite(e.y) ? e.y
+               : Number.isInteger(e.cy) ? (e.cy + 0.5) * t
+               : null;
+  if (baseX == null || baseY == null) return null;
 
-  // apply the same sub-tile separation offset the renderer uses
+  // Within ~60ms of spawn (or first-seen fallback), force-dominance of base over any stale draw*
+  const bornMs = e.tBorn || __firstSeen.get(e.id) || 0;
+  const fresh = (performance.now() - bornMs) <= 60;
+
+  if (fresh || !Number.isFinite(e.drawX) || !Number.isFinite(e.drawY)) {
+    // heal the smoothing cache immediately
+    e.drawX = baseX;
+    e.drawY = baseY;
+  }
+
+  // Start from the (now-healed) draw coords if present, else base.
+  let px = Number.isFinite(e.drawX) ? e.drawX : baseX;
+  let py = Number.isFinite(e.drawY) ? e.drawY : baseY;
+
+  // Apply the same sub-tile offset renderer uses
   try {
     const off = typeof pathRenderOffset === 'function' ? pathRenderOffset(e, t) : [0, 0];
     px += off[0] || 0;
     py += off[1] || 0;
-  } catch { /* no-op: keep base px/py */ }
+  } catch { /* no-op */ }
 
   return { x: px, y: py };
 }
+
 
 function ensureTorchBearer(e, gs) {
   // Already chosen? stay chosen.
