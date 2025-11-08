@@ -3,7 +3,7 @@ import * as Debug from './debugOverlay.js';
 import { getCooldowns } from './combat.js';
 import { installPermanentWalls } from './grid/walls.js';
 import * as state from './state.js';
-import { ensureFreshPathing } from './state.js'; // new pathing API
+import { ensureFreshPathing, pathRenderOffset } from './state.js'; // new pathing API
 import { bindUI, UI } from './ui.js';
 import * as render from './render.js';
 import { initLighting } from './lighting-webgl.js';
@@ -186,11 +186,25 @@ function shortestPathCells(gs, sx, sy, tx, ty) {
 }
 
 function enemyPixel(e, t) {
-  if (typeof e.x === 'number' && typeof e.y === 'number') return { x: e.x, y: e.y };
-  if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
-    return { x: (e.cx + 0.5) * t, y: (e.cy + 0.5) * t };
-  }
-  return null;
+  // start with the smooth, interpolated draw position if available
+  let px = Number.isFinite(e.drawX) ? e.drawX
+           : Number.isFinite(e.x)   ? e.x
+           : Number.isInteger(e.cx) ? (e.cx + 0.5) * t
+           : null;
+  let py = Number.isFinite(e.drawY) ? e.drawY
+           : Number.isFinite(e.y)   ? e.y
+           : Number.isInteger(e.cy) ? (e.cy + 0.5) * t
+           : null;
+  if (px == null || py == null) return null;
+
+  // apply the same sub-tile separation offset the renderer uses
+  try {
+    const off = typeof pathRenderOffset === 'function' ? pathRenderOffset(e, t) : [0, 0];
+    px += off[0] || 0;
+    py += off[1] || 0;
+  } catch { /* no-op: keep base px/py */ }
+
+  return { x: px, y: py };
 }
 
 function ensureTorchBearer(e, gs) {
