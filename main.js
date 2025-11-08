@@ -77,6 +77,34 @@ sceneCtx.imageSmoothingEnabled = false;
 // Init post-process lighting
 const lighting = initLighting(outCanvas, logicalW, logicalH);
 
+// --- Torch light pool (per-enemy) ------------------------------------------
+const TorchLights = new Map(); // enemyId -> { x,y, r, color, initialized, waveTag, px,py }
+
+function torchColorFor(e) { return [1.00, 0.86, 0.58]; } // keep your look
+function torchRadius(t)  { return t * 0.85; }
+
+function getOrMakeTorch(e, gs, t) {
+  let L = TorchLights.get(e.id);
+  if (!L) {
+    L = { x: 0, y: 0, r: torchRadius(t), color: torchColorFor(e), initialized: false, waveTag: gs.__torchWaveId|0, px:0, py:0 };
+    TorchLights.set(e.id, L);
+  }
+  return L;
+}
+
+// Treat enemies as “just spawned” if we first see them recently.
+// Prefer e.tBorn if you set it on spawn; fallback to first-seen timestamp here.
+const __firstSeen = new Map(); // id -> ms timestamp
+
+function markFirstSeen(e) {
+  if (!__firstSeen.has(e.id)) __firstSeen.set(e.id, performance.now());
+}
+function justSpawned(e, gs, ms = 60) {
+  const born = e.tBorn || __firstSeen.get(e.id) || 0;
+  return (performance.now() - born) <= ms || (e.__torchWaveId !== (gs.__torchWaveId|0));
+}
+
+
 // ---------- Lights (ENTRY/EXIT + path torches + enemy torches + dragon fire) ----------
 function computeTorchLights(gs) {
   const t = state.GRID.tile;
@@ -100,21 +128,38 @@ function computeTorchLights(gs) {
   lights.push({ x: entry.x, y: entry.y, r: t * 1.2, color: [1.00, 0.85, 0.55] });
   lights.push({ x: exit.x,  y: exit.y,  r: t * 1.9, color: [1.00, 0.75, 0.45] });
 
-  // --- Enemy-carried torches (sticky; die with the carrier; special roles always carry) ---
-  if (Array.isArray(gs.enemies)) {
-    for (const e of gs.enemies) {
-      if (!ensureTorchBearer(e, gs)) continue;
-      if (e.tunneling) continue;
-      const p = enemyPixel(e, t);
-      if (!p) continue;
-      lights.push({
-        x: p.x,
-        y: p.y,
-        r: t * 0.85,
-        color: [1.00, 0.86, 0.58],
-      });
+  // --- Enemy-carried torches (sticky + hard-reset on first frame) ------------
+if (Array.isArray(gs.enemies)) {
+  for (const e of gs.enemies) {
+    if (!ensureTorchBearer(e, gs)) continue;
+    if (e.tunneling) continue;
+
+    const p = enemyPixel(e, t);
+    if (!p) continue;
+
+    markFirstSeen(e);
+    const L = getOrMakeTorch(e, gs, t);
+
+    // Hard reset when newly bound / first frame of spawn / new wave tag
+    if (!L.initialized || justSpawned(e, gs)) {
+      L.x = p.x; L.y = p.y;
+      L.px = p.x; L.py = p.y;          // reset smoothing history if you use it
+      L.r = torchRadius(t);
+      L.color = torchColorFor(e);
+      L.initialized = true;
+      L.waveTag = gs.__torchWaveId|0;
+    } else {
+      // Optional: light smoothing; keep subtle to avoid visible lag
+      // L.x += 0.35 * (p.x - L.x);
+      // L.y += 0.35 * (p.y - L.y);
+      // If you dislike lag altogether, just keep L.x=L.y=p.* as above.
+      L.x = p.x; L.y = p.y;
     }
+
+    lights.push(L);
   }
+}
+
 
   // --- Dragon mouth fire light that follows the animation ---
   const fx = gs.dragonFX;
@@ -421,6 +466,10 @@ function startWave() {
   gs.phase = 'wave';            // ← lock wall building
   gs.__torchWaveId = (gs.__torchWaveId || 0) + 1;
   gs.__firstTorchGiven = false;
+   // Reset per-wave torch lights so old positions don't interpolate in
+   TorchLights.clear();
+   __firstSeen.clear();
+
   // --- NEW: if someone calls main.startWave directly, ensure topology & trail exist.
   // If combat.startWave runs next, its calls are idempotent.
   ensureFreshPathing(gs);
