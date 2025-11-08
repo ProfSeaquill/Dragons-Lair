@@ -53,8 +53,8 @@ export function edgeHasWall(gs, x, y, side) {
 export function installPermanentWalls(gs) 
 { const PERMA = [ [21, 6, 'N'], [22, 6, 'N'], [23, 6, 'N'], 
                  [20, 10, 'N'], [21, 11, 'N'], [22, 11, 'N'], 
-                  [23, 11, 'N'], [20, 9, 'W'], [21, 10, 'W'], 
-                 [21, 6, 'W'], [20, 7, 'N'], [20, 7, 'W'], ]; 
+                  [23, 11, 'N'], [21, 10, 'W'], 
+                 [21, 6, 'W'], [20, 7, 'N'], ]; 
  for (
    const [x, y, side] of PERMA) 
    setEdge(gs, x, y, side, true); 
