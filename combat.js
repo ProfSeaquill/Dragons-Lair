@@ -1,7 +1,7 @@
 // combat.js (top)
 import * as state from './state.js';
 // New pathing wrappers (added in state.js patch)
-import { pathSpawnAgent, pathUpdateAgent, pathRenderOffset, GRID, ENTRY, EXIT, ensureFreshPathing } from './state.js';
+import { pathSpawnAgent, pathUpdateAgent, pathRenderOffset, GRID, ENTRY, EXIT, ensureFreshPathing, pathDespawnAgent } from './state.js';
 
 
 
@@ -119,6 +119,14 @@ delete e._seg; delete e._acc; delete e._lerp; delete e._t;
 
 function releaseEnemy(e) {
   if (!e || !e.type) return;
+  // 🧹 kill any navigator state tied to this object reference
+  try { pathDespawnAgent?.(e); } catch (_) {}
+
+  // (optional, but nice) remove per-enemy visuals bookkeeping if you keep Maps in main.js
+  try {
+    globalThis.TorchLights?.delete?.(e.id);
+    globalThis.__firstSeen?.delete?.(e.id);
+  } catch (_) {}
   let pool = ENEMY_POOL.get(e.type);
   if (!pool) { pool = []; ENEMY_POOL.set(e.type, pool); }
   pool.push(e);
@@ -673,15 +681,6 @@ e.tileX = e.cx | 0;
 e.tileY = e.cy | 0;
 }
 
-    // 🔧 render smoothing reset on birth
-  e.drawX = e.x;
-  e.drawY = e.y;
-  e.prevX = e.x;
-  e.prevY = e.y;
-  e.ox = 0;
-  e.oy = 0;
-  e.tBorn = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-
 
   // seed a stable 'from' for the very first render lerp
 e.fromXY = [e.cx, e.cy];
@@ -706,7 +705,8 @@ e._spawnAt = (typeof performance !== 'undefined' && performance.now) ? performan
 
   // initialize prev/commit so freshly-spawned enemies head straight initially
   initializeSpawnPrevAndCommit(e);
-
+  try { pathDespawnAgent?.(e); } catch (_) {} // if object was pooled, erase any stale agent
+  
   // Register with new pathing
   pathSpawnAgent(e, gs);
   // seed navigator once so its internal chain is fresh
@@ -744,14 +744,6 @@ e.tileX = e.cx | 0;
 e.tileY = e.cy | 0;
 }
 
-    // 🔧 render smoothing reset on birth
-  e.drawX = e.x;
-  e.drawY = e.y;
-  e.prevX = e.x;
-  e.prevY = e.y;
-  e.ox = 0;
-  e.oy = 0;
-  e.tBorn = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
   // seed a stable 'from' for the very first render lerp
 e.fromXY = [e.cx, e.cy];
@@ -782,6 +774,7 @@ try {
 
   
   initializeSpawnPrevAndCommit(e);
+  try { pathDespawnAgent?.(e); } catch (_) {} // if object was pooled, erase any stale agent
   pathSpawnAgent(e, gs);
   // seed navigator once so its internal chain is fresh
 try { pathUpdateAgent(e, 0, gs); } catch (_) {}
@@ -819,15 +812,6 @@ if (type === 'engineer') {
     e.y = (e.cy + 0.5) * t;
     e.tileX = e.cx;
     e.tileY = e.cy;
-
-        // 🔧 render smoothing reset on birth
-    e.drawX = e.x;
-    e.drawY = e.y;
-    e.prevX = e.x;
-    e.prevY = e.y;
-    e.ox = 0;
-    e.oy = 0;
-    e.tBorn = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
  // speed in pixels/sec (navigator reads this)
 {
