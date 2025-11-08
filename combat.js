@@ -1639,9 +1639,9 @@ for (const e of enemies) {
 
       // Smooth pixel placement using the pathing's render offset.
      let ox = 0, oy = 0;
-if (typeof state.pathRenderOffset === 'function') {
-  const tmp = state.pathRenderOffset(e, tsize, gs) || [0,0];
-  ox = tmp[0] || 0; oy = tmp[1] || 0;
+  if (pathRenderOffset) {
+  const tmp = pathRenderOffset ? pathRenderOffset(e, tsize, gs) : [0,0];
+  const [ox, oy] = pathRenderOffset(agent);
 }
 
 // For the first ~120ms of an enemy's life, clamp offsets to zero
