@@ -45,6 +45,10 @@ function setEdge(gs, x, y, side, on) {
 }
 
 // --- Public: query ----------------------------------------------------------
+export function edgeHasWall(gs, x, y, side) {
+  return getEdge(gs, x, y, side);
+}
+
 export function installPermanentWalls(gs) {
   // 1) place your permanent walls
   const PERMA = [
