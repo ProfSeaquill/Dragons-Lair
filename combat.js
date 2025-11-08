@@ -186,17 +186,6 @@ function dragonPerimeterTiles(gs) {
   return out;
 }
 
-// Choose a stable mouth tile on the west perimeter (outside the wall ring).
-function dragonMouthCellLocal(gs) {
-  const perim = dragonPerimeterTiles(gs);
-  if (!perim.length) {
-    // Fallback: just outside EXIT, one step west
-    return { x: Math.max(0, state.EXIT.x - 1), y: state.EXIT.y };
-  }
-  // Prefer the perimeter cell aligned with EXIT.y; else take the middle one.
-  const row = perim.filter(p => p.y === state.EXIT.y);
-  return row[0] || perim[(perim.length / 2) | 0];
-}
 
 // Push one step along grid if the edge is open (no walls). Returns new (x,y).
 function stepIfOpen(gs, x, y, dir) {
@@ -956,7 +945,7 @@ function dragonBreathTick(gs, dt, ds) {
 
   const tileSize = state.GRID.tile || 32;
   const maxTiles = Math.max(1, Math.round(ds.breathRange / tileSize));
-  const mouth = (state.dragonMouthCell?.(gs)) || dragonMouthCellLocal(gs);
+  const mouth = state.dragonMouthCell(gs);
 
 
     // One BFS from mouth → reconstruct per-enemy corridors (cheap on 24×16)
