@@ -448,7 +448,6 @@ function update(dt) {
       dead: !!alive[0].dead, tunneling: !!alive[0].tunneling,
       hasFSM: !!alive[0]._fsm, pxps: alive[0].pxPerSec
     } : null;
-    console.log('[DIAG enemies]', { total: enemies.length, alive: alive.length, vis, tunn, first });
   }
 }
 
