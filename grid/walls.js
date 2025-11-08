@@ -49,37 +49,15 @@ export function edgeHasWall(gs, x, y, side) {
   return getEdge(gs, x, y, side);
 }
 
-export function installPermanentWalls(gs) {
-  // 1) place your permanent walls
-  const PERMA = [
-    [21,  6, 'N'], [22,  6, 'N'], [23,  6, 'N'], [20, 10, 'N'],
-    [21, 11, 'N'], [22, 11, 'N'], [23, 11, 'N'], [20, 9, 'W'],
-    [21, 10, 'W'], [21,  6, 'W'], [20, 7, 'N'], [20, 7, 'W'],
-  ];
-  for (const [x, y, side] of PERMA) setEdge(gs, x, y, side, true);
-
-  // 2) ensure the WEST-front ring (mouth column) is enterable
-  //    Find dragon footprint bounds, then open W edges on the column immediately to its west.
-  const cells = state.dragonCells(gs);
-  if (cells && cells.length) {
-    let west = Infinity, minY = Infinity, maxY = -Infinity;
-    for (const c of cells) {
-      if (c.x < west) west = c.x;
-      if (c.y < minY) minY = c.y;
-      if (c.y > maxY) maxY = c.y;
-    }
-    const mouthX = west - 1; // the front ring column enemies step into (e.g., 21 when dragon westmost is 22)
-    if (mouthX >= 0) {
-      for (let y = minY; y <= maxY; y++) {
-        // Explicitly REMOVE the west edge wall of the front-ring tile (mouthX,y)
-        // This guarantees state.isOpen(gs, mouthX-1,y,'E') === true → (mouthX-1,y) can step into (mouthX,y)
-        setEdge(gs, mouthX, y, 'W', false);
-      }
-    }
-  }
-
-  // 3) single topology bump after the whole batch
-  if (typeof state?.bumpTopology === 'function') state.bumpTopology(gs, 'permanent-walls+open-front-ring');
+// Permanently place a small set of walls and bump topology once. 
+export function installPermanentWalls(gs) 
+{ const PERMA = [ [21, 6, 'N'], [22, 6, 'N'], [23, 6, 'N'], 
+                 [20, 10, 'N'], [21, 11, 'N'], [22, 11, 'N'], 
+                  [23, 11, 'N'], [20, 9, 'W'], [21, 10, 'W'], 
+                 [21, 6, 'W'], [20, 7, 'N'], [20, 7, 'W'], ]; 
+ for (
+   const [x, y, side] of PERMA) 
+   setEdge(gs, x, y, side, true); 
 }
 
 
