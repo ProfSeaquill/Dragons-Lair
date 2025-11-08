@@ -660,11 +660,11 @@ export function neighborsByEdges(gs, cx, cy) {
 }
 
 export function setEdgeWall(gs, x, y, side, hasWall) {
-  const want = !!hasWall;
-  const cur  = edgeHasWall(gs, x, y, side);
-  if (cur === want) return cur;        // already desired state
-  const final = toggleEdge(gs, x, y, side); // toggle once; guard prevents full blocks
-  return final;                        // true if wall now present, false if absent
+    const want = !!hasWall;
+  const cur  = walls.edgeHasWall(gs, x, y, side);
+  if (cur === want) return cur;                     // already desired state
+  const final = walls.toggleEdge(gs, x, y, side);   // toggle once; guard prevents full blocks
+  return final;                                     // true if wall now present, false if absent
 }
 
 
