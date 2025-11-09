@@ -174,23 +174,24 @@ export function dragonAnchor(gs) {
   return { cx, cy };
 }
 
-// state.js — replace your existing dragonMouthCell with this
+// state.js — dragon mouth should be on the west-most interior tile (minX, same row)
 export function dragonMouthCell(gs = GameState) {
   // EXIT is the dragon’s center tile by design.
   const cx = EXIT.x, cy = EXIT.y;
 
   const hb = (typeof DRAGON_HITBOX !== 'undefined' && DRAGON_HITBOX) ? DRAGON_HITBOX : { w: 3, h: 3 };
-  const tW = state?.GRID?.cols ?? GRID?.cols ?? 24;
+  const gridW = GRID?.cols ?? 24;
 
-  // West-most interior x of the footprint
-  const westInsideX = cx - Math.floor(hb.w / 2); // == minX of footprint
+  // West-most interior x of the footprint (== minX)
+  const westInsideX = cx - Math.floor(hb.w / 2);
 
-  // ✅ Mouth sits one tile INSIDE the west face (minX + 1), same row as center
-  const mouthX = Math.min(Math.max(0, westInsideX + 1), tW - 1);
+  // ✅ Place mouth exactly on the west face (interior edge), not outside and not center.
+  const mouthX = Math.min(Math.max(0, westInsideX), gridW - 1);
   const mouthY = cy | 0;
 
   return { x: mouthX, y: mouthY };
 }
+
 
 
 
