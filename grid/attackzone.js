@@ -19,7 +19,6 @@ function dragonWestBand(gs) {
   const y1 = Math.min((GRID.rows | 0) - 1, (maxY | 0));
   return { bandX, minY: y0, maxY: y1 };
 }
-}
 
 /** Fast test: is (cx,cy) in the west 3×1 column touching the dragon? */
 export function isInAttackZone(gs, cx, cy) {
