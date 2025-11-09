@@ -240,18 +240,6 @@ function dragonPerimeterTiles(gs) {
   return out;
 }
 
-// West band column immediately in front of the dragon’s west face
-function dragonWestBand(gs) {
-  const cells = state.dragonCells(gs);
-  let minX = Infinity, minY = Infinity, maxY = -Infinity;
-  for (const c of cells) {
-    if (c.x < minX) minX = c.x;
-    if (c.y < minY) minY = c.y;
-    if (c.y > maxY) maxY = c.y;
-  }
-  return { bandX: (minX|0) - 1, minY: (minY|0), maxY: (maxY|0) };
-}
-
 
 // Push one step along grid if the edge is open (no walls). Returns new (x,y).
 function stepIfOpen(gs, x, y, dir) {
@@ -1676,6 +1664,7 @@ if (isInAttackZone(gs, e.cx|0, e.cy|0)) {
   e.commitDir = null;
   e.commitTilesLeft = 0;
   e.dir = 'W'; // cosmetic
+  e._suppressSep = true;  // <- make sure render offsets go to zero
   const t = state.GRID.tile || 32;
   e.x = (e.cx + 0.5) * t;
   e.y = (e.cy + 0.5) * t;
@@ -1711,6 +1700,10 @@ if (typeof pathRenderOffset === 'function') {
 const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 if (e._spawnAt && (nowMs - e._spawnAt) < 120) { ox = 0; oy = 0; }
 
+// If locked/attacking, force zero visual offsets so we draw at tile center
+if (e.isAttacking || e.pausedForAttack || e._suppressSep) {
+  ox = 0; oy = 0;
+}
 e.x = (e.cx + 0.5) * tsize + ox;
 e.y = (e.cy + 0.5) * tsize + oy;
 
