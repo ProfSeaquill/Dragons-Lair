@@ -614,7 +614,6 @@ function approachCap(base, cap, wave, k) {
   return cap - (cap - base) * Math.exp(-k * w);
 }
 
-// combat.js
 function makeEnemy(type, wave) {
   const base = state.enemyBase(type) || {};           // ← from enemies.json
   const es   = state.getCfg(state.GameState)?.tuning?.enemyScaling || {};
@@ -666,14 +665,6 @@ function makeEnemy(type, wave) {
     herding:   Number(B.herding)   || 0,
     curiosity: Number(B.curiosity) || 0,
   };
-  
-    // Engineer special: start underground, travel toward the lair, immune during this phase.
-  if (type === 'engineer') {
-    out.tunneling = false;             // ← start above ground
-  out.surfaceGraceT = 1.5;           // ← seconds before going underground
-  out.tunnelT = FLAGS.engineerTravelTime;
-  out.updateByCombat = false;        // ← FSM runs until they burrow
-  }
   
  // (keep your special-name switch and engineer tunneling bits as you have now)
   return out;
