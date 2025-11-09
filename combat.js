@@ -104,15 +104,6 @@ e.commitTilesLeft = 0;
 e.isAttacking = false;
 e.pausedForAttack = false;
 e.speedMul = 1;
-  // Make sure behavior is present even on pooled objects
-  if (!e.behavior || typeof e.behavior !== 'object') {
-    const B = BEHAVIOR[type] || { sense: 0.25, herding: 1.0, curiosity: 0.15 };
-    e.behavior = {
-      sense:     Number(B.sense)     || 0,
-      herding:   Number(B.herding)   || 0,
-      curiosity: Number(B.curiosity) || 0,
-    };
-  }
 // wipe any nav/lerp scratch that a pooled enemy could carry over
 e.fromXY = null;        // some pathers keep a [x,y] start of segment
 delete e._fromX; delete e._fromY;
@@ -499,17 +490,6 @@ function lerpCap(base, cap, p, {shape='exp', k=3, a=1}={}) {
 }
 
 
-// How each unit tends to decide at junctions
-const BEHAVIOR = {
-  villager:  { sense: 0.02, herding: 2.00, curiosity: 0.55 },
-  squire:    { sense: 0.3, herding: 1.40, curiosity: 0.15 },
-  knight:    { sense: 0.45, herding: 0.50, curiosity: 0.10 },
-  hero:      { sense: 0.80, herding: 0.20, curiosity: 0.05 },
-  engineer:  { sense: 0.90, herding: 0.50, curiosity: 0.07 },
-  kingsguard:{ sense: 1.50, herding: 0.10, curiosity: 0.01 },
-  boss:      { sense: 2.00, herding: 0.00, curiosity: 0.00 },
-};
-
 const FLAGS = {
   kingsguardEvery: 5,        // miniboss cadence
   bossEvery: 10,             // Knight of the Round Table cadence
@@ -666,13 +646,6 @@ function makeEnemy(type, wave) {
   if (typeof base.shielded === 'boolean') out.shield = !!base.shielded;
   if (Array.isArray(base.tags)) out.tags = [...base.tags];
 
-  // Ensure default behavior per type
-  const B = BEHAVIOR[type] || { sense: 0.25, herding: 1.0, curiosity: 0.15 };
-  out.behavior = {
-    sense:     Number(B.sense)     || 0,
-    herding:   Number(B.herding)   || 0,
-    curiosity: Number(B.curiosity) || 0,
-  };
   
  // (keep your special-name switch and engineer tunneling bits as you have now)
   return out;
@@ -1881,14 +1854,10 @@ if (T) {
         if (G.leaderType && e.type === G.leaderType) {
           R.groupLeaderId = e.id;
           e.leader = true;
-          e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
-          e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
           e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
         } else if (!G.leaderType) {
           R.groupLeaderId = e.id;
           e.leader = true;
-          e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
-          e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
           e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
         }
       }
