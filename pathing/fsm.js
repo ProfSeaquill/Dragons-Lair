@@ -165,6 +165,11 @@ export function setTarget(agent, gx, gy) { agent.gx = gx|0; agent.gy = gy|0; }
 
 export function getState(agent) { return agent.state; }
 
+// Heuristic toward current goal (attack band if retargeted)
+function heurToGoal(agent, x = agent.x, y = agent.y) {
+  return Math.abs(x - agent.gx) + Math.abs(y - agent.gy);
+}
+
 export function tick(agent) {
   if (agent.state === S.REACHED || agent.state === S.STOPPED) return agent.state;
   agent.mem = ensureMem(agent.mem);
@@ -250,6 +255,36 @@ function tickDecision(agent) {
 
   // Optional small linger
   if (agent.linger > 0) { agent.linger--; return agent.state; }
+
+    // ---- Stage-1c: downhill bias before breadcrumb randomness ----
+  {
+    const curH = heurToGoal(agent);
+    const opts = forwardOptions(agent.x, agent.y, agent.prevDir) || [];
+    let bestH = Infinity; let bestSides = [];
+
+    for (const o of opts) {
+      // double-check physical edge openness (walls) from the *source* cell
+      if (!edgeOpen(GameState, agent.x, agent.y, o.side)) continue;
+      const h = heurToGoal(agent, o.x, o.y);
+      if (h < bestH) { bestH = h; bestSides = [o.side]; }
+      else if (h === bestH) { bestSides.push(o.side); }
+    }
+
+    // Only take the downhill step if it strictly improves heuristic
+    if (bestSides.length && bestH < curH) {
+      const dir = bestSides[(Math.random() * bestSides.length) | 0];
+      const [nx, ny] = stepFrom(agent.x, agent.y, dir);
+      moveOne(agent, nx, ny);
+      if (agent.x === agent.gx && agent.y === agent.gy) { agent.state = S.REACHED; return agent.state; }
+      if (NAV().logChoices) console.debug('[DECISION] downhill', { at:{x:agent.x,y:agent.y}, dir, curH, bestH });
+      agent.state = S.WALK_STRAIGHT;
+      return agent.state;
+    }
+
+    if (NAV().logChoices) console.debug('[DECISION] no-downhill', { at:{x:agent.x,y:agent.y}, curH, opts: opts.map(o=>o.side) });
+  }
+  // ---- end Stage-1c block ----
+
 
   // Gather exits excluding back edge; memory will also exclude edges already explored.
   const exits = forwardOptions(agent.x, agent.y, agent.prevDir).map(n => n.side);
