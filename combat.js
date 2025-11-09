@@ -65,13 +65,17 @@ function acquireEnemy(type, wave, initFn) {
   e.y = undefined;
 
   // 💥 kill any stale render-smoothing carried by the pool
-  e.drawX = undefined;
-  e.drawY = undefined;
-  e.prevX = undefined;
-  e.prevY = undefined;
+    // Leave undefined so spawners MUST seed these; renderer should not assume defaults
+  e.drawX = e.drawY = e.prevX = e.prevY = undefined;
+
   e.ox = 0;
   e.oy = 0;
   e.tBorn = 0;        // set on spawn
+
+    e.sepX = 0; e.sepY = 0;
+  e.sepOffsetX = 0; e.sepOffsetY = 0;
+  e._suppressSep = false;
+
 
 e.cx = 0;
 e.cy = 0;
@@ -697,6 +701,33 @@ e.tileX = e.cx | 0;
 e.tileY = e.cy | 0;
 }
 
+    // --- SPAWN RENDER RESET (prevents “zoom from death spot”) ---
+  e.drawX = e.x;
+  e.drawY = e.y;
+  e.prevX = e.x;
+  e.prevY = e.y;
+
+  console.debug('[spawn reset]', e.id, {
+  x: e.x, y: e.y,
+  drawX: e.drawX, drawY: e.drawY,
+  prevX: e.prevX, prevY: e.prevY,
+  ox: e.ox, oy: e.oy,
+  sepX: e.sepX, sepY: e.sepY,
+  sup: e._suppressSep
+});
+
+
+  // Clear any sub-tile visual offsets / separation residue
+  e.ox = 0; e.oy = 0;
+  e.sepX = 0; e.sepY = 0;         // if your separation uses these
+  e.sepOffsetX = 0; e.sepOffsetY = 0; // if using alt names in separation module
+  e._suppressSep = false;         // allow separation unless the zone locks it
+
+  // Fresh spawn timestamp so update() can clamp pathRenderOffset for ~120ms
+  e._spawnAt = (typeof performance !== 'undefined' && performance.now)
+    ? performance.now()
+    : Date.now();
+
 
   // seed a stable 'from' for the very first render lerp
 e.fromXY = [e.cx, e.cy];
@@ -759,6 +790,30 @@ e.y = (e.cy + 0.5) * t;
 e.tileX = e.cx | 0;
 e.tileY = e.cy | 0;
 }
+
+    // --- SPAWN RENDER RESET ---
+  e.drawX = e.x;
+  e.drawY = e.y;
+  e.prevX = e.x;
+  e.prevY = e.y;
+
+   console.debug('[spawn reset]', e.id, {
+  x: e.x, y: e.y,
+  drawX: e.drawX, drawY: e.drawY,
+  prevX: e.prevX, prevY: e.prevY,
+  ox: e.ox, oy: e.oy,
+  sepX: e.sepX, sepY: e.sepY,
+  sup: e._suppressSep
+});
+
+  e.ox = 0; e.oy = 0;
+  e.sepX = 0; e.sepY = 0;
+  e.sepOffsetX = 0; e.sepOffsetY = 0;
+  e._suppressSep = false;
+
+  e._spawnAt = (typeof performance !== 'undefined' && performance.now)
+    ? performance.now()
+    : Date.now();
 
 
   // seed a stable 'from' for the very first render lerp
@@ -829,6 +884,31 @@ if (type === 'engineer') {
     e.tileX = e.cx;
     e.tileY = e.cy;
 
+        // --- SPAWN RENDER RESET ---
+    e.drawX = e.x;
+    e.drawY = e.y;
+    e.prevX = e.x;
+    e.prevY = e.y;
+
+    console.debug('[spawn reset]', e.id, {
+  x: e.x, y: e.y,
+  drawX: e.drawX, drawY: e.drawY,
+  prevX: e.prevX, prevY: e.prevY,
+  ox: e.ox, oy: e.oy,
+  sepX: e.sepX, sepY: e.sepY,
+  sup: e._suppressSep
+});
+
+    e.ox = 0; e.oy = 0;
+    e.sepX = 0; e.sepY = 0;
+    e.sepOffsetX = 0; e.sepOffsetY = 0;
+    e._suppressSep = false;
+
+    e._spawnAt = (typeof performance !== 'undefined' && performance.now)
+      ? performance.now()
+      : Date.now();
+
+    
  // speed in pixels/sec (navigator reads this)
 {
   const tsize = state.GRID.tile || 32;
