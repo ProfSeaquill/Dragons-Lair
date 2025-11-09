@@ -17,7 +17,7 @@
 
 import { stepStraight, forwardOptions, dirFromTo, isJunction } from "../grid/topology.js";
 import { edgeOpen } from "../grid/edges.js";
-import { GameState } from "../state.js";
+import { GRID, GameState } from "../state.js";
 import {
   aStarToTarget,
   planSegmentToFirstJunction,
@@ -26,6 +26,8 @@ import {
 import {
   createMemory, ensureMem, setSeed, pushBreadcrumb, nextUntriedExit, peekBreadcrumb, popBreadcrumb, markEdgeExplored, stepFrom,
 } from "./memory.js";
+import { isInAttackZone } from "../grid/attackzone.js"; // to test the west band tiles
+
 
 
 const NAV = () => (globalThis.DL_NAV || {}); // console-toggle hook
@@ -42,6 +44,31 @@ const EMPTY_STACK_POLICY = "replan"; // TUNABLE: "replan" | "halt"
 
 // Safety cap: prevent endless wandering if target is unreachable.
 const MAX_TICKS_PER_AGENT = Number.POSITIVE_INFINITY; // TUNABLE: large enough for your maps
+
+
+function selectAttackGoal(gs, sx, sy) {
+  // Scan the whole grid cheaply and collect the 3 west-band tiles
+  const targets = [];
+  for (let y = 0; y < GRID.rows; y++) {
+    for (let x = 0; x < GRID.cols; x++) {
+      if (isInAttackZone(gs, x, y)) targets.push({ x, y });
+    }
+  }
+  if (!targets.length) return null;
+
+  // Pick the nearest *reachable* target by A* step count
+  let best = null;
+  for (const t of targets) {
+    const p = aStarToTarget(sx, sy, t.x, t.y);
+    if (p && p.length >= 2) {
+      if (!best || p.length < best.steps) best = { gx: t.x, gy: t.y, steps: p.length };
+    }
+  }
+  if (best && globalThis.DL_NAV?.logTargets) {
+    console.debug('[NAV] attack-goal chosen', best);
+  }
+  return best ? { gx: best.gx, gy: best.gy } : null;
+}
 
 //// Agent & FSM ////////////////////////////////////////////////////////////////
 
@@ -93,17 +120,34 @@ function moveOne(agent, nx, ny) {
   agent.x = nx; agent.y = ny;
 }
 
-/** Queue a new A* segment that ends at the first junction (or goal). */
 function planSegment(agent) {
+  // Choose dynamic goal: nearest reachable attack-zone tile, else fallback to dragon goal
+  const dyn = selectAttackGoal(GameState, agent.x, agent.y);
+  const G = dyn || { gx: agent.gx, gy: agent.gy };
+
   if (NAV().noJunctions) {
-  const full = aStarToTarget(agent.x, agent.y, agent.gx, agent.gy);
-  if (!full || full.length <= 1) { agent.plan = null; return false; }
-  agent.plan = full; agent.planIdx = 1;
-  agent.planFlags.clippedAtJunction = false;
-  agent.planFlags.reachedGoal = true;
+    const full = aStarToTarget(agent.x, agent.y, G.gx, G.gy);
+    if (!full || full.length <= 1) { agent.plan = null; return false; }
+    agent.plan = full; agent.planIdx = 1;
+    agent.planFlags.clippedAtJunction = false;
+    agent.planFlags.reachedGoal = true;
+    agent.state = S.FOLLOW_PLAN;
+    return true;
+  }
+
+  const seg = planSegmentToFirstJunction(agent.x, agent.y, G.gx, G.gy);
+  if (!seg || !seg.path || seg.path.length <= 1) {
+    agent.plan = null;
+    return false;
+  }
+  agent.plan = seg.path;           // includes current tile as first element
+  agent.planIdx = 1;               // next step index
+  agent.planFlags.clippedAtJunction = seg.clippedAtJunction;
+  agent.planFlags.reachedGoal = seg.reachedGoal;
   agent.state = S.FOLLOW_PLAN;
   return true;
 }
+
 
   const seg = planSegmentToFirstJunction(agent.x, agent.y, agent.gx, agent.gy);
   if (!seg || !seg.path || seg.path.length <= 1) {
@@ -252,7 +296,6 @@ function tickBacktrack(agent) {
   let top = peekBreadcrumb(agent);
   if (!top) {
     if (EMPTY_STACK_POLICY === "replan") {
-      // Try one more segment toward goal
       const ok = planSegment(agent);
       if (!ok) {
         agent.state = S.STOPPED;
