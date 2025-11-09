@@ -146,21 +146,8 @@ function planSegment(agent) {
   agent.planFlags.reachedGoal = seg.reachedGoal;
   agent.state = S.FOLLOW_PLAN;
   return true;
-
-
-  const seg = planSegmentToFirstJunction(agent.x, agent.y, agent.gx, agent.gy);
-  if (!seg || !seg.path || seg.path.length <= 1) {
-    agent.plan = null;
-    return false;
-  }
-
-  agent.plan = seg.path;           // includes current tile as first element
-  agent.planIdx = 1;               // next step index
-  agent.planFlags.clippedAtJunction = seg.clippedAtJunction;
-  agent.planFlags.reachedGoal = seg.reachedGoal;
-  agent.state = S.FOLLOW_PLAN;
-  return true;
 }
+
 
 /** A* all the way to a specific tile (used for backtracking to a junction). */
 function planTo(agent, tx, ty) {
