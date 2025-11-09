@@ -573,17 +573,6 @@ function waveCountFor(wave, gs = state.GameState) {
  return Math.max(0, Math.round(approachCap(c.base, c.cap, wave, c.k)));
 }
 
-function cadenceFor(wave, gs = state.GameState) {
-  const c = TW(gs)?.cadence || {};
-  return {
-    bossEvery:       _val(c.bossEvery,        FLAGS.bossEvery),
-    kingsguardEvery: _val(c.kingsguardEvery,  FLAGS.kingsguardEvery),
-    heroFromWave:    _val(c.heroFromWave,     10),
-    heroEvery:       _val(c.heroEvery,         4),
-    engineerFromWave:_val(c.engineerFromWave, 20),
-    engineerEvery:   _val(c.engineerEvery,     3),
-  };
-}
 
 // choose a core mix for the wave from tuning.mix (deterministic)
 function selectWeightsForWave(wave, gs = state.GameState) {
