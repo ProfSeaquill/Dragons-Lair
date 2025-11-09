@@ -1,7 +1,7 @@
 // pathing/index.js
 // Thin façade that matches your existing imports, backed by our FSM.
 
-import { createAgent, tick as tickFSM, getState as getFSMState } from './fsm.js';
+import { createAgent, tick as tickFSM, getState as getFSMState, setTarget as setFSMTarget } from './fsm.js';
 import { planSegmentToFirstJunction } from './directpath.js';
 import { buildTileRosters, renderOffsetNoOcc } from './separation.js';
 import { EXIT, GRID, GameState } from '../state.js';
@@ -59,6 +59,14 @@ export function spawnAgent(enemy /*, ctx */) {
   enemy.cx = sx; enemy.cy = sy;
   enemy.x  = (sx + 0.5) * tile;
   enemy.y  = (sy + 0.5) * tile;
+
+  // ⛳ Choose a goal in the west band (attack zone) and set it on the FSM
+  const { gx, gy } = __attackBandGoal(GameState);
+  setFSMTarget(enemy._fsm, gx, gy);
+  if (globalThis.DL_NAV && globalThis.DL_NAV.logTargets) {
+    console.debug('[NAV] attack-goal chosen', { gx, gy });
+  }
+
 
   // ⛳ Reset the pathing smoother so pooled objects don’t carry stale draw state
   enemy._fromPX = enemy.x;
