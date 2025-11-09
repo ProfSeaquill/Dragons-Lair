@@ -53,7 +53,7 @@
     },
 
     "waves": {
-      "count": { "base": 5, "cap": 160, "k": 0.02 },
+      "count": { "base": 5, "cap": 180, "k": 0.05 },
 
       "mixCurves": {
         "villager": { "minWave": 1,  "base": 1.00, "cap": 0.30, "k": 0.60 },
@@ -96,7 +96,7 @@
         "min": 4,
         "max": 10,
         "spawnGap": 0.25,
-        "groupGap": 3.7
+        "groupGap": 3.5
       },
 
       "mixOptions": { "floor": 0.0, "ceil": 0.8, "unlockFill": "renorm" },
