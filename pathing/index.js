@@ -31,6 +31,15 @@ export function spawnAgent(enemy /*, ctx */) {
   enemy.x  = (sx + 0.5) * tile;
   enemy.y  = (sy + 0.5) * tile;
 
+  // ⛳ Reset the pathing smoother so pooled objects don’t carry stale draw state
+  enemy._fromPX = enemy.x;
+  enemy._fromPY = enemy.y;
+  enemy._toPX   = enemy.x;
+  enemy._toPY   = enemy.y;
+  enemy._stepAcc = 0;
+  enemy.drawX   = enemy.x;
+  enemy.drawY   = enemy.y;
+
   return enemy._fsm;
 }
 
