@@ -2,7 +2,8 @@
 import * as state from './state.js';
 // New pathing wrappers (added in state.js patch)
 import { pathSpawnAgent, pathUpdateAgent, pathRenderOffset, GRID, ENTRY, EXIT, ensureFreshPathing, pathDespawnAgent } from './state.js';
-
+import { isInAttackZone } from './grid/attackzone.js';
+import { updateAttacks } from './pathing/attack.js';
 
 
 // === Ability cooldown timers (module-local) ===
@@ -1679,46 +1680,18 @@ for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
     if (e.stunLeft > 0) continue;  // frozen by Roar/Stomp
 
-// -- Dragon west-front band logic (fix off-by-one + only lock on the band) --
-{
-  const { bandX, minY, maxY } = dragonWestBand(gs);
-
-  const onBand = Number.isInteger(e.cx) && Number.isInteger(e.cy)
-              && e.cx === bandX && e.cy >= minY && e.cy <= maxY;
-
-  const atApproach = Number.isInteger(e.cx) && Number.isInteger(e.cy)
-                  && e.cx === bandX - 1 && e.cy >= minY && e.cy <= maxY;
-
-  const eastOpenHere = Number.isInteger(e.cx) && Number.isInteger(e.cy)
-                    && state.isOpen(gs, e.cx, e.cy, 'E');
-
-  // If we’re one tile BEFORE the band and the east edge is open, force a single
-  // step onto the band so they don’t “stop a tile early”.
-  if (atApproach && eastOpenHere) {
-    const t = state.GRID.tile || 32;
-    e.cx = e.tileX = (e.cx + 1);
-    // keep same row
-    e.x = (e.cx + 0.5) * t;
-    e.y = (e.cy + 0.5) * t;
-    e.dir = 'E';
-    e.commitDir = null;
-    e.commitTilesLeft = 0;
-    continue; // we consumed our move this frame
-  }
-
-  // If we’re ON the band, lock/attack only when the shared east edge into the
-  // dragon’s west face is physically open. Otherwise let navigator keep control
-  // so north/south separation and wall sliding still work.
-  if (onBand && eastOpenHere) {
-    e.pausedForAttack = true;
-    e.isAttacking     = true;
-    e.commitDir = null;
-    e.commitTilesLeft = 0;
-    e.dir = 'W'; // cosmetic: face the lair
-    continue;    // skip navigator → prevents U-turns
-  }
+// -- Attack-zone lock: freeze & face the lair if inside the 3×1 west column --
+if (isInAttackZone(gs, e.cx|0, e.cy|0)) {
+  e.pausedForAttack = true;
+  e.isAttacking     = true;
+  e.commitDir = null;
+  e.commitTilesLeft = 0;
+  e.dir = 'W'; // cosmetic
+  const t = state.GRID.tile || 32;
+  e.x = (e.cx + 0.5) * t;
+  e.y = (e.cy + 0.5) * t;
+  continue; // do NOT call pathUpdateAgent while in the zone
 }
-
 
 
    // Let the navigator advance e.cx/e.cy (most implementations mutate the agent directly).
@@ -2116,41 +2089,8 @@ if (e.type === 'engineer' && e.tunneling) {
     if (e.slowLeft > 0) e.slowLeft -= dt;
     if (e.roarBuffLeft > 0) e.roarBuffLeft -= dt;
 
-// --- Contact attack to chip dragon HP when adjacent *and the edge is open* ---
-if (Number.isInteger(e.cx) && Number.isInteger(e.cy) &&
-    !(e.type === 'engineer' && e.tunneling)) {
-
-  // Inline wall-aware adjacency: true iff enemy is 4-neighbor to ANY dragon cell AND the shared edge is open.
-  let canContact = false;
-  DRAGON_CONTACT: for (const dc of state.dragonCells(gs)) {
-    const dx = dc.x - e.cx, dy = dc.y - e.cy;
-    if (Math.abs(dx) + Math.abs(dy) !== 1) continue; // not a 4-neighbor
-    const side =
-      dx ===  1 ? 'E' :
-      dx === -1 ? 'W' :
-      dy ===  1 ? 'S' :
-                  'N';
-    if (state.isOpen(gs, e.cx, e.cy, side)) { canContact = true; break DRAGON_CONTACT; }
-  }
-
-  if (canContact) {
-    e._atkCD = (e._atkCD ?? 0) - dt;
-    if (e._atkCD <= 0) {
-      const rate = Math.max(0.05, e.rate || 0.5);  // attacks/sec from enemies.json
-      const dmg  = Math.max(1, e.damage | 0);      // per-hit (scaled in makeEnemy)
-
-      // DIAG: label this site explicitly
-      {
-        const cx = e.cx, cy = e.cy;
-        const adj = state.isAdjacentToDragon(gs, cx, cy);
-        console.log('[DD] Dragon dmg', { reason: 'chip', byId: e.id, cx, cy, adj });
-      }
-
-      gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - dmg);
-      e._atkCD = 1 / rate;
-    }
-  }
-}
+// --- Contact/zone attacks (centralized) ---
+updateAttacks(gs, dt);
 
     // Death -> rewards (DoT, projectiles, or other effects may have killed them)
     if (e.hp <= 0) {
