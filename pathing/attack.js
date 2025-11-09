@@ -19,25 +19,37 @@ export function updateAttacks(gs, dt) {
 
     const cx = e.cx|0, cy = e.cy|0;
     const inZone = isInAttackZone(gs, cx, cy);
+    // Default (cleared) each frame; set when we decide to attack
+e.isAttacking = false;
+e.pausedForAttack = false;
+e._suppressSep = false;
+
 
     // Zone => freeze handled by combat; here we only drive the cooldown and damage.
     let canAttack = false;
 
     if (inZone) {
-      canAttack = true;            // unconditional inside the zone
-      e.isAttacking = true;
-    } else {
-      // Fallback = your original “adjacent + shared edge is open” test
-      let adjAndOpen = false;
-      DRAGON_CONTACT: for (const dc of state.dragonCells(gs)) {
-        const dx = dc.x - cx, dy = dc.y - cy;
-        if (Math.abs(dx) + Math.abs(dy) !== 1) continue;
-        const side = dx === 1 ? 'E' : dx === -1 ? 'W' : dy === 1 ? 'S' : 'N';
-        if (state.isOpen(gs, cx, cy, side)) { adjAndOpen = true; break DRAGON_CONTACT; }
-      }
-      canAttack = adjAndOpen;
-      e.isAttacking = !!adjAndOpen;
-    }
+  // In the zone: this *is* the contact band. Lock + face lair + suppress offsets.
+  e.isAttacking = true;
+  e.pausedForAttack = true;
+  e.commitDir = null;
+  e.commitTilesLeft = 0;
+  e.dir = 'W';
+  e._suppressSep = true;
+  canAttack = true;
+} else {
+  // Fallback = original “adjacent + open edge” test
+  let adjAndOpen = false;
+  DRAGON_CONTACT: for (const dc of state.dragonCells(gs)) {
+    const dx = dc.x - cx, dy = dc.y - cy;
+    if (Math.abs(dx) + Math.abs(dy) !== 1) continue;
+    const side = dx === 1 ? 'E' : dx === -1 ? 'W' : dy === 1 ? 'S' : 'N';
+    if (state.isOpen(gs, cx, cy, side)) { adjAndOpen = true; break DRAGON_CONTACT; }
+  }
+  canAttack = adjAndOpen;
+  e.isAttacking = !!adjAndOpen;
+  e.pausedForAttack = !!adjAndOpen;
+}
 
     if (!canAttack) continue;
 
