@@ -11,6 +11,8 @@ export function initPathing(/*gridApi, exit, opts*/) {
   return { ok: true };
 }
 
+// NOTE: pooled enemies carry FSM smoother fields (_fromPX/_toPX/_stepAcc).
+// Always re-seed them here, or they will render at last wave's death pixel for a frame.
 // Spawn/Despawn simply attach/detach an FSM agent on your enemy object.
 export function spawnAgent(enemy /*, ctx */) {
   // Prefer tile coords; derive from pixels only if needed.
