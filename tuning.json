@@ -53,7 +53,7 @@
     },
 
     "waves": {
-      "count": { "base": 5, "cap": 180, "k": 0.002 },
+      "count": { "base": 5, "cap": 180, "k": 0.04 },
 
       "mixCurves": {
         "villager": { "minWave": 1,  "base": 1.00, "cap": 0.30, "k": 0.60 },
