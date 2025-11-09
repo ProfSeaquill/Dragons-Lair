@@ -11,6 +11,33 @@ export function initPathing(/*gridApi, exit, opts*/) {
   return { ok: true };
 }
 
+// --- Stage 1b: choose a goal in the attack band (west of dragon) ---
+function __attackBandGoal(gs) {
+  // Use your existing dragon footprint helpers
+  const cells = (typeof state?.dragonCells === 'function')
+    ? state.dragonCells(gs)
+    : []; // fallback empty
+
+  if (!cells.length) {
+    // Fallback to EXIT-1 when footprint isn’t ready yet
+    return { gx: EXIT.x - 1, gy: EXIT.y };
+  }
+
+  // Find west face (min x) and the vertical span
+  let minX = Infinity, minY = Infinity, maxY = -Infinity;
+  for (const c of cells) { 
+    if (c.x < minX) minX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.y > maxY) maxY = c.y;
+  }
+  const bandX = Math.max(0, (minX|0) - 1);
+  const midY  = (minY + maxY) >> 1;
+
+  // Prefer center of the 3-tile band; if out of bounds, clamp
+  const gy = Math.max(0, Math.min(GRID.rows - 1, midY));
+  return { gx: bandX, gy };
+}
+
 // NOTE: pooled enemies carry FSM smoother fields (_fromPX/_toPX/_stepAcc).
 // Always re-seed them here, or they will render at last wave's death pixel for a frame.
 // Spawn/Despawn simply attach/detach an FSM agent on your enemy object.
@@ -44,6 +71,7 @@ export function spawnAgent(enemy /*, ctx */) {
 
   return enemy._fsm;
 }
+
 
 export function despawnAgent(enemy /*, ctx */) {
   enemy._fsm = null;
