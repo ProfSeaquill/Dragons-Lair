@@ -117,6 +117,10 @@ e.speedMul = 1;
 e.fromXY = null;        // some pathers keep a [x,y] start of segment
 delete e._fromX; delete e._fromY;
 delete e._seg; delete e._acc; delete e._lerp; delete e._t;
+// Also wipe the FSM smoother’s pixel fields so updateAgent will re-seed them
+delete e._fromPX; delete e._fromPY;
+delete e._toPX;   delete e._toPY;
+delete e._stepAcc;
 
   if (initFn) initFn(e);
   return e;
