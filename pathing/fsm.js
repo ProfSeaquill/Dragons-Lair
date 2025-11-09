@@ -146,7 +146,6 @@ function planSegment(agent) {
   agent.planFlags.reachedGoal = seg.reachedGoal;
   agent.state = S.FOLLOW_PLAN;
   return true;
-}
 
 
   const seg = planSegmentToFirstJunction(agent.x, agent.y, agent.gx, agent.gy);
@@ -154,6 +153,7 @@ function planSegment(agent) {
     agent.plan = null;
     return false;
   }
+
   agent.plan = seg.path;           // includes current tile as first element
   agent.planIdx = 1;               // next step index
   agent.planFlags.clippedAtJunction = seg.clippedAtJunction;
