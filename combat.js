@@ -1655,10 +1655,19 @@ if (isInAttackZone(gs, e.cx|0, e.cy|0)) {
   e.commitDir = null;
   e.commitTilesLeft = 0;
   e.dir = 'W'; // cosmetic
-  e._suppressSep = true;  // <- make sure render offsets go to zero
   const t = state.GRID.tile || 32;
   e.x = (e.cx + 0.5) * t;
   e.y = (e.cy + 0.5) * t;
+   // HARD SNAP: kill any smoothing/offset path the renderer might use
+  e.drawX = e.x;           // if renderer reads drawX/drawY
+  e.drawY = e.y;
+  e.prevX = e.x;           // if renderer lerps from prev→draw
+  e.prevY = e.y;
+  e.ox = 0; e.oy = 0;      // our own per-frame offsets
+  e.sepOffsetX = 0;        // sub-tile separation module (if present)
+  e.sepOffsetY = 0;
+  e._suppressSep = true;   // tell separation to skip this unit
+  e.fromXY = [e.cx, e.cy]; // reset any nav lerp seed to current tile
   continue; // do NOT call pathUpdateAgent while in the zone
 }
 
