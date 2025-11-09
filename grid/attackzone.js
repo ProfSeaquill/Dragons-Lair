@@ -2,7 +2,7 @@
 // 3-tile vertical "attack zone" immediately WEST of the dragon footprint.
 // Reuses the same footprint math you already use elsewhere.
 
-import { inBounds, dragonCells } from '../state.js';
+import { inBounds, dragonCells, GRID } from '../state.js';
 
 /** Compute the west band geometry once (x column + y span). */
 function dragonWestBand(gs) {
@@ -13,7 +13,12 @@ function dragonWestBand(gs) {
     if (c.y < minY) minY = c.y;
     if (c.y > maxY) maxY = c.y;
   }
-  return { bandX: (minX|0) - 1, minY: (minY|0), maxY: (maxY|0) };
+   // band column immediately WEST of the dragon’s west face
+  const bandX = Math.max(0, (minX | 0) - 1);
+  const y0 = Math.max(0, (minY | 0));
+  const y1 = Math.min((GRID.rows | 0) - 1, (maxY | 0));
+  return { bandX, minY: y0, maxY: y1 };
+}
 }
 
 /** Fast test: is (cx,cy) in the west 3×1 column touching the dragon? */
