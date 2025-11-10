@@ -229,10 +229,14 @@ export function setTarget(agent, gx, gy) { agent.gx = gx|0; agent.gy = gy|0; }
 
 export function getState(agent) { return agent.state; }
 
-// Heuristic toward current goal (attack band if retargeted)
+// Heuristic toward the *effective* goal: nearest attack band if available, else agent.gx/gy.
 function heurToGoal(agent, x = agent.x, y = agent.y) {
-  return Math.abs(x - agent.gx) + Math.abs(y - agent.gy);
+  const dyn = selectAttackGoal(GameState, x, y);
+  const gx = dyn ? dyn.gx : agent.gx;
+  const gy = dyn ? dyn.gy : agent.gy;
+  return Math.abs(x - gx) + Math.abs(y - gy);
 }
+
 
 export function tick(agent) {
   if (agent.state === S.REACHED || agent.state === S.STOPPED) return agent.state;
