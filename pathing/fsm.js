@@ -47,7 +47,7 @@ const MAX_TICKS_PER_AGENT = Number.POSITIVE_INFINITY; // TUNABLE: large enough f
 
 // ─── Junction scoring (gentle bias) ──────────────────────────────────────────
 const BIAS = Object.freeze({
-  deltaH: 1.0,      // weight for Δheight = distFromEntry[next] - distFromEntry[cur]
+  deltaH: .5,      // weight for Δheight = distFromEntry[next] - distFromEntry[cur]
   keepHeading: 0.15,// tiny nudge for sticking with prevDir
   eastNudge: 0.05,  // micro-nudge to progress east-ish on ties
 });
