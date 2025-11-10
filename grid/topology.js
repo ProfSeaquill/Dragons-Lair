@@ -57,16 +57,22 @@ function __fwdContinuations(x, y, prevDir) {
   return cont;
 }
 
+// Corridor-aware predicates
+export function isCorridorJunction(x, y, prevDir) {
+  // Real fork: at least two forward branches that continue
+  return __fwdContinuations(x, y, prevDir) >= 2;
+}
+
+export function isCorridor(x, y, prevDir) {
+  // Straight corridor: exactly one forward branch that continues
+  return __fwdContinuations(x, y, prevDir) === 1;
+}
+
 /** Junction test (corridor-aware):
  * Junction iff at least two forward exits *continue* (so corners/rooms don’t count).
  */
 export function isJunction(x, y, prevDir) {
-  const opts = neighbors4(x, y);
-  if (opts.length <= 1) return false;            // dead-end/isolated
-  // If no prevDir, require ≥2 continuing branches overall
-  if (!prevDir) return __fwdContinuations(x, y, null) >= 2;
-  // With heading, require ≥2 *forward* continuations
-  return __fwdContinuations(x, y, prevDir) >= 2;
+  return isCorridorJunction(x, y, prevDir);
 }
 
 
