@@ -15,7 +15,7 @@
 //                        pick the same edge again after backtracking.
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { stepStraight, forwardOptions, dirFromTo, isJunction } from "../grid/topology.js";
+import { stepStraight, forwardOptions, dirFromTo, isCorridorJunction } from "../grid/topology.js";
 import { edgeOpen } from "../grid/edges.js";
 import { GRID, GameState } from "../state.js";
 import {
@@ -262,7 +262,7 @@ export function tick(agent) {
 function tickWalkStraight(agent) {
   // If we're sitting on a junction, force a decision even if "straight" is open.
   // (Prevents blowing past a good turn just because forward is available.)
-  if (isJunction(agent.x, agent.y, agent.prevDir)) {
+  if (isCorridorJunction(agent.x, agent.y, agent.prevDir)) {
     agent.state = S.DECISION;
     return agent.state;
   }
