@@ -14,7 +14,7 @@
 //                      after leaving start, so your FSM can run a Decision there.
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { neighbors4, dirFromTo, isJunction } from "../grid/topology.js";
+import { neighbors4, dirFromTo, isCorridorJunction } from "../grid/topology.js";
 import { GRID, inBounds } from '../state.js';
 
 
@@ -221,7 +221,7 @@ export function clipAtFirstJunction(fullPath) {
     if (!prevDir) prevDir = dir;
 
     // If the *current* node is a junction w.r.t. prevDir, we stop here.
-    if (isJunction(cur.x, cur.y, prevDir)) {
+    if (isCorridorJunction(cur.x, cur.y, prevDir)) {
       return { subpath: sub, reachedGoal: false, clippedAtJunction: true };
     }
 
