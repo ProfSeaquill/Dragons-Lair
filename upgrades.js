@@ -94,10 +94,10 @@ function statCostFor(gs, key, level) {
 function abilityCostFor(gs, key, level) {
   const T = getCfg(gs)?.tuning || {};
   const baseMap = {
-    claw:  T.abilities?.costBaseClaw  ?? 50,
-    gust:  T.abilities?.costBaseGust  ?? 100,
-    roar:  T.abilities?.costBaseRoar  ?? 125,
-    stomp: T.abilities?.costBaseStomp ?? 150,
+    claw:  T.abilities?.costBaseClaw  ?? 25,
+    gust:  T.abilities?.costBaseGust  ?? 50,
+    roar:  T.abilities?.costBaseRoar  ?? 75,
+    stomp: T.abilities?.costBaseStomp ?? 100,
   };
   const baseCost = baseMap[key];
   if (typeof baseCost !== 'number') return 999999;
