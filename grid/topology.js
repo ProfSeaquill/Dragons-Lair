@@ -41,15 +41,34 @@ export function degree(x, y) {
   return neighbors4(x, y).length;
 }
 
-/** Junction test with optional prevDir ('N'|'E'|'S'|'W') */
+// Count how many forward exits (excl. back edge) themselves continue (≥1 forward option).
+function __fwdContinuations(x, y, prevDir) {
+  const opts = neighbors4(x, y);
+  if (opts.length <= 1) return 0;
+  const back = prevDir ? OPP[prevDir] : null;
+  let cont = 0;
+  for (const o of opts) {
+    if (back && o.side === back) continue;       // exclude back edge
+    // look ahead one step and see if that tile has at least one forward option
+    const next = neighbors4(o.x, o.y);
+    if (!next || !next.length) continue;
+    cont++;
+  }
+  return cont;
+}
+
+/** Junction test (corridor-aware):
+ * Junction iff at least two forward exits *continue* (so corners/rooms don’t count).
+ */
 export function isJunction(x, y, prevDir) {
   const opts = neighbors4(x, y);
-  if (opts.length <= 1) return false;
-  if (!prevDir) return opts.length >= 3;
-  const back = OPP[prevDir];
-  const forward = opts.filter(o => o.side !== back);
-  return forward.length >= 2 || opts.length >= 3;
+  if (opts.length <= 1) return false;            // dead-end/isolated
+  // If no prevDir, require ≥2 continuing branches overall
+  if (!prevDir) return __fwdContinuations(x, y, null) >= 2;
+  // With heading, require ≥2 *forward* continuations
+  return __fwdContinuations(x, y, prevDir) >= 2;
 }
+
 
 export function dirFromTo(ax, ay, bx, by) {
   if (bx === ax+1 && by === ay) return 'E';
