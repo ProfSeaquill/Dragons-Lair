@@ -45,16 +45,32 @@ const EMPTY_STACK_POLICY = "replan"; // TUNABLE: "replan" | "halt"
 // Safety cap: prevent endless wandering if target is unreachable.
 const MAX_TICKS_PER_AGENT = Number.POSITIVE_INFINITY; // TUNABLE: large enough for your maps
 
-// ─── Junction scoring (gentle bias) ──────────────────────────────────────────
+// ─── Junction scoring (gentle bias toward attack band) ───────────────────────
 const BIAS = Object.freeze({
-  deltaH: 0.0,      // weight for Δheight = distFromEntry[next] - distFromEntry[cur]
-  keepHeading: 0.15,// tiny nudge for sticking with prevDir
-  eastNudge: 0.05,  // micro-nudge to progress east-ish on ties
+  bandGain: 1.0,     // primary: reduction in Manhattan distance to nearest band tile
+  keepHeading: 0.10, // tiny: prefer not to zig-zag unnecessarily
+  deltaH: 0.00,      // optional: local Δheight from distFromEntry (0 to disable)
+  eastNudge: 0.00,   // optional: tiny tie-breaker; 0 keeps it neutral
 });
 
 function heightAt(gs, x, y) {
   const h = gs?.distFromEntry?.[y]?.[x];
   return Number.isFinite(h) ? h : -Infinity;
+}
+
+// Compute Manhattan distance to the *nearest* west-band (attack zone) tile
+function manhattanToNearestBand(gs, x, y) {
+  // Cheap scan (only 3 tiles in your band)
+  let best = Infinity;
+  for (let yy = 0; yy < GRID.rows; yy++) {
+    for (let xx = 0; xx < GRID.cols; xx++) {
+      if (isInAttackZone(gs, xx, yy)) {
+        const d = Math.abs(xx - x) + Math.abs(yy - y);
+        if (d < best) best = d;
+      }
+    }
+  }
+  return best;
 }
 
 function scoreDir(gs, x, y, dir, prevDir) {
@@ -65,21 +81,33 @@ function scoreDir(gs, x, y, dir, prevDir) {
   else if (dir === 'S') ny = y + 1;
   else if (dir === 'N') ny = y - 1;
 
-  const h0 = heightAt(gs, x, y);
-  const h1 = heightAt(gs, nx, ny);
-  const dH = (Number.isFinite(h0) && Number.isFinite(h1)) ? (h1 - h0) : 0;
+  // primary: progress toward the attack band (positive if we get closer)
+  const d0 = manhattanToNearestBand(gs, x, y);
+  const d1 = manhattanToNearestBand(gs, nx, ny);
+  const gain = (Number.isFinite(d0) && Number.isFinite(d1)) ? (d0 - d1) : 0;
 
-  let s = BIAS.deltaH * dH;
+  let s = BIAS.bandGain * gain;
+
+  // optional: local downhill (usually neutral with 0 weight)
+  if (BIAS.deltaH !== 0.0) {
+    const h0 = heightAt(gs, x, y);
+    const h1 = heightAt(gs, nx, ny);
+    const dH = (Number.isFinite(h0) && Number.isFinite(h1)) ? (h1 - h0) : 0;
+    s += BIAS.deltaH * dH;
+  }
 
   // tiny preference to keep heading
   if (prevDir && dir === prevDir) s += BIAS.keepHeading;
 
-  // micro eastward nudge (helps break perfect ties in big rooms)
-  if (dir === 'E') s += BIAS.eastNudge;
-  else if (dir === 'W') s -= BIAS.eastNudge;
+  // optional: tiny east/west tie-breaker (off by default)
+  if (BIAS.eastNudge !== 0.0) {
+    if (dir === 'E') s += BIAS.eastNudge;
+    else if (dir === 'W') s -= BIAS.eastNudge;
+  }
 
   return { dir, nx, ny, score: s };
 }
+
 
 
 function selectAttackGoal(gs, sx, sy) {
