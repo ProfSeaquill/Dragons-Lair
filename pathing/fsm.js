@@ -45,6 +45,42 @@ const EMPTY_STACK_POLICY = "replan"; // TUNABLE: "replan" | "halt"
 // Safety cap: prevent endless wandering if target is unreachable.
 const MAX_TICKS_PER_AGENT = Number.POSITIVE_INFINITY; // TUNABLE: large enough for your maps
 
+// ─── Junction scoring (gentle bias) ──────────────────────────────────────────
+const BIAS = Object.freeze({
+  deltaH: 1.0,      // weight for Δheight = distFromEntry[next] - distFromEntry[cur]
+  keepHeading: 0.15,// tiny nudge for sticking with prevDir
+  eastNudge: 0.05,  // micro-nudge to progress east-ish on ties
+});
+
+function heightAt(gs, x, y) {
+  const h = gs?.distFromEntry?.[y]?.[x];
+  return Number.isFinite(h) ? h : -Infinity;
+}
+
+function scoreDir(gs, x, y, dir, prevDir) {
+  // next tile
+  let nx = x, ny = y;
+  if (dir === 'E') nx = x + 1;
+  else if (dir === 'W') nx = x - 1;
+  else if (dir === 'S') ny = y + 1;
+  else if (dir === 'N') ny = y - 1;
+
+  const h0 = heightAt(gs, x, y);
+  const h1 = heightAt(gs, nx, ny);
+  const dH = (Number.isFinite(h0) && Number.isFinite(h1)) ? (h1 - h0) : 0;
+
+  let s = BIAS.deltaH * dH;
+
+  // tiny preference to keep heading
+  if (prevDir && dir === prevDir) s += BIAS.keepHeading;
+
+  // micro eastward nudge (helps break perfect ties in big rooms)
+  if (dir === 'E') s += BIAS.eastNudge;
+  else if (dir === 'W') s -= BIAS.eastNudge;
+
+  return { dir, nx, ny, score: s };
+}
+
 
 function selectAttackGoal(gs, sx, sy) {
   // Scan the whole grid cheaply and collect the 3 west-band tiles
@@ -286,15 +322,31 @@ function tickDecision(agent) {
   // ---- end Stage-1c block ----
 
 
-  // Gather exits excluding back edge; memory will also exclude edges already explored.
-  const exits = forwardOptions(agent.x, agent.y, agent.prevDir).map(n => n.side);
-  const { chosenDir } = pushBreadcrumb(
-    agent.mem,
-    agent.x, agent.y,
-    agent.prevDir,
-    exits,
-    agent.x, agent.y
-  );
+ // Gather exits excluding back edge, then sort by gentle score (desc)
+const opts = forwardOptions(agent.x, agent.y, agent.prevDir);
+let exits;
+if (opts && opts.length) {
+  const scored = opts.map(o => scoreDir(GameState, agent.x, agent.y, o.side, agent.prevDir));
+  scored.sort((a, b) => b.score - a.score);
+  exits = scored.map(s => s.dir);
+
+  // optional trace
+  if (NAV().traceScores) {
+    console.debug('[DECISION scores]',
+      { x: agent.x, y: agent.y, prev: agent.prevDir, ranked: scored });
+  }
+} else {
+  exits = [];
+}
+
+const { chosenDir } = pushBreadcrumb(
+  agent.mem,
+  agent.x, agent.y,
+  agent.prevDir,
+  exits,
+  agent.x, agent.y
+);
+
 
   if (chosenDir) {
     const [nx, ny] = stepFrom(agent.x, agent.y, chosenDir);
