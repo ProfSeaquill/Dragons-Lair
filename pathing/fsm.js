@@ -228,6 +228,12 @@ export function tick(agent) {
 
 // fsm.js
 function tickWalkStraight(agent) {
+  // If we're sitting on a junction, force a decision even if "straight" is open.
+  // (Prevents blowing past a good turn just because forward is available.)
+  if (isJunction(agent.x, agent.y, agent.prevDir)) {
+    agent.state = S.DECISION;
+    return agent.state;
+  }
   // Try to keep going straight if the edge is open.
   const straight = stepStraight(GameState, agent.x, agent.y, agent.prevDir);
   if (straight) {
