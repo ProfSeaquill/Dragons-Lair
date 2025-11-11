@@ -100,16 +100,16 @@ function scoreDir(gs, x, y, dir, prevDir) {
     const h1 = heightAt(gs, nx, ny);
     const dH = (Number.isFinite(h0) && Number.isFinite(h1)) ? (h1 - h0) : 0;
     s += BIAS.deltaH * dH;
-  }
+  
 
   // tiny preference to keep heading
   if (prevDir && dir === prevDir) s += BIAS().keepHeading;
 
   // optional: tiny east/west tie-breaker (off by default)
-  if (BIAS().eastNudge !== 0.0) { /* ... */ }
+  if (BIAS().eastNudge !== 0.0) { /* ... */ } 
     if (dir === 'E') s += BIAS.eastNudge;
     else if (dir === 'W') s -= BIAS.eastNudge;
-  }
+  
 
   return { dir, nx, ny, score: s };
 }
