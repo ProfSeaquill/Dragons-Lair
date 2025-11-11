@@ -375,23 +375,6 @@ function tickDecision(agent) {
   // ---- end Stage-1c block ----
 
 
- // Gather exits excluding back edge, then sort by gentle score (desc)
-const opts = forwardOptions(agent.x, agent.y, agent.prevDir);
-let exits;
-if (opts && opts.length) {
-  const scored = opts.map(o => scoreDir(GameState, agent.x, agent.y, o.side, agent.prevDir));
-  scored.sort((a, b) => b.score - a.score);
-  exits = scored.map(s => s.dir);
-
-  // optional trace
-  if (NAV().traceScores) {
-    console.debug('[DECISION scores]',
-      { x: agent.x, y: agent.y, prev: agent.prevDir, ranked: scored });
-  }
-} else {
-  exits = [];
-}
-
 // Gather exits excluding back edge, then sort by gentle score (desc)
 const opts = forwardOptions(agent.x, agent.y, agent.prevDir);
 let exits;
