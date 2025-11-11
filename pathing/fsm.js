@@ -92,10 +92,10 @@ function scoreDir(gs, x, y, dir, prevDir) {
   const d1 = manhattanToNearestBand(gs, nx, ny);
   const gain = (Number.isFinite(d0) && Number.isFinite(d1)) ? (d0 - d1) : 0;
 
-  let s = BIAS.bandGain * gain;
+  let s = BIAS().bandGain * gain;
 
   // optional: local downhill (usually neutral with 0 weight)
-  if (BIAS.deltaH !== 0.0) {
+  if (BIAS().deltaH !== 0.0) { /* ... */ }
     const h0 = heightAt(gs, x, y);
     const h1 = heightAt(gs, nx, ny);
     const dH = (Number.isFinite(h0) && Number.isFinite(h1)) ? (h1 - h0) : 0;
@@ -103,10 +103,10 @@ function scoreDir(gs, x, y, dir, prevDir) {
   }
 
   // tiny preference to keep heading
-  if (prevDir && dir === prevDir) s += BIAS.keepHeading;
+  if (prevDir && dir === prevDir) s += BIAS().keepHeading;
 
   // optional: tiny east/west tie-breaker (off by default)
-  if (BIAS.eastNudge !== 0.0) {
+  if (BIAS().eastNudge !== 0.0) { /* ... */ }
     if (dir === 'E') s += BIAS.eastNudge;
     else if (dir === 'W') s -= BIAS.eastNudge;
   }
@@ -179,6 +179,12 @@ export function createAgent({ x, y, targetX, targetY, seed = 0xBEEF } = {}) {
   // Seed determinism explicitly (optional)
   setSeed(mem, seed >>> 0);
   return agent;
+}
+
+if (NAV().logChoices) {
+  console.debug('[DECISION pick]', {
+    at:{x:agent.x,y:agent.y}, prev:agent.prevDir, chosen:chosenDir, exits
+  });
 }
 
 /** Move a single tile to (nx,ny), updating direction & memory edge marks. */
