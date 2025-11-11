@@ -340,22 +340,28 @@ function tickFollowPlan(agent) {
 
 function tickDecision(agent) {
   if (NAV().noJunctions) {
-  if (!planSegment(agent)) agent.state = S.STOPPED;
-  return agent.state;
-}
+    if (!planSegment(agent)) agent.state = S.STOPPED;
+    return agent.state;
+  }
 
   // Optional small linger
   if (agent.linger > 0) { agent.linger--; return agent.state; }
 
-    // ---- Stage-1c: downhill bias before breadcrumb randomness ----
-  if (!NAV().disableDownhill) {
-    const curH = heurToGoal(agent);
-    const opts = forwardOptions(agent.x, agent.y, agent.prevDir) || [];
-    let bestH = Infinity; let bestSides = [];
+  // Junction awareness + open exits (verify edges from source)
+  const atJunction = isCorridorJunction(agent.x, agent.y, agent.prevDir);
+  const opts = forwardOptions(agent.x, agent.y, agent.prevDir) || [];
+  const openOpts = opts.filter(o => edgeOpen(GameState, agent.x, agent.y, o.side));
 
-    for (const o of opts) {
-      // double-check physical edge openness (walls) from the *source* cell
-      if (!edgeOpen(GameState, agent.x, agent.y, o.side)) continue;
+  // ε only at *true forks* with 2+ choices
+  const EPS = NAV().epsilonWorse ?? 0.33; // 0..1
+  const epsilonActive = atJunction && openOpts.length >= 2 && Math.random() < EPS;
+
+  // ---- Downhill block (only skipped when ε fires at a junction) ----
+  if (!epsilonActive) {
+    const curH = heurToGoal(agent);
+    let bestH = Infinity, bestSides = [];
+
+    for (const o of openOpts) {
       const h = heurToGoal(agent, o.x, o.y);
       if (h < bestH) { bestH = h; bestSides = [o.side]; }
       else if (h === bestH) { bestSides.push(o.side); }
@@ -367,72 +373,68 @@ function tickDecision(agent) {
       const [nx, ny] = stepFrom(agent.x, agent.y, dir);
       moveOne(agent, nx, ny);
       if (agent.x === agent.gx && agent.y === agent.gy) { agent.state = S.REACHED; return agent.state; }
-      if (NAV().logChoices) console.debug('[DECISION] downhill', { at:{x:agent.x,y:agent.y}, dir, curH, bestH });
+      if (NAV().logChoices) console.debug('[DECISION] downhill', { at:{x:agent.x,y:agent.y}, dir, curH, bestH, atJunction });
       agent.state = S.WALK_STRAIGHT;
       return agent.state;
     }
 
-    if (NAV().logChoices) console.debug('[DECISION] no-downhill', { at:{x:agent.x,y:agent.y}, curH, opts: opts.map(o=>o.side) });
+    if (NAV().logChoices) console.debug('[DECISION] no-downhill', {
+      at:{x:agent.x,y:agent.y}, curH, atJunction, opts: openOpts.map(o=>o.side)
+    });
+  } else {
+    if (NAV().logChoices) console.debug('[DECISION ε] override-downhill at junction', {
+      at:{x:agent.x,y:agent.y}, opts: openOpts.map(o=>o.side)
+    });
   }
-  // ---- end Stage-1c block ----
+  // ---- end downhill block ----
 
+  // Score exits (gentle band bias), highest first
+  const scored = openOpts
+    .map(o => scoreDir(GameState, agent.x, agent.y, o.side, agent.prevDir))
+    .sort((a,b) => b.score - a.score);
 
-// Gather exits excluding back edge, then sort by gentle score (desc)
-const opts = forwardOptions(agent.x, agent.y, agent.prevDir);
-let exits;
-let removedBest = null; // track if we temporarily excluded the best
-
-if (opts && opts.length) {
-  const scored = opts.map(o => scoreDir(GameState, agent.x, agent.y, o.side, agent.prevDir));
-  scored.sort((a, b) => b.score - a.score);
-  exits = scored.map(s => s.dir);
-
-  // ε-greedy: with some probability, remove the best option for THIS pick only
-  if (exits.length >= 2 && Math.random() < EPSILON_WORSE) {
-    removedBest = exits[0];     // remember which we excluded
-    exits = exits.slice(1);     // present only the "worse" options to the picker
-    if (NAV().logChoices) console.debug('[DECISION ε]', { at:{x:agent.x,y:agent.y}, excluded: removedBest, pool: exits });
+  // Default pick is best; ε-pick is any non-best
+  let chosenDir = null;
+  if (scored.length) {
+    if (epsilonActive && scored.length >= 2) {
+      const pool = scored.slice(1).map(s => s.dir);
+      chosenDir = pool[(Math.random() * pool.length) | 0];
+    } else {
+      chosenDir = scored[0].dir;
+    }
   }
 
-  if (NAV().traceScores) {
-    console.debug('[DECISION scores]', { x: agent.x, y: agent.y, prev: agent.prevDir, ranked: scored });
+  // Push breadcrumb so backtracking works; then (if ε) force the chosen on the crumb
+  const { chosenDir: sticky } = pushBreadcrumb(
+    agent.mem,
+    agent.x, agent.y,
+    agent.prevDir,
+    scored.map(s => s.dir),
+    agent.x, agent.y
+  );
+
+  // If memory chose something else but ε picked a different dir, override the crumb's chosen
+  if (epsilonActive && chosenDir && sticky && sticky !== chosenDir) {
+    const top = peekBreadcrumb(agent.mem);
+    if (top) top.chosen = chosenDir; // surgical override of sticky randomness at this junction
   }
-} else {
-  exits = [];
-}
 
-// Make the pick (random among remaining, respecting explored edges)
-const { chosenDir } = pushBreadcrumb(
-  agent.mem,
-  agent.x, agent.y,
-  agent.prevDir,
-  exits,
-  agent.x, agent.y
-);
-
-// If we excluded the best to force exploration, add it back to the breadcrumb’s remaining options
-if (removedBest) {
-  const top = peekBreadcrumb(agent.mem);
-  if (top) top.remainingMask |= dirToBit(removedBest);
-}
-
-
-  if (chosenDir) {
-    const [nx, ny] = stepFrom(agent.x, agent.y, chosenDir);
-    // Must verify the *edge* (x,y,dir), not just the destination tile
-    if (edgeOpen(GameState, agent.x, agent.y, chosenDir)) {
+  const dir = chosenDir || sticky;
+  if (dir) {
+    const [nx, ny] = stepFrom(agent.x, agent.y, dir);
+    if (edgeOpen(GameState, agent.x, agent.y, dir)) {
       moveOne(agent, nx, ny);
       if (agent.x === agent.gx && agent.y === agent.gy) { agent.state = S.REACHED; return agent.state; }
       agent.state = S.WALK_STRAIGHT;
       return agent.state;
     }
-    // else fall through to BACKTRACK
   }
 
-  // No exits remain (or chosen exit was blocked unexpectedly) → BACKTRACK
+  // If no exit (or blocked unexpectedly), backtrack
   agent.state = S.BACKTRACK;
   return agent.state;
 }
+
 
 function tickBacktrack(agent) {
   // If there’s no breadcrumb left, decide per policy.
