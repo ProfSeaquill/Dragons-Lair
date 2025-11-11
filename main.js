@@ -336,6 +336,10 @@ window.addEventListener('dl-preview-refresh', () => {
   });
 });
 
+
+globalThis.DL_NAV = globalThis.DL_NAV || {};
+
+
 // ---------- Boot ----------
 function boot() {
 
