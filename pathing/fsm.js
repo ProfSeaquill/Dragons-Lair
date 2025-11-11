@@ -348,7 +348,7 @@ function tickDecision(agent) {
   if (agent.linger > 0) { agent.linger--; return agent.state; }
 
     // ---- Stage-1c: downhill bias before breadcrumb randomness ----
-  {
+  if (!NAV().disableDownhill) {
     const curH = heurToGoal(agent);
     const opts = forwardOptions(agent.x, agent.y, agent.prevDir) || [];
     let bestH = Infinity; let bestSides = [];
