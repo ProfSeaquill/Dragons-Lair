@@ -24,7 +24,7 @@ import {
 } from "./directpath.js";
 
 import {
-  createMemory, ensureMem, setSeed, pushBreadcrumb, nextUntriedExit, peekBreadcrumb, popBreadcrumb, markEdgeExplored, stepFrom,
+  createMemory, ensureMem, setSeed, pushBreadcrumb, nextUntriedExit, peekBreadcrumb, popBreadcrumb, markEdgeExplored, stepFrom, dirToBit
 } from "./memory.js";
 import { isInAttackZone } from "../grid/attackzone.js"; // to test the west band tiles
 
@@ -57,6 +57,9 @@ function BIAS() {
     eastNudge:   d.eastNudge   ?? 0.00, // micronudge to privilege eastward movement; only matters during ties; 
   };
 }
+
+// Chance to ignore the best-scoring exit this decision (pick among the rest)
+const EPSILON_WORSE = 0.33; // 0.0..1.0; try 0.33
 
 
 function heightAt(gs, x, y) {
@@ -389,6 +392,31 @@ if (opts && opts.length) {
   exits = [];
 }
 
+// Gather exits excluding back edge, then sort by gentle score (desc)
+const opts = forwardOptions(agent.x, agent.y, agent.prevDir);
+let exits;
+let removedBest = null; // track if we temporarily excluded the best
+
+if (opts && opts.length) {
+  const scored = opts.map(o => scoreDir(GameState, agent.x, agent.y, o.side, agent.prevDir));
+  scored.sort((a, b) => b.score - a.score);
+  exits = scored.map(s => s.dir);
+
+  // ε-greedy: with some probability, remove the best option for THIS pick only
+  if (exits.length >= 2 && Math.random() < EPSILON_WORSE) {
+    removedBest = exits[0];     // remember which we excluded
+    exits = exits.slice(1);     // present only the "worse" options to the picker
+    if (NAV().logChoices) console.debug('[DECISION ε]', { at:{x:agent.x,y:agent.y}, excluded: removedBest, pool: exits });
+  }
+
+  if (NAV().traceScores) {
+    console.debug('[DECISION scores]', { x: agent.x, y: agent.y, prev: agent.prevDir, ranked: scored });
+  }
+} else {
+  exits = [];
+}
+
+// Make the pick (random among remaining, respecting explored edges)
 const { chosenDir } = pushBreadcrumb(
   agent.mem,
   agent.x, agent.y,
@@ -396,6 +424,12 @@ const { chosenDir } = pushBreadcrumb(
   exits,
   agent.x, agent.y
 );
+
+// If we excluded the best to force exploration, add it back to the breadcrumb’s remaining options
+if (removedBest) {
+  const top = peekBreadcrumb(agent.mem);
+  if (top) top.remainingMask |= dirToBit(removedBest);
+}
 
 
   if (chosenDir) {
