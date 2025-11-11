@@ -46,12 +46,18 @@ const EMPTY_STACK_POLICY = "replan"; // TUNABLE: "replan" | "halt"
 const MAX_TICKS_PER_AGENT = Number.POSITIVE_INFINITY; // TUNABLE: large enough for your maps
 
 // ─── Junction scoring (gentle bias toward attack band) ───────────────────────
-const BIAS = Object.freeze({
-  bandGain: 1.0,     // primary: reduction in Manhattan distance to nearest band tile
-  keepHeading: 0.10, // tiny: prefer not to zig-zag unnecessarily
-  deltaH: 0.00,      // optional: local Δheight from distFromEntry (0 to disable)
-  eastNudge: 0.00,   // optional: tiny tie-breaker; 0 keeps it neutral
-});
+// replace: const BIAS = Object.freeze({...})
+function BIAS() {
+  // allow overrides via DL_NAV.bias = { bandGain: 1.2, keepHeading: 0.05, ... }
+  const d = (globalThis.DL_NAV && globalThis.DL_NAV.bias) || {};
+  return {
+    bandGain:    d.bandGain    ?? 1.0,
+    keepHeading: d.keepHeading ?? 0.10,
+    deltaH:      d.deltaH      ?? 0.00,
+    eastNudge:   d.eastNudge   ?? 0.00,
+  };
+}
+
 
 function heightAt(gs, x, y) {
   const h = gs?.distFromEntry?.[y]?.[x];
