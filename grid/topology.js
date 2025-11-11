@@ -57,20 +57,55 @@ function __fwdContinuations(x, y, prevDir) {
   return cont;
 }
 
-// Corridor-aware predicates
-export function isCorridorJunction(x, y, prevDir) {
-  // Real fork: at least two forward branches that continue
-  return __fwdContinuations(x, y, prevDir) >= 2;
+function __stepFrom(x, y, dir) {
+  if (dir === 'E') return [x+1, y];
+  if (dir === 'W') return [x-1, y];
+  if (dir === 'S') return [x, y+1];
+  if (dir === 'N') return [x, y-1];
+  return [x, y];
 }
+
+// Count straight-vs-side continuations relative to prevDir
+function __continuations_at(x, y, prevDir) {
+  const opts = neighbors4(x, y);
+  const back = prevDir ? OPP[prevDir] : null;
+  let straightCont = 0, sideCont = 0;
+  for (const o of opts) {
+    if (back && o.side === back) continue;           // exclude back edge
+    const ahead = neighbors4(o.x, o.y);
+    if (!ahead || ahead.length === 0) continue;      // must continue
+    if (prevDir && o.side === prevDir) straightCont++; else sideCont++;
+  }
+  return { straightCont, sideCont, deg: opts.length };
+}
+
+
+// Corridor-aware predicates with look-behind
 
 export function isCorridor(x, y, prevDir) {
-  // Straight corridor: exactly one forward branch that continues
-  return __fwdContinuations(x, y, prevDir) === 1;
+  const { straightCont, sideCont } = __continuations_at(x, y, prevDir);
+  // “Corridor” = you can keep going straight and there are no side branches
+  return (straightCont >= 1) && (sideCont === 0);
 }
 
-/** Junction test (corridor-aware):
- * Junction iff at least two forward exits *continue* (so corners/rooms don’t count).
- */
+export function isCorridorJunction(x, y, prevDir) {
+  // Need heading to define “forward” vs “side”
+  if (!prevDir) return false;
+
+  // Look at the tile we came FROM (one step opposite prevDir)
+  const [px, py] = __stepFrom(x, y, OPP[prevDir]);
+
+  // We came out of a corridor (straight continuation, no side branches) …
+  const prev = __continuations_at(px, py, prevDir);
+  const cameFromCorridor = (prev.straightCont >= 1) && (prev.sideCont === 0);
+
+  // … and NOW there’s at least one side branch at the current tile.
+  const cur = __continuations_at(x, y, prevDir);
+  const forkHere = (cur.sideCont >= 1);
+
+  return cameFromCorridor && forkHere;
+}
+
 export function isJunction(x, y, prevDir) {
   return isCorridorJunction(x, y, prevDir);
 }
