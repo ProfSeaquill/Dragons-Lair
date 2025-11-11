@@ -51,10 +51,10 @@ function BIAS() {
   // allow overrides via DL_NAV.bias = { bandGain: 1.2, keepHeading: 0.05, ... }
   const d = (globalThis.DL_NAV && globalThis.DL_NAV.bias) || {};
   return {
-    bandGain:    d.bandGain    ?? 1.0,
-    keepHeading: d.keepHeading ?? 0.10,
-    deltaH:      d.deltaH      ?? 0.00,
-    eastNudge:   d.eastNudge   ?? 0.00,
+    bandGain:    d.bandGain    ?? 1.0, // decreases distance to attack band; does NOT look ahead for walls; 0.00 wanders; 3.00 strong magnet
+    keepHeading: d.keepHeading ?? 0.10, // continues current movement direction; 0.00 turns are fine; 0.3 refuses to turn
+    deltaH:      d.deltaH      ?? 0.00, // height = dist from ENTRY; negative prefers move toward entry; + or - 0.05 to 0.03
+    eastNudge:   d.eastNudge   ?? 0.00, // micronudge to privilege eastward movement; only matters during ties; 
   };
 }
 
