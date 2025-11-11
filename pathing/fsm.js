@@ -45,6 +45,9 @@ const EMPTY_STACK_POLICY = "replan"; // TUNABLE: "replan" | "halt"
 // Safety cap: prevent endless wandering if target is unreachable.
 const MAX_TICKS_PER_AGENT = Number.POSITIVE_INFINITY; // TUNABLE: large enough for your maps
 
+// Chance to ignore the best-scoring exit this decision (pick among the rest)
+const EPSILON_WORSE = 1.0; // 0.0..1.0; try 0.33
+
 // ─── Junction scoring (gentle bias toward attack band) ───────────────────────
 // replace: const BIAS = Object.freeze({...})
 function BIAS() {
@@ -58,8 +61,7 @@ function BIAS() {
   };
 }
 
-// Chance to ignore the best-scoring exit this decision (pick among the rest)
-const EPSILON_WORSE = 0.33; // 0.0..1.0; try 0.33
+
 
 
 function heightAt(gs, x, y) {
