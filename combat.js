@@ -132,6 +132,37 @@ function releaseEnemy(e) {
   pool.push(e);
 }
 
+// --- Nav presets + merge (combat.js) -----------------------------------------
+const NAV_PRESETS = {
+  hunter:   { pathHeur: 'astar',     epsilonWorse: 0.10, bias: { bandGain: 1.6, keepHeading: 0.08, deltaH: 0.00, eastNudge: 0.00 } },
+  beeLine:  { pathHeur: 'astar',     epsilonWorse: 0.05, bias: { bandGain: 2.2, keepHeading: 0.05, deltaH: 0.00, eastNudge: 0.00 } },
+  wanderer: { pathHeur: 'manhattan', epsilonWorse: 0.40, bias: { bandGain: 0.9, keepHeading: 0.05, deltaH: 0.00, eastNudge: 0.00 } },
+  cautious: { pathHeur: 'manhattan', epsilonWorse: 0.20, bias: { bandGain: 1.2, keepHeading: 0.12, deltaH: 0.02, eastNudge: 0.00 } },
+};
+
+function __mergeBias(a={}, b={}) {
+  return {
+    bandGain:   (b.bandGain   ?? a.bandGain   ?? 1.0),
+    keepHeading:(b.keepHeading?? a.keepHeading?? 0.10),
+    deltaH:     (b.deltaH     ?? a.deltaH     ?? 0.00),
+    eastNudge:  (b.eastNudge  ?? a.eastNudge  ?? 0.00),
+  };
+}
+
+function buildEnemyNav(type, gs) {
+  const base = (state.enemyBase?.(type, gs)) || {};
+  const presetName = base.navPreset && String(base.navPreset);
+  const preset = (presetName && NAV_PRESETS[presetName]) || {};
+  const ov = base.nav || {};
+  return {
+    pathHeur:     ov.pathHeur     ?? preset.pathHeur     ?? 'manhattan',
+    epsilonWorse: (typeof ov.epsilonWorse === 'number') ? ov.epsilonWorse
+                   : (typeof preset.epsilonWorse === 'number') ? preset.epsilonWorse
+                   : 0.30,
+    bias: __mergeBias(preset.bias, ov.bias),
+  };
+}
+
 function acquireEffect(kind, seedObj) {
   const pool = EFFECT_POOL.get(kind);
   let fx = (pool && pool.length) ? pool.pop() : {};
@@ -651,7 +682,6 @@ function makeEnemy(type, wave) {
   return out;
 }
 
-
 /* =========================
  * Spawning
  * ========================= */
@@ -659,6 +689,7 @@ function makeEnemy(type, wave) {
 function spawnOne(gs, type) {
   const e = acquireEnemy(type, gs.wave | 0);
 e.id = (++__ENEMY_ID);
+e.nav = buildEnemyNav(type, gs); // <- attach per-enemy nav from config
 
 if (type === 'engineer') {
   e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
