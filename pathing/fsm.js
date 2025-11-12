@@ -50,18 +50,16 @@ const EPSILON_WORSE = 0.30; // 0.0..1.0; try 0.33
 
 // ─── Junction scoring (gentle bias toward attack band) ───────────────────────
 // replace: const BIAS = Object.freeze({...})
-function BIAS() {
-  // allow overrides via DL_NAV.bias = { bandGain: 1.2, keepHeading: 0.05, ... }
-  const d = (globalThis.DL_NAV && globalThis.DL_NAV.bias) || {};
+function BIAS(agent) {
+  const g = (globalThis.DL_NAV && globalThis.DL_NAV.bias) || {};
+  const per = (agent && agent.nav && agent.nav.bias) || {};
   return {
-    bandGain:    d.bandGain    ?? 1.0, // decreases distance to attack band; does NOT look ahead for walls; 0.00 wanders; 3.00 strong magnet
-    keepHeading: d.keepHeading ?? 0.10, // continues current movement direction; 0.00 turns are fine; 0.3 refuses to turn
-    deltaH:      d.deltaH      ?? 0.00, // height = dist from ENTRY; negative prefers move toward entry; + or - 0.05 to 0.03
-    eastNudge:   d.eastNudge   ?? 0.00, // micronudge to privilege eastward movement; only matters during ties; 
+    bandGain:    per.bandGain    ?? g.bandGain    ?? 1.0,
+    keepHeading: per.keepHeading ?? g.keepHeading ?? 0.10,
+    deltaH:      per.deltaH      ?? g.deltaH      ?? 0.00,
+    eastNudge:   per.eastNudge   ?? g.eastNudge   ?? 0.00,
   };
 }
-
-
 
 
 function heightAt(gs, x, y) {
@@ -84,8 +82,8 @@ function manhattanToNearestBand(gs, x, y) {
   return best;
 }
 
-function scoreDir(gs, x, y, dir, prevDir) {
-  const B = BIAS();  // snapshot tunables for this call
+function scoreDir(agent, gs, x, y, dir, prevDir) {
+  const B = BIAS(agent);
 
   // next tile
   let nx = x, ny = y;
@@ -94,14 +92,22 @@ function scoreDir(gs, x, y, dir, prevDir) {
   else if (dir === 'S') ny = y + 1;
   else if (dir === 'N') ny = y - 1;
 
-  // primary: progress toward the attack band (positive if we get closer)
-  const d0 = manhattanToNearestBand(gs, x, y);
-  const d1 = manhattanToNearestBand(gs, nx, ny);
-  const gain = (Number.isFinite(d0) && Number.isFinite(d1)) ? (d0 - d1) : 0;
+  const usePathHeur = agent?.nav?.pathHeur === 'astar';
+
+  // primary: progress toward the band (gain > 0 means better)
+  let gain = 0;
+  if (usePathHeur) {
+    const s0 = stepsToNearestBand(agent, x, y);
+    const s1 = stepsToNearestBand(agent, nx, ny);
+    if (Number.isFinite(s0) && Number.isFinite(s1)) gain = (s0 - s1);
+  } else {
+    const d0 = manhattanToNearestBand(gs, x, y);
+    const d1 = manhattanToNearestBand(gs, nx, ny);
+    if (Number.isFinite(d0) && Number.isFinite(d1)) gain = (d0 - d1);
+  }
 
   let s = B.bandGain * gain;
 
-  // optional: local “downhill” by height (distFromEntry)
   if (B.deltaH !== 0.0) {
     const h0 = heightAt(gs, x, y);
     const h1 = heightAt(gs, nx, ny);
@@ -109,15 +115,31 @@ function scoreDir(gs, x, y, dir, prevDir) {
     s += B.deltaH * dH;
   }
 
-  // tiny preference to keep heading
   if (prevDir && dir === prevDir) s += B.keepHeading;
 
-  // optional: tiny east/west tie-breaker
   if (B.eastNudge !== 0.0) {
     if (dir === 'E') s += B.eastNudge;
     else if (dir === 'W') s -= B.eastNudge;
   }
   return { dir, nx, ny, score: s };
+}
+
+function stepsToNearestBand(agent, x, y) {
+  agent._bandStepCache = agent._bandStepCache || new Map();
+  const key = (x|0) + ',' + (y|0);
+  if (agent._bandStepCache.has(key)) return agent._bandStepCache.get(key);
+
+  let best = Infinity;
+  for (let yy = 0; yy < GRID.rows; yy++) {
+    for (let xx = 0; xx < GRID.cols; xx++) {
+      if (!isInAttackZone(GameState, xx, yy)) continue;
+      const p = aStarToTarget(x, y, xx, yy);
+      if (p && p.length >= 2 && p.length < best) best = p.length;
+    }
+  }
+  const val = Number.isFinite(best) ? best : Infinity;
+  agent._bandStepCache.set(key, val);
+  return val;
 }
 
 
@@ -183,6 +205,7 @@ export function createAgent({ x, y, targetX, targetY, seed = 0xBEEF } = {}) {
   };
   // Seed determinism explicitly (optional)
   setSeed(mem, seed >>> 0);
+  agent._seenTopoVer = GameState.topologyVersion | 0;
   return agent;
 }
 
@@ -251,6 +274,12 @@ function heurToGoal(agent, x = agent.x, y = agent.y) {
 
 
 export function tick(agent) {
+  const tv = GameState.topologyVersion | 0;
+if (agent._seenTopoVer !== tv) {
+  agent._seenTopoVer = tv;
+  if (agent._bandStepCache) agent._bandStepCache.clear();
+}
+
   if (agent.state === S.REACHED || agent.state === S.STOPPED) return agent.state;
   agent.mem = ensureMem(agent.mem);
   agent.tickCount++;
@@ -348,19 +377,27 @@ function tickDecision(agent) {
   const openOpts = opts.filter(o => edgeOpen(GameState, agent.x, agent.y, o.side));
 
   // ε only at *true forks* with 2+ choices
-  const EPS = NAV().epsilonWorse ?? 0.33; // 0..1
+  const EPS = (agent.nav && typeof agent.nav.epsilonWorse === 'number')
+  ? agent.nav.epsilonWorse
+  : (NAV().epsilonWorse ?? 0.33);
   const epsilonActive = atJunction && openOpts.length >= 2 && Math.random() < EPS;
 
   // ---- Downhill block (only skipped when ε fires at a junction) ----
   if (!epsilonActive) {
-    const curH = heurToGoal(agent);
-    let bestH = Infinity, bestSides = [];
+    const usePathHeur = agent?.nav?.pathHeur === 'astar';
+const curH = usePathHeur
+  ? stepsToNearestBand(agent, agent.x, agent.y)
+  : heurToGoal(agent);
 
-    for (const o of openOpts) {
-      const h = heurToGoal(agent, o.x, o.y);
-      if (h < bestH) { bestH = h; bestSides = [o.side]; }
-      else if (h === bestH) { bestSides.push(o.side); }
-    }
+let bestH = Infinity, bestSides = [];
+for (const o of openOpts) {
+  const h = usePathHeur
+    ? stepsToNearestBand(agent, o.x, o.y)
+    : heurToGoal(agent, o.x, o.y);
+  if (h < bestH) { bestH = h; bestSides = [o.side]; }
+  else if (h === bestH) { bestSides.push(o.side); }
+}
+
 
     // Only take the downhill step if it strictly improves heuristic
     if (bestSides.length && bestH < curH) {
@@ -385,8 +422,8 @@ function tickDecision(agent) {
 
   // Score exits (gentle band bias), highest first
   const scored = openOpts
-    .map(o => scoreDir(GameState, agent.x, agent.y, o.side, agent.prevDir))
-    .sort((a,b) => b.score - a.score);
+  .map(o => scoreDir(agent, GameState, agent.x, agent.y, o.side, agent.prevDir))
+  .sort((a,b) => b.score - a.score);
 
   // Default pick is best; ε-pick is any non-best
   let chosenDir = null;
