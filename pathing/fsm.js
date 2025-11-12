@@ -46,7 +46,7 @@ const EMPTY_STACK_POLICY = "replan"; // TUNABLE: "replan" | "halt"
 const MAX_TICKS_PER_AGENT = Number.POSITIVE_INFINITY; // TUNABLE: large enough for your maps
 
 // Chance to ignore the best-scoring exit this decision (pick among the rest)
-const EPSILON_WORSE = 1.0; // 0.0..1.0; try 0.33
+const EPSILON_WORSE = 0.30; // 0.0..1.0; try 0.33
 
 // ─── Junction scoring (gentle bias toward attack band) ───────────────────────
 // replace: const BIAS = Object.freeze({...})
