@@ -186,11 +186,6 @@ export function createAgent({ x, y, targetX, targetY, seed = 0xBEEF } = {}) {
   return agent;
 }
 
-if (NAV().logChoices) {
-  console.debug('[DECISION pick]', {
-    at:{x:agent.x,y:agent.y}, prev:agent.prevDir, chosen:chosenDir, exits
-  });
-}
 
 /** Move a single tile to (nx,ny), updating direction & memory edge marks. */
 function moveOne(agent, nx, ny) {
@@ -438,7 +433,7 @@ function tickDecision(agent) {
 
 function tickBacktrack(agent) {
   // If there’s no breadcrumb left, decide per policy.
-  let top = peekBreadcrumb(agent);
+  let top = peekBreadcrumb(agent.mem);
   if (!top) {
     if (EMPTY_STACK_POLICY === "replan") {
       const ok = planSegment(agent);
