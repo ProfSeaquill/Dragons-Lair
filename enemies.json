@@ -9,8 +9,13 @@
     "bones": 1,
     "armor": 0,
     "shielded": false,
+    "navPreset":
+    "nav": {
+      "epsilonWorse": 0.30,
+      "bias": { "bandGain": 1.0 }
     "tags": ["trash"]
   },
+  
   "squire": {
     "hp": 20,
     "speed": 1.405,
@@ -21,8 +26,13 @@
     "bones": 1,
     "armor": 0,
     "shielded": false,
+    "navPreset":
+    "nav": {
+      "epsilonWorse": 0.25,
+      "bias": { "bandGain": 1.0 }
     "tags": []
   },
+  
   "knight": {
     "hp": 40,
     "speed": 2.0,
@@ -33,8 +43,13 @@
     "bones": 3,
     "armor": 0,
     "shielded": false,
+    "navPreset":
+    "nav": {
+      "epsilonWorse": 0.20,
+      "bias": { "bandGain": 1.0 }
     "tags": []
   },
+  
   "hero": {
     "hp": 90,
     "speed": 1.41,
@@ -45,8 +60,13 @@
     "bones": 2,
     "armor": 0,
     "shielded": true,
+    "navPreset":
+    "nav": {
+      "epsilonWorse": 0.10,
+      "bias": { "bandGain": 1.8 }
     "tags": ["shield"]
   },
+  
   "engineer": {
     "hp": 25,
     "speed": 1.6,
@@ -57,20 +77,30 @@
     "bones": 1,
     "armor": 0,
     "shielded": false,
+    "navPreset": 
+    "nav": {
+      "epsilonWorse": 0.00,
+      "bias": { "bandGain": 2.0 }
     "tags": ["utility"]
   },
+  
   "kingsguard": {
     "hp": 150,
     "speed": 1.3,
     "rate": 0.5,
-    "damage": 15,
+    "damage": 12,
     "range": 1,
     "gold": 15,
     "bones": 4,
     "armor": 0,
     "shielded": false,
+    "navPreset":
+    "nav": {
+      "epsilonWorse": 0.00,
+      "bias": { "bandGain": 2.0 }
     "tags": ["miniboss"]
   },
+    
   "boss": {
     "hp": 300,
     "speed": 1.3,
@@ -81,6 +111,10 @@
     "bones": 6,
     "armor": 0,
     "shielded": false,
+    "navPreset":
+    "nav": {
+      "epsilonWorse": 0.00,
+      "bias": { "bandGain": 2.0 }
     "tags": ["boss"]
   }
 }
