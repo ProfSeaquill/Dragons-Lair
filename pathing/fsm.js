@@ -172,30 +172,26 @@ const S = Object.freeze({
   STOPPED:       "STOPPED",
 });
 
-export function createAgent({ x, y, targetX, targetY, seed = 0xBEEF } = {}) {
+export function createAgent({ x, y, targetX, targetY, seed = 0xBEEF, nav = null } = {}) {
   const mem = createMemory(seed);
   const agent = {
     // position + heading
     x: x|0, y: y|0,
     prevDir: "E", // we spawn walking east by rule #1
-
     // goal
     gx: targetX|0, gy: targetY|0,
-
     // fsm
     state: S.WALK_STRAIGHT,
     linger: 0,
-
     // plan buffer for FOLLOW_PLAN (array of {x,y}), and index of next step
     plan: null,
     planIdx: 0,
     planFlags: { clippedAtJunction: false, reachedGoal: false },
-
     // memory
     mem,
-
     // bookkeeping
     tickCount: 0,
+    nav: nav || undefined,
   };
   // Seed determinism explicitly (optional)
   setSeed(mem, seed >>> 0);
