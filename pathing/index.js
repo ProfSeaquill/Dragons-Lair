@@ -13,28 +13,29 @@ export function initPathing(/*gridApi, exit, opts*/) {
 
 // --- Stage 1b: choose a goal in the attack band (west of dragon) ---
 function __attackBandGoal(gs) {
-  const cells = dragonCells(gs);
-    : []; // fallback empty
+  // Make sure you've imported dragonCells:  import { EXIT, GRID, GameState, dragonCells } from '../state.js';
+  const cells = dragonCells(gs) || [];
 
   if (!cells.length) {
     // Fallback to EXIT-1 when footprint isn’t ready yet
-    return { gx: EXIT.x - 1, gy: EXIT.y };
+    return { gx: Math.max(0, EXIT.x - 1), gy: Math.max(0, Math.min(GRID.rows - 1, EXIT.y)) };
   }
 
   // Find west face (min x) and the vertical span
   let minX = Infinity, minY = Infinity, maxY = -Infinity;
-  for (const c of cells) { 
+  for (const c of cells) {
     if (c.x < minX) minX = c.x;
     if (c.y < minY) minY = c.y;
     if (c.y > maxY) maxY = c.y;
   }
-  const bandX = Math.max(0, (minX|0) - 1);
-  const midY  = (minY + maxY) >> 1;
 
-  // Prefer center of the 3-tile band; if out of bounds, clamp
-  const gy = Math.max(0, Math.min(GRID.rows - 1, midY));
+  const bandX = Math.max(0, (minX | 0) - 1);                 // 1 tile west of the footprint
+  const midY  = (minY + maxY) >> 1;                          // center of the 3-tile vertical band
+  const gy    = Math.max(0, Math.min(GRID.rows - 1, midY));  // clamp to grid
+
   return { gx: bandX, gy };
 }
+
 
 // NOTE: pooled enemies carry FSM smoother fields (_fromPX/_toPX/_stepAcc).
 // Always re-seed them here, or they will render at last wave's death pixel for a frame.
