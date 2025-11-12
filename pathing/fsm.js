@@ -24,8 +24,7 @@ import {
 } from "./directpath.js";
 
 import {
-  createMemory, ensureMem, setSeed, pushBreadcrumb, nextUntriedExit, peekBreadcrumb, popBreadcrumb, markEdgeExplored, stepFrom, dirToBit
-} from "./memory.js";
+  createMemory, ensureMem, setSeed, pushBreadcrumb, nextUntriedExit, peekBreadcrumb, popBreadcrumb, markEdgeExplored, stepFrom } from "./memory.js";
 import { isInAttackZone } from "../grid/attackzone.js"; // to test the west band tiles
 
 
@@ -69,18 +68,13 @@ function heightAt(gs, x, y) {
 
 // Compute Manhattan distance to the *nearest* west-band (attack zone) tile
 function manhattanToNearestBand(gs, x, y) {
-  // Cheap scan (only 3 tiles in your band)
-  let best = Infinity;
-  for (let yy = 0; yy < GRID.rows; yy++) {
-    for (let xx = 0; xx < GRID.cols; xx++) {
-      if (isInAttackZone(gs, xx, yy)) {
-        const d = Math.abs(xx - x) + Math.abs(yy - y);
-        if (d < best) best = d;
-      }
-    }
-  }
-  return best;
+  // bandX = west face of dragon footprint - 1 (same rule you use elsewhere)
+  const bandX = Math.max(0, (GRID.cols - 2 /* EXIT.x */) - Math.floor((DRAGON_HITBOX?.w ?? 3)/2) - 1);
+  // nearest y in-bounds:
+  const gy = Math.max(0, Math.min(GRID.rows - 1, y)); // or center on dragon if you prefer
+  return Math.abs(bandX - x) + Math.abs(gy - y);
 }
+
 
 function scoreDir(agent, gs, x, y, dir, prevDir) {
   const B = BIAS(agent);
@@ -299,7 +293,6 @@ if (agent._seenTopoVer !== tv) {
 
 //// State handlers /////////////////////////////////////////////////////////////
 
-// fsm.js
 function tickWalkStraight(agent) {
   // If we're sitting on a junction, force a decision even if "straight" is open.
   // (Prevents blowing past a good turn just because forward is available.)
