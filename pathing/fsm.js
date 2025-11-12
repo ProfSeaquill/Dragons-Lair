@@ -85,6 +85,8 @@ function manhattanToNearestBand(gs, x, y) {
 }
 
 function scoreDir(gs, x, y, dir, prevDir) {
+  const B = BIAS();  // snapshot tunables for this call
+
   // next tile
   let nx = x, ny = y;
   if (dir === 'E') nx = x + 1;
@@ -97,28 +99,26 @@ function scoreDir(gs, x, y, dir, prevDir) {
   const d1 = manhattanToNearestBand(gs, nx, ny);
   const gain = (Number.isFinite(d0) && Number.isFinite(d1)) ? (d0 - d1) : 0;
 
-  let s = BIAS().bandGain * gain;
+  let s = B.bandGain * gain;
 
-  // optional: local downhill (usually neutral with 0 weight)
-  if (BIAS().deltaH !== 0.0) { /* ... */ }
+  // optional: local “downhill” by height (distFromEntry)
+  if (B.deltaH !== 0.0) {
     const h0 = heightAt(gs, x, y);
     const h1 = heightAt(gs, nx, ny);
     const dH = (Number.isFinite(h0) && Number.isFinite(h1)) ? (h1 - h0) : 0;
-    s += BIAS.deltaH * dH;
-  
+    s += B.deltaH * dH;
+  }
 
   // tiny preference to keep heading
-  if (prevDir && dir === prevDir) s += BIAS().keepHeading;
+  if (prevDir && dir === prevDir) s += B.keepHeading;
 
-  // optional: tiny east/west tie-breaker (off by default)
-  if (BIAS().eastNudge !== 0.0) { /* ... */ } 
-    if (dir === 'E') s += BIAS.eastNudge;
-    else if (dir === 'W') s -= BIAS.eastNudge;
-  
-
+  // optional: tiny east/west tie-breaker
+  if (B.eastNudge !== 0.0) {
+    if (dir === 'E') s += B.eastNudge;
+    else if (dir === 'W') s -= B.eastNudge;
+  }
   return { dir, nx, ny, score: s };
 }
-
 
 
 function selectAttackGoal(gs, sx, sy) {
