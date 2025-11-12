@@ -4,7 +4,7 @@
 import { createAgent, tick as tickFSM, getState as getFSMState, setTarget as setFSMTarget } from './fsm.js';
 import { planSegmentToFirstJunction } from './directpath.js';
 import { buildTileRosters, renderOffsetNoOcc } from './separation.js';
-import { EXIT, GRID, GameState } from '../state.js';
+import { EXIT, GRID, GameState, dragonCells } from '../state.js';
 
 // Optional context bag (kept for parity with your old initPathing signature)
 export function initPathing(/*gridApi, exit, opts*/) {
@@ -13,9 +13,7 @@ export function initPathing(/*gridApi, exit, opts*/) {
 
 // --- Stage 1b: choose a goal in the attack band (west of dragon) ---
 function __attackBandGoal(gs) {
-  // Use your existing dragon footprint helpers
-  const cells = (typeof state?.dragonCells === 'function')
-    ? state.dragonCells(gs)
+  const cells = dragonCells(gs);
     : []; // fallback empty
 
   if (!cells.length) {
@@ -54,6 +52,8 @@ export function spawnAgent(enemy /*, ctx */) {
   const seed = (enemy.seed ?? enemy.id ?? (Math.random() * 0xFFFFFFFF)) | 0;
 
   enemy._fsm = createAgent({ x: sx, y: sy, targetX: EXIT.x, targetY: EXIT.y, seed });
+    // remember current topology revision to detect mid-wave edits
+  enemy._topoSeen = (GameState.topologyVersion | 0);
 
   // Keep enemy.cx/cy authoritative; snap pixels to tile center for render
   enemy.cx = sx; enemy.cy = sy;
@@ -89,6 +89,26 @@ export function despawnAgent(enemy /*, ctx */) {
 export function updateAgent(enemy, dtSec = ((GameState && GameState.dtSec) || 1/60), ctx) {
   if (!enemy || enemy.dead) return null;
   if (!enemy._fsm) spawnAgent(enemy, ctx);
+
+    // — Stage 5: replan when walls/topology change —
+  const curRev = (GameState.topologyVersion | 0);
+  if (enemy._topoSeen !== curRev) {
+    enemy._topoSeen = curRev;
+    const fsm = enemy._fsm;
+    if (fsm && fsm.state !== 'REACHED' && fsm.state !== 'STOPPED') {
+      // drop any stale plan; force a fresh choice
+      fsm.plan = null;
+      fsm.planIdx = 0;
+      fsm.planFlags = { clippedAtJunction:false, reachedGoal:false };
+      fsm.state = 'DECISION';
+      if (globalThis.DL_NAV?.logReplan) {
+        console.debug('[REPLAN] topo change → DECISION', {
+          id: enemy.id, at: { x: enemy.cx|0, y: enemy.cy|0 }, rev: curRev
+        });
+      }
+    }
+  }
+
 
   // --- pacing unchanged ---
   const tilesPerSec = (enemy.speedTilesPerSec ?? enemy.speedTiles ?? enemy.tilesPerSec ?? 1.0);
