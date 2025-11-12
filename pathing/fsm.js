@@ -17,7 +17,7 @@
 
 import { stepStraight, forwardOptions, dirFromTo, isCorridorJunction } from "../grid/topology.js";
 import { edgeOpen } from "../grid/edges.js";
-import { GRID, GameState } from "../state.js";
+import { GRID, GameState, DRAGON_HITBOX } from "../state.js";
 import {
   aStarToTarget,
   planSegmentToFirstJunction,
