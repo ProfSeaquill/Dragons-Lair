@@ -708,23 +708,29 @@ export function applyMaze(gs, edges) {
 
 
 // ===== Phase 7: Robust saves (versioned + migration) =====
-export const SAVE_SCHEMA_VERSION = 2;
+export const SAVE_SCHEMA_VERSION = 3;
 
-// Tiny migrate: fills defaults when older saves are loaded
 export function migrateSave(save) {
   if (!save || typeof save !== 'object') return null;
   const v = (save.schemaVersion | 0) || 1;
-  // v1 -> v2: add schemaVersion, createdAt if missing; keep payload as-is
+
   if (v <= 1) {
     save.schemaVersion = 2;
     if (!save.createdAt) save.createdAt = Date.now();
-    // Future migrations can fill new top-level fields here.
   }
-  // Always ensure these exist post-migration
+  if (v <= 2) {
+    const s = save.state || {};
+    if (s && s.cellWalls && !Array.isArray(s.cellWalls)) {
+      s.cellWalls = []; // old saves had {} — normalize to empty
+    }
+    save.schemaVersion = 3;
+  }
+
   if (!save.schemaVersion) save.schemaVersion = SAVE_SCHEMA_VERSION;
   if (!save.createdAt) save.createdAt = Date.now();
   return save;
 }
+
 
 // Best-effort clear (keeps compatibility if key ever changed)
 export function clearSave() {
@@ -749,29 +755,37 @@ export function clearSave() {
 // ===== Saving / Loading =====
 const LS_KEY = 'dragons-lair-save';
 
+
 export function saveState(gs) {
   try {
-    const snap = structuredClone(gs);
-    // Derived: rebuilds quickly; don’t persist
-    delete snap.topology;
-    // Optional: also strip transient fields if you like:
-    // delete snap.distFromEntry; delete snap.distToExit;
-    
+    const snap = {
+      version: gs.version,
+      wave: gs.wave,
+      gold: gs.gold,
+      bones: gs.bones,
+      dragonHP: gs.dragonHP,
+      autoStart: !!gs.autoStart,
+      phase: gs.phase,
+      upgrades: gs.upgrades || {},
+      seed: gs.seed | 0,
+      cfg: gs.cfg || null,
+      // Persist walls as entries: [ "x,y", {N,E,S,W} ]
+      cellWalls: Array.from(gs.cellWalls.entries()),
+    };
+
     const payload = {
       schemaVersion: SAVE_SCHEMA_VERSION,
       createdAt: Date.now(),
-      // Store just what you already stored; if you saved the whole gs, keep doing that:
-      state: gs
+      state: snap,
     };
-    const txt = JSON.stringify(payload);
-    // write with your existing key
-    localStorage.setItem('dl.save', txt);
+    localStorage.setItem('dl.save', JSON.stringify(payload));
     return true;
   } catch (err) {
     console.warn('Save failed:', err);
     return false;
   }
 }
+
 
 
 export function loadState() {
@@ -797,15 +811,17 @@ export function loadState() {
     Object.assign(GameState, loaded);
 
     // 4) Rehydrate Maps and bump topology (your existing pattern)
-    if (Array.isArray(GameState.cellWalls)) {
-      GameState.cellWalls = new Map(GameState.cellWalls);
-      bumpTopology(GameState, 'loadState:rehydrate-array');
-    } else if (!(GameState.cellWalls instanceof Map)) {
-      GameState.cellWalls = new Map();
-      bumpTopology(GameState, 'loadState:rehydrate-empty');
-    } else {
-      bumpTopology(GameState, 'loadState'); // safe single bump
-    }
+if (Array.isArray(loaded.cellWalls)) {
+  GameState.cellWalls = new Map(loaded.cellWalls);
+} else {
+  GameState.cellWalls = new Map();
+}
+bumpTopology(GameState, 'loadState:v3');
+
+// reset derived/transient
+GameState._pathCtx = null;
+GameState._pathTopoVersion = -1;
+
 
     // 5) Make sure a fresh graph exists now (will rebuild if jxns isn’t a Map)
     //    If you already call ensureFreshTopology() immediately after load in main.js,
