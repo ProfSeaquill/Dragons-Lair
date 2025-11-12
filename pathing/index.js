@@ -52,7 +52,7 @@ export function spawnAgent(enemy /*, ctx */) {
 
   const seed = (enemy.seed ?? enemy.id ?? (Math.random() * 0xFFFFFFFF)) | 0;
 
-  enemy._fsm = createAgent({ x: sx, y: sy, targetX: EXIT.x, targetY: EXIT.y, seed });
+  enemy._fsm = createAgent({ x: sx, y: sy, targetX: EXIT.x, targetY: EXIT.y, seed, nav: enemy.nav });
     // remember current topology revision to detect mid-wave edits
   enemy._topoSeen = (GameState.topologyVersion | 0);
   // Allow per-enemy nav overrides (set on the enemy object before spawn)
