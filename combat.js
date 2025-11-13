@@ -640,7 +640,8 @@ function makeEnemy(type, wave) {
 
   // Bases (with safe fallbacks)
   const hp0   = Number(base.hp)    || 10;
-  const spd0  = Number(base.speed) || 1.0;           // tiles/sec
+  const spd0  = Number(base.speed ?? base.speedTilesPerSec ?? base.moveSpeed) || 1.0; // tiles/sec
+
   const rate0 = Number(base.rate)  || 0.5;           // attacks/sec
   const dps0  = (Number(base.damage)||1) * rate0;    // treat damage scaling in DPS
 
@@ -686,6 +687,7 @@ function makeEnemy(type, wave) {
  * ========================= */
 
 function spawnOne(gs, type) {
+  console.debug('[spawn base]', type, state.enemyBase?.(type, gs));
   const e = acquireEnemy(type, gs.wave | 0);
 e.id = (++__ENEMY_ID);
 e.nav = buildEnemyNav(type, gs); // <- attach per-enemy nav from config
@@ -773,6 +775,7 @@ if (typeof e.trailStrength === 'number') {
 }
 
 function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
+  console.debug('[spawn base]', type, state.enemyBase?.(type, gs));
   const e = acquireEnemy(type, gs.wave | 0);
 
 e.id = (++__ENEMY_ID);
@@ -1251,6 +1254,10 @@ function markHit(e, amount = 0) {
 
 
 export function startWave(gs = state.GameState) {
+if (!gs.cfgLoaded || !state.getCfg?.(gs)?.enemies) {
+  console.warn('[waves] config not loaded yet; aborting startWave');
+  return false;
+}
 
   _warnedTypesThisWave = new Set();
 
