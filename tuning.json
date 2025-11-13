@@ -95,7 +95,7 @@
       "groups": {
         "min": 4,
         "max": 10,
-        "spawnGap": 0.25,
+        "spawnGap": 0.3,
         "groupGap": 3.5
       },
 
