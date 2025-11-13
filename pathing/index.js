@@ -55,8 +55,7 @@ export function spawnAgent(enemy /*, ctx */) {
   enemy._fsm = createAgent({ x: sx, y: sy, targetX: EXIT.x, targetY: EXIT.y, seed, nav: enemy.nav });
     // remember current topology revision to detect mid-wave edits
   enemy._topoSeen = (GameState.topologyVersion | 0);
-  // Allow per-enemy nav overrides (set on the enemy object before spawn)
-  enemy._fsm.nav = enemy.nav || null;
+
 
   // Keep enemy.cx/cy authoritative; snap pixels to tile center for render
   enemy.cx = sx; enemy.cy = sy;
