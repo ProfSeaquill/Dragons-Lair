@@ -17,7 +17,7 @@
 
 import { stepStraight, forwardOptions, dirFromTo, isCorridorJunction } from "../grid/topology.js";
 import { edgeOpen } from "../grid/edges.js";
-import { GRID, GameState, DRAGON_HITBOX } from "../state.js";
+import { GRID, GameState } from "../state.js";
 import {
   aStarToTarget,
   planSegmentToFirstJunction,
@@ -66,13 +66,17 @@ function heightAt(gs, x, y) {
   return Number.isFinite(h) ? h : -Infinity;
 }
 
-// Compute Manhattan distance to the *nearest* west-band (attack zone) tile
+// Compute Manhattan distance to the nearest attack-zone tile (scan the band)
 function manhattanToNearestBand(gs, x, y) {
-  // bandX = west face of dragon footprint - 1 (same rule you use elsewhere)
-  const bandX = Math.max(0, (GRID.cols - 2 /* EXIT.x */) - Math.floor((DRAGON_HITBOX?.w ?? 3)/2) - 1);
-  // nearest y in-bounds:
-  const gy = Math.max(0, Math.min(GRID.rows - 1, y)); // or center on dragon if you prefer
-  return Math.abs(bandX - x) + Math.abs(gy - y);
+  let best = Infinity;
+  for (let yy = 0; yy < GRID.rows; yy++) {
+    for (let xx = 0; xx < GRID.cols; xx++) {
+      if (!isInAttackZone(gs, xx, yy)) continue;
+      const d = Math.abs(xx - x) + Math.abs(yy - y);
+      if (d < best) best = d;
+    }
+  }
+  return best;
 }
 
 
