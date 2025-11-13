@@ -441,7 +441,6 @@ function wingGustPush(gs, tiles) {
 }
 }
 
-
 // Roar: stun + temporary behavior buff within range
 function roarAffect(gs, rs) {
   const a = state.dragonAnchor(gs);
@@ -739,9 +738,7 @@ e.tileY = e.cy | 0;
 
   // seed a stable 'from' for the very first render lerp
 e.fromXY = [e.cx, e.cy];
-// mark spawn time so we can suppress offsets for a heartbeat
-e._spawnAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-
+  
   // speed in pixels/sec (navigator reads this)
 {
   const tsize = state.GRID.tile || 32;
@@ -819,15 +816,12 @@ e.tileY = e.cy | 0;
   e.sepOffsetX = 0; e.sepOffsetY = 0;
   e._suppressSep = false;
 
-  e._spawnAt = (typeof performance !== 'undefined' && performance.now)
-    ? performance.now()
-    : Date.now();
-
+ // mark spawn time so we can suppress offsets for a heartbeat
+e._spawnAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
   // seed a stable 'from' for the very first render lerp
 e.fromXY = [e.cx, e.cy];
-// mark spawn time so we can suppress offsets for a heartbeat
-e._spawnAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
 
   {
   const tsize = state.GRID.tile || 32;
@@ -1957,14 +1951,6 @@ if (bombAccum >= 1.0) {
         const dMan = Math.abs(c.x - bx) + Math.abs(c.y - by);
         if (dMan <= R) { hitDragon = true; break; }
       }
-      // TEMP DIAG — log any dragon damage with the attacker’s tile and adjacency status
-{
-  const at = (typeof e !== 'undefined' && e) ? e : null;
-  const cx = Number.isInteger(at?.cx) ? at.cx : null;
-  const cy = Number.isInteger(at?.cy) ? at.cy : null;
-  const adj = (cx!=null && cy!=null) ? state.isAdjacentToDragon(gs, cx, cy) : null;
-  console.log('[DD] Dragon dmg', { reason: 'HERE_LABEL', byId: at?.id, cx, cy, adj });
-}
 
       if (hitDragon) {
         gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - (fx.dmg | 0));
