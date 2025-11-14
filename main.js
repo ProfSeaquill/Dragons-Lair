@@ -288,6 +288,11 @@ function frame(now) {
   const dt = Math.max(0, (now - lastT)) / 1000;
   lastT = now;
 
+  // Determine current time scale (1× or 2×)
+  const gs = state.GameState;
+  const speed = (typeof gs?.timeScale === 'number' && gs.timeScale > 0) ? gs.timeScale : 1;
+  const dt = baseDt * speed; // simulation dt
+
   // --- FSM time sync (ai/states/* reads gs.time.now/dt/t) ---
 {
   const gs = state.GameState;
@@ -357,6 +362,8 @@ function boot() {
     : Date.now() / 1000;
   const gs = state.GameState;
   if (!gs.time) gs.time = { now: nowSec, dt: 0, t: 0, since: (t) => nowSec - t };
+  if (typeof gs.timeScale !== 'number' || gs.timeScale <= 0) {
+    gs.timeScale = 1;
   gs.tileSize = state.GRID.tile;
 }
 
@@ -375,6 +382,14 @@ function boot() {
     }
   });
 
+   window.addEventListener('dl-speed-toggle', () => {
+  const gs = state.GameState;
+  const next = (typeof gs.timeScale === 'number' && gs.timeScale > 1) ? 1 : 2;
+  gs.timeScale = next;
+  UI.refreshHUD?.();
+  UI.tell?.(next > 1 ? 'Speed: 2×' : 'Speed: 1×');
+});
+   
   window.addEventListener('dl-auto-start', (e) => {
     state.GameState.autoStart = !!e.detail;
     UI.refreshHUD?.();
