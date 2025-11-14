@@ -507,8 +507,8 @@ state.applyConfig(state.GameState, cfg);
       const startBtn3 = document.getElementById('startBtn');
       if (startBtn3) startBtn3.disabled = false;
     });
-} // ← CLOSES boot()
-       
+}
+}       
 
 function startWave() {
   if (!state.GameState.cfgLoaded) return; // don’t start waves before tuning exists
