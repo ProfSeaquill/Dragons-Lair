@@ -436,6 +436,12 @@ function drawEnemies(ctx, gs) {
     const px = ex + off.dx;
     const py = ey + off.dy;
 
+      // TEMP TEST: put a loud ring around kingsguard so we know drawing works
+  if (e.type === 'kingsguard') {
+    ring(ctx, px, py, radius + 8, '#0f0'); // bright green test ring
+  }
+
+
     // Body color by type, with a shield fallback
     const bodyColor = TYPE_COLOR[e.type] || (e?.shield ? '#5cf' : '#fc3');
 
