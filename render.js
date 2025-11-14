@@ -54,7 +54,7 @@ const TYPE_COLOR = {
   villager:   '#9acd32',
   squire:     '#7fd1ff',
   knight:     '#ffd166',
-  hero:       '#ff6b6b',
+  hero:       '#c0c0c0',
   engineer:   '#c084fc',
   kingsguard: '#ff3333',   // brighter red
   boss:       '#ffd700',   // gold
