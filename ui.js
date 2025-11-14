@@ -14,6 +14,7 @@ const hud = {
   healBtn: $('healBtn'),
   start:   $('startBtn'),
   auto:    $('autoStart'),
+  speed:   $('speedBtn'), 
   save:    $('saveBtn'),
   load:    $('loadBtn'),
   canvas:  $('game'),
@@ -69,6 +70,7 @@ let _lastWaveHUD = -1;
 let _lastBones = -1;
 let _lastHPStr = '';
 let _lastAuto = null;
+let _lastSpeed = null;
 let _abilityLoopInit = false;
 let _hoverKey = null;
 let _hoverHasWall = null;
@@ -115,11 +117,13 @@ export function refreshHUD() {
   const bonesNow = gs.bones | 0;
   const hpStrNow = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
   const autoNow  = !!gs.autoStart;
+  const speedNow = (typeof gs.timeScale === 'number' && gs.timeScale > 0) ? gs.timeScale : 1;
 
   if (hud.wave && waveNow !== _lastWaveHUD) { _lastWaveHUD = waveNow; hud.wave.textContent = String(waveNow); }
   if (hud.bones && bonesNow !== _lastBones) { _lastBones = bonesNow; hud.bones.textContent = String(bonesNow); }
   if (hud.hp && hpStrNow !== _lastHPStr)    { _lastHPStr = hpStrNow; hud.hp.textContent = hpStrNow; }
   if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.checked = autoNow; }
+  if (hud.speed && speedNow !== _lastSpeed) { _lastSpeed = speedNow; hud.speed.textContent = `${speedNow}× Speed`;
 
   if (gs.cfgLoaded && (gs.wave | 0) !== _lastPreviewWave) {
     _lastPreviewWave = gs.wave | 0;
@@ -151,6 +155,12 @@ function wireButtons() {
     });
   }
 
+  if (hud.speed) {
+  hud.speed.addEventListener('click', () => {
+    window.dispatchEvent(new CustomEvent('dl-speed-toggle'));
+  });
+}
+  
   if (hud.save) {
     hud.save.addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('dl-save'));
