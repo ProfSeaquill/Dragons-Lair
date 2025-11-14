@@ -12,7 +12,8 @@
     "nav": {
       "epsilonWorse": 0.30,
       "bias": { "bandGain": 1.0 },
-    "tags": ["trash"]
+      "tags": ["trash"]
+    }
   },
   
   "squire": {
@@ -28,7 +29,8 @@
     "nav": {
       "epsilonWorse": 0.25,
       "bias": { "bandGain": 1.0 },
-    "tags": []
+      "tags": []
+    }
   },
   
   "knight": {
@@ -44,7 +46,8 @@
     "nav": {
       "epsilonWorse": 0.20,
       "bias": { "bandGain": 1.0 },
-    "tags": []
+      "tags": []
+    }
   },
   
   "hero": {
@@ -60,7 +63,8 @@
     "nav": {
       "epsilonWorse": 0.10,
       "bias": { "bandGain": 1.8 },
-    "tags": ["shield"]
+      "tags": ["shield"]
+    }
   },
   
   "engineer": {
@@ -76,7 +80,8 @@
     "nav": {
       "epsilonWorse": 0.00,
       "bias": { "bandGain": 2.0 },
-    "tags": ["utility"]
+      "tags": ["utility"]
+    }
   },
   
   "kingsguard": {
@@ -92,7 +97,8 @@
     "nav": {
       "epsilonWorse": 0.00,
       "bias": { "bandGain": 2.0 },
-    "tags": ["miniboss"]
+      "tags": ["miniboss"]
+    }
   },
     
   "boss": {
@@ -108,6 +114,7 @@
     "nav": {
       "epsilonWorse": 0.00,
       "bias": { "bandGain": 2.0 },
-    "tags": ["boss"]
+      "tags": ["boss"]
+    }
   }
 }
