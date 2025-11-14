@@ -44,9 +44,6 @@ const EMPTY_STACK_POLICY = "replan"; // TUNABLE: "replan" | "halt"
 // Safety cap: prevent endless wandering if target is unreachable.
 const MAX_TICKS_PER_AGENT = Number.POSITIVE_INFINITY; // TUNABLE: large enough for your maps
 
-// Chance to ignore the best-scoring exit this decision (pick among the rest)
-const EPSILON_WORSE = 0.30; // 0.0..1.0; try 0.33
-
 // ─── Junction scoring (gentle bias toward attack band) ───────────────────────
 // replace: const BIAS = Object.freeze({...})
 function BIAS(agent) {
@@ -60,6 +57,22 @@ function BIAS(agent) {
   };
 }
 
+function bandGain(agent, nx, ny) {
+  const base = stepsToNearestBand(agent, agent.x, agent.y);
+  const next = stepsToNearestBand(agent, nx, ny);
+
+  // Case 1: We currently have NO route, but the neighbor does → huge positive
+  if (!Number.isFinite(base) && Number.isFinite(next)) return +1e9;
+
+  // Case 2: We currently have a route, but the neighbor loses it → huge negative
+  if (Number.isFinite(base) && !Number.isFinite(next)) return -1e9;
+
+  // Case 3: Neither tile has any route → no information (true tie)
+  if (!Number.isFinite(base) && !Number.isFinite(next)) return 0;
+
+  // Case 4: Both finite → standard "steps saved"
+  return base - next;
+}
 
 function heightAt(gs, x, y) {
   const h = gs?.distFromEntry?.[y]?.[x];
