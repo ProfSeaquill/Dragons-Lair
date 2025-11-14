@@ -11,7 +11,7 @@
     "shielded": false,
     "nav": {
       "epsilonWorse": 0.30,
-      "bias": { "bandGain": 1.0 }
+      "bias": { "bandGain": 1.0 },
     "tags": ["trash"]
   },
   
@@ -27,7 +27,7 @@
     "shielded": false,
     "nav": {
       "epsilonWorse": 0.25,
-      "bias": { "bandGain": 1.0 }
+      "bias": { "bandGain": 1.0 },
     "tags": []
   },
   
@@ -43,7 +43,7 @@
     "shielded": false,
     "nav": {
       "epsilonWorse": 0.20,
-      "bias": { "bandGain": 1.0 }
+      "bias": { "bandGain": 1.0 },
     "tags": []
   },
   
@@ -59,7 +59,7 @@
     "shielded": true,
     "nav": {
       "epsilonWorse": 0.10,
-      "bias": { "bandGain": 1.8 }
+      "bias": { "bandGain": 1.8 },
     "tags": ["shield"]
   },
   
@@ -75,7 +75,7 @@
     "shielded": false,
     "nav": {
       "epsilonWorse": 0.00,
-      "bias": { "bandGain": 2.0 }
+      "bias": { "bandGain": 2.0 },
     "tags": ["utility"]
   },
   
@@ -91,7 +91,7 @@
     "shielded": false,
     "nav": {
       "epsilonWorse": 0.00,
-      "bias": { "bandGain": 2.0 }
+      "bias": { "bandGain": 2.0 },
     "tags": ["miniboss"]
   },
     
@@ -107,7 +107,7 @@
     "shielded": false,
     "nav": {
       "epsilonWorse": 0.00,
-      "bias": { "bandGain": 2.0 }
+      "bias": { "bandGain": 2.0 },
     "tags": ["boss"]
   }
 }
