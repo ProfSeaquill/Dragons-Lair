@@ -122,7 +122,12 @@ function scoreDir(agent, gs, x, y, dir, prevDir) {
   return { dir, nx, ny, score: s };
 }
 
-function stepsToNearestBand(agent, x, y) {
+function stepsToNearestBand(agent, x, y, topoVer) {
+  if (agent._bandStepCacheVer !== topoVer) {
+    agent._bandStepCache = new Map();
+    agent._bandStepCacheVer = topoVer;
+  }
+  
   agent._bandStepCache = agent._bandStepCache || new Map();
   const key = (x|0) + ',' + (y|0);
   if (agent._bandStepCache.has(key)) return agent._bandStepCache.get(key);
