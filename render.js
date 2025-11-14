@@ -449,6 +449,11 @@ function drawEnemies(ctx, gs) {
       ring(ctx, px, py, radius + 2, '#9df');
     }
 
+    if (e?.miniboss) {
+  console.debug('Miniboss flagged:', e.id, e.type, e);
+  ring(ctx, px, py, radius + 5, '#f7a');
+}
+
     // Miniboss ring (still stacked on top)
     if (e?.miniboss) {
       ring(ctx, px, py, radius + 5, '#f7a');
