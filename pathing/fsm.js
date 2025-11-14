@@ -108,9 +108,8 @@ function scoreDir(agent, gs, x, y, dir, prevDir) {
   // primary: progress toward the band (gain > 0 means better)
   let gain = 0;
   if (usePathHeur) {
-    const s0 = stepsToNearestBand(agent, x, y);
-    const s1 = stepsToNearestBand(agent, nx, ny);
-    if (Number.isFinite(s0) && Number.isFinite(s1)) gain = (s0 - s1);
+    // Use Infinity-aware bandGain helper
+    gain = bandGain(agent, nx, ny);
   } else {
     const d0 = manhattanToNearestBand(gs, x, y);
     const d1 = manhattanToNearestBand(gs, nx, ny);
@@ -135,12 +134,8 @@ function scoreDir(agent, gs, x, y, dir, prevDir) {
   return { dir, nx, ny, score: s };
 }
 
-function stepsToNearestBand(agent, x, y, topoVer) {
-  if (agent._bandStepCacheVer !== topoVer) {
-    agent._bandStepCache = new Map();
-    agent._bandStepCacheVer = topoVer;
-  }
-  
+
+function stepsToNearestBand(agent, x, y) {
   agent._bandStepCache = agent._bandStepCache || new Map();
   const key = (x|0) + ',' + (y|0);
   if (agent._bandStepCache.has(key)) return agent._bandStepCache.get(key);
@@ -149,21 +144,17 @@ function stepsToNearestBand(agent, x, y, topoVer) {
   for (let yy = 0; yy < GRID.rows; yy++) {
     for (let xx = 0; xx < GRID.cols; xx++) {
       if (!isInAttackZone(GameState, xx, yy)) continue;
+
       const p = aStarToTarget(x, y, xx, yy);
-      // simplest – accept any non-empty path
-if (p && p.length < best) best = p.length;
-
-// or, if you *really* wanted to ignore the exact tile you're on:
-if (p && p.length >= 1 && p.length < best) best = p.length;
-// and explicitly skip the self-target:
-if (xx === (x|0) && yy === (y|0)) continue;
-
+      if (p && p.length < best) best = p.length;
     }
   }
+
   const val = Number.isFinite(best) ? best : Infinity;
   agent._bandStepCache.set(key, val);
   return val;
 }
+
 
 
 function selectAttackGoal(gs, sx, sy) {
@@ -394,67 +385,72 @@ function tickDecision(agent) {
   const opts = forwardOptions(agent.x, agent.y, agent.prevDir) || [];
   const openOpts = opts.filter(o => edgeOpen(GameState, agent.x, agent.y, o.side));
 
-  // ε only at *true forks* with 2+ choices
-  const EPS = (agent.nav && typeof agent.nav.epsilonWorse === 'number')
-  ? agent.nav.epsilonWorse
-  : (NAV().epsilonWorse ?? 0.33);
-  const epsilonActive = atJunction && openOpts.length >= 2 && Math.random() < EPS;
-
-  // ---- Downhill block (only skipped when ε fires at a junction) ----
-  if (!epsilonActive) {
+   // ---- Downhill block ----
+  {
     const usePathHeur = agent?.nav?.pathHeur === 'astar';
-const curH = usePathHeur
-  ? stepsToNearestBand(agent, agent.x, agent.y)
-  : heurToGoal(agent);
+    const curH = usePathHeur
+      ? stepsToNearestBand(agent, agent.x, agent.y)
+      : heurToGoal(agent);
 
-let bestH = Infinity, bestSides = [];
-for (const o of openOpts) {
-  const h = usePathHeur
-    ? stepsToNearestBand(agent, o.x, o.y)
-    : heurToGoal(agent, o.x, o.y);
-  if (h < bestH) { bestH = h; bestSides = [o.side]; }
-  else if (h === bestH) { bestSides.push(o.side); }
-}
+    let bestH = Infinity;
+    let bestSides = [];
 
+    for (const o of openOpts) {
+      const h = usePathHeur
+        ? stepsToNearestBand(agent, o.x, o.y)
+        : heurToGoal(agent, o.x, o.y);
+
+      if (h < bestH) {
+        bestH = h;
+        bestSides = [o.side];
+      } else if (h === bestH) {
+        bestSides.push(o.side);
+      }
+    }
 
     // Only take the downhill step if it strictly improves heuristic
     if (bestSides.length && bestH < curH) {
       const dir = bestSides[(Math.random() * bestSides.length) | 0];
       const [nx, ny] = stepFrom(agent.x, agent.y, dir);
       moveOne(agent, nx, ny);
-      if (agent.x === agent.gx && agent.y === agent.gy) { agent.state = S.REACHED; return agent.state; }
-      if (NAV().logChoices) console.debug('[DECISION] downhill', { at:{x:agent.x,y:agent.y}, dir, curH, bestH, atJunction });
+      if (agent.x === agent.gx && agent.y === agent.gy) {
+        agent.state = S.REACHED;
+        return agent.state;
+      }
+      if (NAV().logChoices) {
+        console.debug('[DECISION] downhill', {
+          at: { x: agent.x, y: agent.y },
+          dir,
+          curH,
+          bestH,
+          atJunction
+        });
+      }
       agent.state = S.WALK_STRAIGHT;
       return agent.state;
     }
 
-    if (NAV().logChoices) console.debug('[DECISION] no-downhill', {
-      at:{x:agent.x,y:agent.y}, curH, atJunction, opts: openOpts.map(o=>o.side)
-    });
-  } else {
-    if (NAV().logChoices) console.debug('[DECISION ε] override-downhill at junction', {
-      at:{x:agent.x,y:agent.y}, opts: openOpts.map(o=>o.side)
-    });
+    if (NAV().logChoices) {
+      console.debug('[DECISION] no-downhill', {
+        at: { x: agent.x, y: agent.y },
+        curH,
+        atJunction,
+        opts: openOpts.map(o => o.side),
+      });
+    }
   }
   // ---- end downhill block ----
 
+
   // Score exits (gentle band bias), highest first
   const scored = openOpts
-  .map(o => scoreDir(agent, GameState, agent.x, agent.y, o.side, agent.prevDir))
-  .sort((a,b) => b.score - a.score);
+    .map(o => scoreDir(agent, GameState, agent.x, agent.y, o.side, agent.prevDir))
+    .sort((a, b) => b.score - a.score);
 
-  // Default pick is best; ε-pick is any non-best
-  let chosenDir = null;
-  if (scored.length) {
-    if (epsilonActive && scored.length >= 2) {
-      const pool = scored.slice(1).map(s => s.dir);
-      chosenDir = pool[(Math.random() * pool.length) | 0];
-    } else {
-      chosenDir = scored[0].dir;
-    }
-  }
+  // Default pick is best-scoring direction
+  let chosenDir = scored.length ? scored[0].dir : null;
 
-  // Push breadcrumb so backtracking works; then (if ε) force the chosen on the crumb
+  // Push breadcrumb so backtracking works
   const { chosenDir: sticky } = pushBreadcrumb(
     agent.mem,
     agent.x, agent.y,
@@ -462,12 +458,6 @@ for (const o of openOpts) {
     scored.map(s => s.dir),
     agent.x, agent.y
   );
-
-  // If memory chose something else but ε picked a different dir, override the crumb's chosen
-  if (epsilonActive && chosenDir && sticky && sticky !== chosenDir) {
-    const top = peekBreadcrumb(agent.mem);
-    if (top) top.chosen = chosenDir; // surgical override of sticky randomness at this junction
-  }
 
   const dir = chosenDir || sticky;
   if (dir) {
