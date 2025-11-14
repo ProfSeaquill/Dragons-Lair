@@ -285,22 +285,33 @@ let waveJustStartedAt = 0;
 
 function frame(now) {
   if (!lastT) lastT = now;
-  const dt = Math.max(0, (now - lastT)) / 1000;
+
+  // Real-time delta in seconds from RAF
+  const rawDt = Math.max(0, (now - lastT)) / 1000;
   lastT = now;
 
   // Determine current time scale (1× or 2×)
   const gs = state.GameState;
   const speed = (typeof gs?.timeScale === 'number' && gs.timeScale > 0) ? gs.timeScale : 1;
-  const dt = baseDt * speed; // simulation dt
+
+  // Scaled simulation delta
+  const dt = rawDt * speed;
 
   // --- FSM time sync (ai/states/* reads gs.time.now/dt/t) ---
-{
-  const gs = state.GameState;
-  if (!gs.time) gs.time = { now: now / 1000, dt: dt, t: 0 };
-  gs.time.now = now / 1000;     // seconds
-  gs.time.dt  = dt;             // seconds since last frame
-  gs.time.t   = (gs.time.t || 0) + dt; // running seconds
-}
+  {
+    const nowSec = now / 1000;
+    if (!gs.time) {
+      gs.time = {
+        now:   nowSec,
+        dt:    dt,
+        t:     0,
+        since: (t) => nowSec - t,
+      };
+    }
+    gs.time.now = nowSec;            // wall-clock seconds
+    gs.time.dt  = dt;                // scaled delta
+    gs.time.t   = (gs.time.t || 0) + dt; // accumulated sim time
+  }
 
   // 1) update game state
   update(dt);
@@ -314,16 +325,17 @@ function frame(now) {
   Debug.markFrame();
   Debug.tick({
   
-});
+  });
 
   // 3) build lights & present via WebGL
- // computeTorchLights already slices to 16; no need to slice again
-const lights = computeTorchLights(state.GameState);
-const ambient = 0.58; // lower values = brighter map
-lighting.render(sceneCanvas, lights, ambient);
+  // computeTorchLights already slices to 16; no need to slice again
+  const lights = computeTorchLights(state.GameState);
+  const ambient = 0.58; // lower values = brighter map
+  lighting.render(sceneCanvas, lights, ambient);
 
   requestAnimationFrame(frame);
 }
+
 
 // Fires very early (you already dispatch this inside boot())
 window.addEventListener('dl-boot-ok', () => {
