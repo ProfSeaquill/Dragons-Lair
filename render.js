@@ -455,6 +455,12 @@ if (isMiniboss) {
   ring(ctx, px, py, radius + 2, '#f7a');
 }
 
+    // Boss ring
+const isBoss = e?.boss || e.type === 'boss';
+if (isBoss) {
+  ring(ctx, px, py, radius + 2, '#f7a');
+}
+
     // Optional HP bar (uses e.showHpUntil / e.maxHp)
     if (e.showHpUntil && now < e.showHpUntil && e.maxHp > 0) {
       const barW = Math.max(18, t * 0.8);
