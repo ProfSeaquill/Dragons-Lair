@@ -133,7 +133,7 @@ export function refreshHUD() {
   renderHealButtonLabel(gs);
   renderGridHelp(gs);
 }
-
+}
 // ---------- Buttons / HUD wiring ----------
 function wireButtons() {
   if (hud.healBtn) {
