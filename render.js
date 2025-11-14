@@ -436,12 +436,6 @@ function drawEnemies(ctx, gs) {
     const px = ex + off.dx;
     const py = ey + off.dy;
 
-      // TEMP TEST: put a loud ring around kingsguard so we know drawing works
-  if (e.type === 'kingsguard') {
-    ring(ctx, px, py, radius + 8, '#0f0'); // bright green test ring
-  }
-
-
     // Body color by type, with a shield fallback
     const bodyColor = TYPE_COLOR[e.type] || (e?.shield ? '#5cf' : '#fc3');
 
@@ -454,11 +448,11 @@ function drawEnemies(ctx, gs) {
     if (hasShieldRing) {
       ring(ctx, px, py, radius + 2, '#9df');
     }
-
+     
     // Miniboss ring (Kingsguard are minibosses by definition)
 const isMiniboss = e?.miniboss || e.type === 'kingsguard';
 if (isMiniboss) {
-  ring(ctx, px, py, radius + 5, '#f7a');
+  ring(ctx, px, py, radius + 2, '#f7a');
 }
 
     // Optional HP bar (uses e.showHpUntil / e.maxHp)
