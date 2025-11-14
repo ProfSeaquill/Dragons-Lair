@@ -2223,7 +2223,7 @@ updateAttacks(gs, dt);
                 x: ex,
                 y: ey,
                 angle,
-                dur: 0.18   // very short-lived
+                dur: 0.4   // very short-lived
               })
             );
           }
