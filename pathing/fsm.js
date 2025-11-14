@@ -51,7 +51,7 @@ function BIAS(agent) {
   const per = (agent && agent.nav && agent.nav.bias) || {};
   return {
     bandGain:    per.bandGain    ?? g.bandGain    ?? 1.0,
-    keepHeading: per.keepHeading ?? g.keepHeading ?? 0.10,
+    keepHeading: per.keepHeading ?? g.keepHeading ?? 0.00,
     deltaH:      per.deltaH      ?? g.deltaH      ?? 0.00,
     eastNudge:   per.eastNudge   ?? g.eastNudge   ?? 0.00,
   };
