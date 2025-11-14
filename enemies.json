@@ -9,7 +9,6 @@
     "bones": 1,
     "armor": 0,
     "shielded": false,
-    "navPreset":
     "nav": {
       "epsilonWorse": 0.30,
       "bias": { "bandGain": 1.0 }
@@ -26,7 +25,6 @@
     "bones": 1,
     "armor": 0,
     "shielded": false,
-    "navPreset":
     "nav": {
       "epsilonWorse": 0.25,
       "bias": { "bandGain": 1.0 }
@@ -43,7 +41,6 @@
     "bones": 3,
     "armor": 0,
     "shielded": false,
-    "navPreset":
     "nav": {
       "epsilonWorse": 0.20,
       "bias": { "bandGain": 1.0 }
@@ -60,7 +57,6 @@
     "bones": 2,
     "armor": 0,
     "shielded": true,
-    "navPreset":
     "nav": {
       "epsilonWorse": 0.10,
       "bias": { "bandGain": 1.8 }
@@ -77,7 +73,6 @@
     "bones": 1,
     "armor": 0,
     "shielded": false,
-    "navPreset": 
     "nav": {
       "epsilonWorse": 0.00,
       "bias": { "bandGain": 2.0 }
@@ -94,7 +89,6 @@
     "bones": 4,
     "armor": 0,
     "shielded": false,
-    "navPreset":
     "nav": {
       "epsilonWorse": 0.00,
       "bias": { "bandGain": 2.0 }
@@ -111,7 +105,6 @@
     "bones": 6,
     "armor": 0,
     "shielded": false,
-    "navPreset":
     "nav": {
       "epsilonWorse": 0.00,
       "bias": { "bandGain": 2.0 }
