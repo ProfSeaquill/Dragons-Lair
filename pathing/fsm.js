@@ -150,7 +150,14 @@ function stepsToNearestBand(agent, x, y, topoVer) {
     for (let xx = 0; xx < GRID.cols; xx++) {
       if (!isInAttackZone(GameState, xx, yy)) continue;
       const p = aStarToTarget(x, y, xx, yy);
-      if (p && p.length >= 2 && p.length < best) best = p.length;
+      // simplest – accept any non-empty path
+if (p && p.length < best) best = p.length;
+
+// or, if you *really* wanted to ignore the exact tile you're on:
+if (p && p.length >= 1 && p.length < best) best = p.length;
+// and explicitly skip the self-target:
+if (xx === (x|0) && yy === (y|0)) continue;
+
     }
   }
   const val = Number.isFinite(best) ? best : Infinity;
