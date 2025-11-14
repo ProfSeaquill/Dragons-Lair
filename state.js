@@ -556,6 +556,7 @@ export const GameState = {
   bones: 0,
   dragonHP: DRAGON_BASE.maxHP,
   autoStart: false,
+  timeScale: 1,
   topologyVersion: 0,   // bumped whenever walls/topology change
 
   // tracks when we're in a wave
@@ -813,6 +814,11 @@ export function loadState() {
     // 3) Install into live GameState
     Object.assign(GameState, loaded);
 
+    // Ensure a valid timeScale for old saves
+if (typeof GameState.timeScale !== 'number' || GameState.timeScale <= 0) {
+  GameState.timeScale = 1;
+}
+
     // 4) Rehydrate Maps and bump topology (your existing pattern)
 if (Array.isArray(loaded.cellWalls)) {
   GameState.cellWalls = new Map(loaded.cellWalls);
@@ -849,6 +855,7 @@ export function resetState(gs = GameState) {
   gs.bones = 0;
   gs.dragonHP = DRAGON_BASE.maxHP;
   gs.autoStart = false;
+  gs.timeScale = 1;
   gs.enemies = [];
   gs.projectiles = [];
   gs.effects = [];
