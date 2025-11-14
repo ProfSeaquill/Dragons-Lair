@@ -2194,7 +2194,7 @@ updateAttacks(gs, dt);
       for (let i = gs.enemies.length - 1; i >= 0; i--) {
         const e = gs.enemies[i];
         if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-                if (state.isAdjacentToDragon(gs, e.cx, e.cy)) {
+        if (isInAttackZone(gs, e.cx, e.cy)) {
           e.hp -= cs.dmg;
           markHit(e, cs.dmg);
           hitAny = true;
@@ -2235,7 +2235,13 @@ updateAttacks(gs, dt);
             gs.enemies.splice(i, 1);
           }
         }
-
+      }
+      if (hitAny) {
+        clawCooldown = cs.cd;
+      }
+    }
+  }
+  
 
   // --- Wing Gust (button request → push away, respect walls)
   if (gs.reqWingGust && gustCooldown <= 0) {
