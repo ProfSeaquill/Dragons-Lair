@@ -373,7 +373,7 @@ function enemyRenderOffset(e, tsize) {
 function drawEnemies(ctx, gs) {
   if (!Array.isArray(gs.enemies)) return;
   const t = state.GRID.tile;
-  const r = Math.max(3, t * 0.22);
+  const r = Math.max(3, t * 0.18);
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
   // Shallow copy + Y-sort for nicer overlap (closest is drawn last)
@@ -411,21 +411,21 @@ function drawEnemies(ctx, gs) {
     }
 
     // ---- per-type radius tweaks ----
-    let radius = Math.max(3, t * 0.22);
+    let radius = Math.max(3, t * 0.18);
 
-    // 1) Shrink villagers and squires by 5%
-    if (e.type === 'villager' || e.type === 'squire') {
+    // 1) Shrink villagers, squires, and heroes by 5%
+    if (e.type === 'villager' || e.type === 'squire' || e.type === 'hero') {
       radius *= 0.95;
     }
 
-    // 3) Kingsguard +5% size
+    // 3) Kingsguard +10% size
     if (e.type === 'kingsguard') {
-      radius *= 1.05;
+      radius *= 1.10;
     }
 
-    // 4) Bosses +10% size
+    // 4) Bosses +25% size
     if (e.type === 'boss') {
-      radius *= 1.10;
+      radius *= 1.25;
     }
 
     const size = radius * 2;
@@ -713,8 +713,8 @@ function drawDistHints(ctx, gs) {
       const b = centerOf(best.nx, best.ny);
       const dx = b.x - a.x, dy = b.y - a.y;
       const L = Math.hypot(dx, dy) || 1;
-      const ux = (dx / L) * (t * 0.22);
-      const uy = (dy / L) * (t * 0.22);
+      const ux = (dx / L) * (t * 0.18);
+      const uy = (dy / L) * (t * 0.18);
 
       circle(ctx, a.x + ux, a.y + uy, Math.max(2, t * 0.06), '#8fb3ff', true);
     }
@@ -728,7 +728,7 @@ function drawBombs(ctx, gs) {
   const t = state.GRID.tile;
   for (const fx of gs.effects) {
     if (fx.type !== 'bomb') continue;
-    const r = Math.max(6, t * 0.22);
+    const r = Math.max(6, t * 0.18);
     if (!isOnScreen(fx.x - r, fx.y - r, r*2, r*2, ctx.canvas.width, ctx.canvas.height)) continue;
     const pulse = 0.5 + 0.5 * Math.sin((fx.timer || 0) * 6.283);
     circle(ctx, fx.x, fx.y, r * (0.9 + 0.2 * pulse), '#f44', true);
