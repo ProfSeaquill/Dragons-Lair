@@ -51,13 +51,13 @@ caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
  * Enemy type colors
  * --------------------------------------------------------- */
 const TYPE_COLOR = {
-  villager:  '#9acd32',
-  squire:    '#7fd1ff',
-  knight:    '#ffd166',
-  hero:      '#ff6b6b',
-  engineer:  '#c084fc',
-  kingsguard:'#ffa8a8',
-  boss:      '#f4a261',
+  villager:   '#9acd32',
+  squire:     '#7fd1ff',
+  knight:     '#ffd166',
+  hero:       '#ff6b6b',
+  engineer:   '#c084fc',
+  kingsguard: '#ff3333',   // brighter red
+  boss:       '#ffd700',   // gold
 };
 
 /* -----------------------------------------------------------
@@ -388,48 +388,78 @@ function drawEnemies(ctx, gs) {
 });
 
 
-  for (const e of list) {
+    for (const e of list) {
     if (e.type === 'engineer' && e.tunneling) continue; // drawn by tunnel ring
 
-  // Resolve a pixel position (prefer smooth interpolants if present)
-let ex = Number.isFinite(e.drawX) ? e.drawX
-       : Number.isFinite(e.x)     ? e.x
-       : (Number.isInteger(e.cx) ? (e.cx + 0.5) * t : NaN);
+    // Resolve a pixel position (prefer smooth interpolants if present)
+    let ex = Number.isFinite(e.drawX) ? e.drawX
+           : Number.isFinite(e.x)     ? e.x
+           : (Number.isInteger(e.cx) ? (e.cx + 0.5) * t : NaN);
 
-let ey = Number.isFinite(e.drawY) ? e.drawY
-       : Number.isFinite(e.y)     ? e.y
-       : (Number.isInteger(e.cy) ? (e.cy + 0.5) * t : NaN);
+    let ey = Number.isFinite(e.drawY) ? e.drawY
+           : Number.isFinite(e.y)     ? e.y
+           : (Number.isInteger(e.cy) ? (e.cy + 0.5) * t : NaN);
 
+    // Final safety: if still not finite, try to recover; else skip drawing this enemy this frame.
+    if (!Number.isFinite(ex) || !Number.isFinite(ey)) {
+      if (Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
+        ex = (e.tileX + 0.5) * t;
+        ey = (e.tileY + 0.5) * t;
+      } else {
+        continue;
+      }
+    }
 
-// Final safety: if still not finite, try to recover; else skip drawing this enemy this frame.
-if (!Number.isFinite(ex) || !Number.isFinite(ey)) {
-  if (Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
-    ex = (e.tileX + 0.5) * t;
-    ey = (e.tileY + 0.5) * t;
-  } else {
-    continue;
-  }
-}
+    // ---- per-type radius tweaks ----
+    let radius = Math.max(3, t * 0.22);
 
-const size = (e.size || 1) * t * 0.9;
-if (!isOnScreen(ex - size * 0.5, ey - size * 0.5, size, size, ctx.canvas.width, ctx.canvas.height)) continue;
+    // 1) Shrink villagers and squires by 5%
+    if (e.type === 'villager' || e.type === 'squire') {
+      radius *= 0.95;
+    }
+
+    // 3) Kingsguard +5% size
+    if (e.type === 'kingsguard') {
+      radius *= 1.05;
+    }
+
+    // 4) Bosses +10% size
+    if (e.type === 'boss') {
+      radius *= 1.10;
+    }
+
+    const size = radius * 2;
+    if (!isOnScreen(ex - size * 0.5, ey - size * 0.5, size, size, ctx.canvas.width, ctx.canvas.height)) continue;
 
     // Deterministic micro-offset to reduce perfect stacking
     const off = enemyRenderOffset(e, t);
     const px = ex + off.dx;
     const py = ey + off.dy;
 
+    // Body color by type, with a shield fallback
     const bodyColor = TYPE_COLOR[e.type] || (e?.shield ? '#5cf' : '#fc3');
-    circle(ctx, px, py, r, bodyColor, true);
-    if (e?.shield)   ring(ctx, px, py, r + 2, '#9df');
-    if (e?.miniboss) ring(ctx, px, py, r + 5, '#f7a');
+
+    // Core body
+    circle(ctx, px, py, radius, bodyColor, true);
+
+    // 2) Make sure heroes have a ring around them for being shielded.
+    //    (Always give heroes the shield ring, even if e.shield isn't set.)
+    const hasShieldRing = e.type === 'hero' || e?.shield;
+    if (hasShieldRing) {
+      ring(ctx, px, py, radius + 2, '#9df');
+    }
+
+    // Miniboss ring (still stacked on top)
+    if (e?.miniboss) {
+      ring(ctx, px, py, radius + 5, '#f7a');
+    }
 
     // Optional HP bar (uses e.showHpUntil / e.maxHp)
     if (e.showHpUntil && now < e.showHpUntil && e.maxHp > 0) {
       const barW = Math.max(18, t * 0.8);
       const barH = Math.max(3,  t * 0.10);
       const x = px - barW / 2;
-      const y = py - r - 6 - barH;
+      const y = py - radius - 6 - barH;  // use radius instead of fixed r
 
       const life = Math.max(0, e.showHpUntil - now) / 1000; // 0..1s
       const alpha = Math.min(1, life * 1.2);
