@@ -185,6 +185,7 @@ if (state.canEditMaze(gs)) {
   // -------- Enemies / Dragon / Mouth fire / Heat shimmer
   drawEnemies(ctx, gs);
   drawDragonAndMouthFire(ctx, gs);
+  drawClawSlashes(ctx, gs);
   // drawHeatShimmer(ctx, gs); // subtle, after dragon + fire for overlay then
 drawFireSplash(ctx, gs);
 
@@ -496,6 +497,57 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
   } 
 }
 
+function drawClawSlashes(ctx, gs) {
+  const tsize = state.GRID.tile;
+  const list = gs.effects || [];
+  if (!Array.isArray(list) || !list.length) return;
+
+  for (const fx of list) {
+    if (fx.type !== 'clawSlash') continue;
+
+    const dur = fx.dur || 0.18;
+    const progress = Math.min(1, (fx.t || 0) / dur);
+
+    const x = fx.x;
+    const y = fx.y;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+    const r0 = tsize * 0.35;
+    const r1 = tsize * 0.60;
+    const r  = r0 + (r1 - r0) * progress;
+
+    if (!isOnScreen(x - r, y - r, r * 2, r * 2, ctx.canvas.width, ctx.canvas.height)) {
+      continue;
+    }
+
+    const angle   = fx.angle || 0;
+    const arcSpan = Math.PI * 0.5; // 90° sweep
+    const start   = angle - arcSpan * 0.4;
+    const end     = angle + arcSpan * 0.1;
+
+    const baseAlpha = 0.6 + 0.4 * (1 - progress);
+    const width     = Math.max(1, tsize * 0.10 * (1 - progress));
+
+    ctx.save();
+
+    // Outer bright slash
+    ctx.globalAlpha = baseAlpha;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth   = width;
+    ctx.beginPath();
+    ctx.arc(x, y, r, start, end);
+    ctx.stroke();
+
+    // Inner red-ish core
+    ctx.strokeStyle = 'rgba(255,80,80,0.85)';
+    ctx.lineWidth   = Math.max(1, width * 0.6);
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.85, start, end);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+}
 
 function drawFireSplash(ctx, gs) {
   const tsize = state.GRID.tile;
