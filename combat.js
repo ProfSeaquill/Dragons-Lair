@@ -675,7 +675,18 @@ function makeEnemy(type, wave) {
   if (typeof base.bones === 'number') out.bones = base.bones|0;
   if (typeof base.armor === 'number') out.armor = base.armor|0;
   if (typeof base.shielded === 'boolean') out.shield = !!base.shielded;
-  if (Array.isArray(base.tags)) out.tags = [...base.tags];
+  if (Array.isArray(base.tags)) {
+  out.tags = [...base.tags];
+
+  // Derive convenience flags from tags
+  if (base.tags.includes('miniboss')) {
+    out.miniboss = true;
+  }
+  if (base.tags.includes('boss')) {
+    out.boss = true;  // handy if you ever want special boss visuals
+  }
+}
+
 
   
  // (keep your special-name switch and engineer tunneling bits as you have now)
