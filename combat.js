@@ -2014,6 +2014,13 @@ if (bombAccum >= 1.0) {
       if (efx.t >= (efx.dur || 0.35)) { gs.effects.splice(i, 1); continue; }
     }
 
+    if (efx.type === 'clawSlash') {
+      if (efx.t >= (efx.dur || 0.18)) {
+        gs.effects.splice(i, 1);
+        continue;
+      }
+    }
+
 
 if (efx.type === 'tunnel') {
   // efx follows the burrowed engineer by id
@@ -2187,11 +2194,40 @@ updateAttacks(gs, dt);
       for (let i = gs.enemies.length - 1; i >= 0; i--) {
         const e = gs.enemies[i];
         if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-        if (state.isAdjacentToDragon(gs, e.cx, e.cy)) {
+                if (state.isAdjacentToDragon(gs, e.cx, e.cy)) {
           e.hp -= cs.dmg;
           markHit(e, cs.dmg);
           hitAny = true;
-          // optional: add a slash FX in render using gs.effects
+
+          // --- Claw visual: small slash arc on the hit enemy
+          {
+            const tileSize = state.GRID.tile || 32;
+
+            // Enemy center in pixels
+            const ex = Number.isFinite(e.x)
+              ? e.x
+              : (Number.isInteger(e.cx) ? (e.cx + 0.5) * tileSize : 0);
+
+            const ey = Number.isFinite(e.y)
+              ? e.y
+              : (Number.isInteger(e.cy) ? (e.cy + 0.5) * tileSize : 0);
+
+            // Dragon center in pixels (EXIT footprint center)
+            const dx = (state.EXIT.x + 0.5) * tileSize;
+            const dy = (state.EXIT.y + 0.5) * tileSize;
+
+            const angle = Math.atan2(ey - dy, ex - dx);
+
+            (gs.effects || (gs.effects = [])).push(
+              acquireEffect('clawSlash', {
+                x: ex,
+                y: ey,
+                angle,
+                dur: 0.18   // very short-lived
+              })
+            );
+          }
+
           if (e.hp <= 0) {
             gs.gold  = (gs.gold  | 0) + 5;
             gs.bones = (gs.bones | 0) + 1;
@@ -2199,10 +2235,7 @@ updateAttacks(gs, dt);
             gs.enemies.splice(i, 1);
           }
         }
-      }
-      if (hitAny) clawCooldown = cs.cd;
-    }
-  }
+
 
   // --- Wing Gust (button request → push away, respect walls)
   if (gs.reqWingGust && gustCooldown <= 0) {
