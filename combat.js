@@ -2041,11 +2041,12 @@ if (bombAccum >= 1.0) {
     }
 
     if (efx.type === 'clawSlash') {
-      if (efx.t >= (efx.dur || 0.4)) {
-        gs.effects.splice(i, 1);
-        continue;
-      }
-    }
+  const dur = Math.max(0.01, efx.dur || 2.0); // safe floor + longer default
+  if (efx.t >= dur) {
+    gs.effects.splice(i, 1);
+    continue;
+  }
+}
 
 
 if (efx.type === 'tunnel') {
