@@ -49,8 +49,8 @@ export function spawnClawSlashEffect(gs, x, y, angle = 0) {
     y,
     angle,
     t:     0,
-    dur:   0.70,  // longer life so it's clearly visible
-    scale: 1.4    // noticeably bigger than the enemy
+    dur:   2.00,  // longer life so it's clearly visible
+    scale: 4.0    // noticeably bigger than the enemy
   };
   list.push(fx);
   // one-line debug: how many claw effects exist this frame?
