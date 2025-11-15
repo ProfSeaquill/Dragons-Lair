@@ -42,7 +42,7 @@
     "stomp": { "baseCooldownSec": 10, "minCooldownSec": 5,  "capDamage": 50, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
 
     "enemyScaling": {
-      "maxWave": 101,
+      "maxWave": 51,
       "hpCapMult": 10.0,
       "spdCapMult": 1.5,
       "dpsCapMult": 1.0,
