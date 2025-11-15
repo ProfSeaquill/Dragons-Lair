@@ -470,15 +470,24 @@ async function renderNextWavePreview() {
   if (!root) return;
   root.innerHTML = '';
 
-  const combat = await getCombat();
+    const combat = await getCombat();
   const wave = state.GameState.wave | 0;
 
-  const list = (typeof combat.previewWaveList === 'function')
-    ? combat.previewWaveList(wave)
-    : [];
+  // ✅ Always use the same function you just tested in the console
+  const counts = (typeof combat.previewWaveCounts === 'function')
+    ? combat.previewWaveCounts(wave)
+    : (() => {
+        const list = (typeof combat.previewWaveList === 'function')
+          ? combat.previewWaveList(wave)
+          : [];
+        const tmp = {};
+        for (const type of list) tmp[type] = (tmp[type] | 0) + 1;
+        return tmp;
+      })();
 
-  const counts = {};
-  for (const type of list) counts[type] = (counts[type] | 0) + 1;
+  // One-time HUD probe so we see exactly what the panel is using
+  console.debug('[HUD preview] wave', wave, 'counts', counts);
+
 
   const order = ['villager','squire','knight','hero','engineer','kingsguard','boss'];
   order.forEach((type) => {
