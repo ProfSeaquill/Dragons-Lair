@@ -5,6 +5,7 @@ import { pathSpawnAgent, pathUpdateAgent, pathRenderOffset, GRID, ENTRY, EXIT, e
 import { isInAttackZone } from './grid/attackzone.js';
 import { updateAttacks } from './pathing/attack.js';
 import { spawnClawSlashEffect } from './combat/upgrades/abilities/claw.js';
+import { addWingGustEffect } from './combat/upgrades/abilities/wing_gust.js';
 
 
 // === Ability cooldown timers (module-local) ===
@@ -2048,6 +2049,9 @@ if (bombAccum >= 1.0) {
   }
 }
 
+    if (efx.type === 'wingGust') {
+      if (efx.t >= (efx.dur || 0.4)) { gs.effects.splice(i, 1); continue; }
+    }
 
 if (efx.type === 'tunnel') {
   // efx follows the burrowed engineer by id
@@ -2263,14 +2267,21 @@ updateAttacks(gs, dt);
   }
   
 
-  // --- Wing Gust (button request → push away, respect walls)
+    // --- Wing Gust (button request → push away, respect walls)
   if (gs.reqWingGust && gustCooldown <= 0) {
     gs.reqWingGust = false;
     globalThis.Telemetry?.log('ability:use', { key: 'gust' });
     const ps = state.getGustStatsTuned(gs);
+
+    // Gameplay: push enemies back through tunnels
     wingGustPush(gs, ps.pushTiles);
+
+    // Visual: spawn a wing gust sprite centered on the dragon
+    addWingGustEffect(gs, acquireEffect);
+
     gustCooldown = ps.cd;
   }
+
 
   // --- Roar (button request → stun + fear buffs)
   if (gs.reqRoar && roarCooldown <= 0) {
