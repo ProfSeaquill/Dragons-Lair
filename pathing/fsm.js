@@ -195,26 +195,48 @@ const S = Object.freeze({
   STOPPED:       "STOPPED",
 });
 
-export function createAgent({ x, y, targetX, targetY, seed = 0xBEEF, nav = null } = {}) {
+export function createAgent({
+  x,
+  y,
+  targetX,
+  targetY,
+  seed = 0xBEEF,
+  nav = null,
+  ownerId = null,
+  groupId = 0,
+  followLeaderId = null,
+  independentNav = false,
+} = {}) {
   const mem = createMemory(seed);
   const agent = {
     // position + heading
     x: x|0, y: y|0,
     prevDir: "E", // we spawn walking east by rule #1
+
     // goal
     gx: targetX|0, gy: targetY|0,
+
     // fsm
     state: S.WALK_STRAIGHT,
     linger: 0,
+
     // plan buffer for FOLLOW_PLAN (array of {x,y}), and index of next step
     plan: null,
     planIdx: 0,
     planFlags: { clippedAtJunction: false, reachedGoal: false },
+
     // memory
     mem,
+
     // bookkeeping
     tickCount: 0,
     nav: nav || undefined,
+
+    // NEW: group-follow metadata
+    ownerId:        ownerId ?? null,
+    groupId:        groupId | 0,
+    followLeaderId: followLeaderId ?? null,
+    independentNav: !!independentNav,
   };
   // Seed determinism explicitly (optional)
   setSeed(mem, seed >>> 0);
@@ -374,6 +396,46 @@ function tickFollowPlan(agent) {
   return agent.state;
 }
 
+
+// --- Group-follow helpers ----------------------------------------------------
+
+function recordGroupJunctionChoice(agent, dir) {
+  if (!agent || !dir) return;
+  // Only non-independent leaders record choices:
+  if (agent.independentNav) return;
+  if (agent.followLeaderId) return;       // followers don't define the route
+
+  const leaderId = agent.ownerId;
+  if (!leaderId) return;
+
+  const gs = GameState;
+  if (!gs) return;
+  if (!gs.groupRoutes) gs.groupRoutes = new Map();
+
+  let table = gs.groupRoutes.get(leaderId);
+  if (!table) {
+    table = new Map();
+    gs.groupRoutes.set(leaderId, table);
+  }
+
+  const key = (agent.x|0) + ',' + (agent.y|0);
+  if (!table.has(key)) {
+    table.set(key, dir);
+  }
+}
+
+function lookupGroupJunctionChoice(agent) {
+  if (!agent || !agent.followLeaderId) return null;
+  const gs = GameState;
+  if (!gs || !gs.groupRoutes) return null;
+
+  const table = gs.groupRoutes.get(agent.followLeaderId);
+  if (!table) return null;
+
+  const key = (agent.x|0) + ',' + (agent.y|0);
+  return table.get(key) || null;
+}
+
 function tickDecision(agent) {
   if (NAV().noJunctions) {
     if (!planSegment(agent)) agent.state = S.STOPPED;
@@ -393,6 +455,45 @@ function tickDecision(agent) {
   ? agent.nav.epsilonWorse
   : (NAV().epsilonWorse ?? 0.33);
   const epsilonActive = atJunction && openOpts.length >= 2 && Math.random() < EPS;
+
+    // --- Group-follow override: followers reuse the leader's choice at junctions ---
+  if (atJunction && openOpts.length > 0) {
+    const groupDir = lookupGroupJunctionChoice(agent);
+    if (groupDir) {
+      // Only follow if that exit is still valid / open
+      const allowed = openOpts.some(o => o.side === groupDir);
+      if (allowed && edgeOpen(GameState, agent.x, agent.y, groupDir)) {
+        // Keep breadcrumb stack coherent: record only this exit as taken
+        pushBreadcrumb(
+          agent.mem,
+          agent.x, agent.y,
+          agent.prevDir,
+          [groupDir],
+          agent.x, agent.y
+        );
+
+        const [nx, ny] = stepFrom(agent.x, agent.y, groupDir);
+        moveOne(agent, nx, ny);
+        if (agent.x === agent.gx && agent.y === agent.gy) {
+          agent.state = S.REACHED;
+        } else {
+          agent.state = S.WALK_STRAIGHT;
+        }
+
+        if (NAV().logChoices) {
+          console.debug('[DECISION] group-follow', {
+            at: { x: agent.x, y: agent.y },
+            dir: groupDir,
+            leaderId: agent.followLeaderId
+          });
+        }
+        return agent.state;
+      }
+      // If the stored direction is no longer open (new wall, etc.), fall through
+      // to normal heuristic logic instead of forcing the follower into a wall.
+    }
+  }
+
 
   // ---- Downhill block (only skipped when ε fires at a junction) ----
   if (!epsilonActive) {
@@ -463,16 +564,25 @@ for (const o of openOpts) {
     if (top) top.chosen = chosenDir; // surgical override of sticky randomness at this junction
   }
 
-  const dir = chosenDir || sticky;
+    const dir = chosenDir || sticky;
   if (dir) {
+    // NEW: let the leader remember this junction choice for the group
+    if (isCorridorJunction(agent.x, agent.y, agent.prevDir)) {
+      recordGroupJunctionChoice(agent, dir);
+    }
+
     const [nx, ny] = stepFrom(agent.x, agent.y, dir);
     if (edgeOpen(GameState, agent.x, agent.y, dir)) {
       moveOne(agent, nx, ny);
-      if (agent.x === agent.gx && agent.y === agent.gy) { agent.state = S.REACHED; return agent.state; }
+      if (agent.x === agent.gx && agent.y === agent.gy) {
+        agent.state = S.REACHED;
+        return agent.state;
+      }
       agent.state = S.WALK_STRAIGHT;
       return agent.state;
     }
   }
+
 
   // If no exit (or blocked unexpectedly), backtrack
   agent.state = S.BACKTRACK;
