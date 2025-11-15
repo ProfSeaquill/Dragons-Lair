@@ -341,6 +341,111 @@ function tickKnockback(e, dt) {
   e.dir = (bx > ax) ? 'E' : (bx < ax) ? 'W' : (by > ay) ? 'S' : 'N';
 }
 
+export function wingGustPush(gs, tiles) {
+  const t = state.GRID.tile || 32;
+
+  // Dragon anchor (centroid of dragon footprint)
+  const cells = state.dragonCells(gs);
+  if (!cells || !cells.length) return;
+
+  let sx = 0, sy = 0;
+  for (const c of cells) { sx += c.x; sy += c.y; }
+  const ax = Math.round(sx / Math.max(1, cells.length));
+  const ay = Math.round(sy / Math.max(1, cells.length));
+
+  // ---- Enemies ----
+  for (const e of gs.enemies || []) {
+    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
+    if (e.type === 'engineer' && e.tunneling) continue; // don’t shove burrowers
+
+    const dx0 = e.cx - ax, dy0 = e.cy - ay;
+    const distMan = Math.abs(dx0) + Math.abs(dy0);
+    if (distMan <= 0) continue;                 // sitting inside dragon; ignore
+    if (distMan > tiles) continue;              // out of gust radius
+
+    const pushSteps = Math.max(0, tiles - distMan);
+    if (pushSteps === 0) continue;
+
+    // Pick outward direction along dominant axis (away from anchor)
+    let dir;
+    if (Math.abs(dx0) >= Math.abs(dy0)) dir = (dx0 >= 0) ? 'E' : 'W';
+    else                                dir = (dy0 >= 0) ? 'S' : 'N';
+
+    // Walk step-by-step, respecting walls and not shoving into dragon
+    let nx = e.cx, ny = e.cy;
+    for (let k = 0; k < pushSteps; k++) {
+      const step = stepIfOpen(gs, nx, ny, dir);
+      if (step.x === nx && step.y === ny) break;            // blocked
+      if (state.isDragonCell(step.x, step.y, gs)) break;    // don't push into dragon
+      nx = step.x; ny = step.y;
+    }
+
+    if (nx === e.cx && ny === e.cy) continue;
+
+    // Build the per-tile path we just traced
+    const path = [{ x: e.cx, y: e.cy }];
+    {
+      const dx0b = e.cx - ax, dy0b = e.cy - ay;
+      const dir2 = (Math.abs(dx0b) >= Math.abs(dy0b))
+        ? (dx0b >= 0 ? 'E' : 'W')
+        : (dy0b >= 0 ? 'S' : 'N');
+      let px = e.cx, py = e.cy;
+      const steps = Math.max(1, Math.abs(nx - e.cx) + Math.abs(ny - e.cy));
+      for (let k = 0; k < steps; k++) {
+        const step = stepIfOpen(gs, px, py, dir2);
+        if (step.x === px && step.y === py) break;
+        if (state.isDragonCell(step.x, step.y, gs)) break;
+        px = step.x; py = step.y;
+        path.push({ x: px, y: py });
+        if (px === nx && py === ny) break;
+      }
+    }
+
+    if (path.length >= 2) {
+      e.kb = {
+        path,
+        seg: 0,
+        acc: 0,
+        durPerTile: 0.08,            // tune: 0.06 snappier, 0.12 chunkier
+        tsize: state.GRID.tile || 32
+      };
+      e.isAttacking     = false;
+      e.pausedForAttack = false;
+      e.commitDir       = null;
+      e.commitSteps     = 0;
+      e.commitTilesLeft = 0;
+
+      // tiny tick just to show HP bar flash
+      markHit(e, 0.0001);
+    }
+  }
+
+  // ---- Bombs (optional, same falloff & walls) ----
+  for (const fx of (gs.effects || [])) {
+    if (fx.type !== 'bomb') continue;
+    let cx = Math.floor(fx.x / t);
+    let cy = Math.floor(fx.y / t);
+
+    const dx0 = cx - ax, dy0 = cy - ay;
+    const distMan = Math.abs(dx0) + Math.abs(dy0);
+    if (distMan <= 0 || distMan > tiles) continue;
+
+    const pushSteps = Math.max(0, tiles - distMan);
+    let dir;
+    if (Math.abs(dx0) >= Math.abs(dy0)) dir = (dx0 >= 0) ? 'E' : 'W';
+    else                                dir = (dy0 >= 0) ? 'S' : 'N';
+
+    for (let k = 0; k < pushSteps; k++) {
+      const step = stepIfOpen(gs, cx, cy, dir);
+      if (step.x === cx && step.y === cy) break;
+      cx = step.x; cy = step.y;
+    }
+
+    fx.x = (cx + 0.5) * t;
+    fx.y = (cy + 0.5) * t;
+  }
+}
+
 // Roar: stun + temporary behavior buff within range
 function roarAffect(gs, rs) {
   const a = state.dragonAnchor(gs);
