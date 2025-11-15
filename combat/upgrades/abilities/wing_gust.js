@@ -58,7 +58,7 @@ export function spawnWingGustAtDragon(gs) {
     y,
     t:   0,
     dur: 0.40,
-    scale: 1.0
+    scale: 0.5
   };
 
   list.push(fx);
