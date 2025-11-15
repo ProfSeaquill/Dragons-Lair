@@ -40,18 +40,21 @@ function isOnScreen(x, y, w, h, cw, ch) {
  */
 export function spawnClawSlashEffect(gs, x, y, angle = 0) {
   const list = gs.effects || (gs.effects = []);
-  list.push({
+
+  const fx = {
     type:  'clawSlash',
     x,
     y,
     angle,
     t:     0,
-    dur:   0.45,  // lifetime in seconds (tweaked in effect cull in combat.js)
-    scale: 1.2
-  });
+    dur:   0.45,  // slightly longer for visibility
+    scale: 1.2    // a bit larger slash
+  };
+
   list.push(fx);
   console.log('[claw] spawn', { x, y, angle, effectsLen: list.length });
 }
+
 
 /**
  * Render all clawSlash effects from gs.effects using the spritesheet.
