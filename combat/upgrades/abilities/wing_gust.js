@@ -148,7 +148,7 @@ export function drawWingGusts(ctx, gs) {
       const sx = frameIdx * fw;
       const sy = 0;
 
-      const scale = 1.0; // tweak if you want bigger gust tiles
+      const scale = 0.3; // tweak if you want bigger gust tiles
       const dstW  = fw * scale;
       const dstH  = fh * scale;
 
