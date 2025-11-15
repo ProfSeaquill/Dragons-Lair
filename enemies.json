@@ -29,7 +29,7 @@
     "nav": {
       "epsilonWorse": 0.25,
       "bias": { "bandGain": 1.0 },
-      "tags": []
+      "tags": [trash]
     }
   },
   
@@ -46,7 +46,7 @@
     "nav": {
       "epsilonWorse": 0.20,
       "bias": { "bandGain": 1.0 },
-      "tags": []
+      "tags": [scout]
     }
   },
   
@@ -94,11 +94,8 @@
     "bones": 4,
     "armor": 0,
     "shielded": false,
-    "nav": {
-      "epsilonWorse": 0.00,
-      "bias": { "bandGain": 2.0 },
-      "tags": ["miniboss"]
-    }
+    "navPreset": "beeLine"
+    "tags": ["miniboss"]
   },
     
   "boss": {
@@ -111,10 +108,7 @@
     "bones": 6,
     "armor": 0,
     "shielded": false,
-    "nav": {
-      "epsilonWorse": 0.00,
-      "bias": { "bandGain": 2.0 },
-      "tags": ["boss"]
+    "navPreset": "beeLine"
+    "tags": ["boss"]
     }
   }
-}
