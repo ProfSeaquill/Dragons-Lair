@@ -2050,7 +2050,7 @@ if (bombAccum >= 1.0) {
 }
 
     if (efx.type === 'wingGust') {
-      if (efx.t >= (efx.dur || 0.4)) { gs.effects.splice(i, 1); continue; }
+      if (efx.t >= (efx.dur || 1.0)) { gs.effects.splice(i, 1); continue; }
     }
 
 if (efx.type === 'tunnel') {
