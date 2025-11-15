@@ -11,7 +11,7 @@ const WING_FRAMES     = 4;
 const WING_FRAME_SIZE = 96;
 
 // 👉 Adjust this path to your actual PNG:
-const WING_SPRITE_SRC = './assets/wing_gust_sprite.png';
+const WING_SPRITE_SRC = './assets/wing_gust.png';
 
 const wingImg = new Image();
 let wingReady = false;
