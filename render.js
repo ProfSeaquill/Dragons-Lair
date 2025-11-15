@@ -29,6 +29,15 @@ dragonImg.onload = () => { dragonReady = true; };
 dragonImg.src = './assets/dragon_idle.png';
 
 /* -----------------------------------------------------------
+ * WING GUST SPRITE SHEET
+ * --------------------------------------------------------- */
+const wingGustImg = new Image();
+let wingGustReady = false;
+wingGustImg.onload = () => { wingGustReady = true; };
+// 4 frames horizontally, each 96x96px
+wingGustImg.src = './assets/wing_gust_sprite.png'; // ← update if you named it differently
+
+/* -----------------------------------------------------------
  * FLAME STRIPS (corridor fire) — optional textures
  * --------------------------------------------------------- */
 const fireStripH = new Image();
@@ -188,6 +197,7 @@ if (state.canEditMaze(gs)) {
   drawEnemies(ctx, gs);
   drawDragonAndMouthFire(ctx, gs);
   drawClawSlashes(ctx, gs);
+  drawWingGustFX(ctx, gs);
   // drawHeatShimmer(ctx, gs); // subtle, after dragon + fire for overlay then
 drawFireSplash(ctx, gs);
 
@@ -536,6 +546,35 @@ function drawFireSplash(ctx, gs) {
   }
 }
 
+function drawWingGustFX(ctx, gs) {
+  if (!wingGustReady || !Array.isArray(gs.effects)) return;
+
+  const frameW = 96;
+  const frameH = 96;
+  const frames = 4;
+
+  for (const fx of gs.effects) {
+    if (fx.type !== 'wingGust') continue;
+
+    const progress = Math.min(1, (fx.t || 0) / Math.max(0.001, fx.dur || 0.4));
+    const frame = Math.min(frames - 1, Math.floor(progress * frames));
+
+    const sx = frame * frameW;
+    const sy = 0;
+
+    const dx = fx.x - frameW / 2;
+    const dy = fx.y - frameH / 2;
+
+    if (!isOnScreen(dx, dy, frameW, frameH, ctx.canvas.width, ctx.canvas.height)) continue;
+
+    ctx.drawImage(
+      wingGustImg,
+      sx, sy, frameW, frameH,
+      dx, dy, frameW, frameH
+    );
+  }
+}
+
 /**
  * Subtle heat shimmer near the dragon’s mouth.
  * Cheap effect: layered soft gradients with small sinusoidal offsets and blur.
@@ -596,7 +635,7 @@ function drawHeatShimmer(ctx, gs) {
   }
 }
 
-/* -------- Traveling corridor fire -------- */
+
 /* -------- Traveling corridor fire -------- */
 function drawFlameWaves(ctx, gs) {
   const tsize = state.GRID.tile;
