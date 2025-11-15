@@ -94,7 +94,7 @@
     "bones": 4,
     "armor": 0,
     "shielded": false,
-    "navPreset": "beeLine"
+    "navPreset": "beeLine",
     "tags": ["miniboss"]
   },
     
@@ -108,7 +108,7 @@
     "bones": 6,
     "armor": 0,
     "shielded": false,
-    "navPreset": "beeLine"
+    "navPreset": "beeLine",
     "tags": ["boss"]
     }
   }
