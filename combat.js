@@ -134,10 +134,10 @@ function releaseEnemy(e) {
 
 // --- Nav presets + merge (combat.js) -----------------------------------------
 const NAV_PRESETS = {
-  hunter:   { pathHeur: 'astar',     bias: { bandGain: 1.6, keepHeading: 0.08, deltaH: 0.00, eastNudge: 0.00 } },
-  beeLine:  { pathHeur: 'astar',     bias: { bandGain: 2.2, keepHeading: 0.05, deltaH: 0.00, eastNudge: 0.00 } },
-  wanderer: { pathHeur: 'manhattan', bias: { bandGain: 0.9, keepHeading: 0.05, deltaH: 0.00, eastNudge: 0.00 } },
-  cautious: { pathHeur: 'manhattan', bias: { bandGain: 1.2, keepHeading: 0.12, deltaH: 0.02, eastNudge: 0.00 } },
+  hunter:   { pathHeur: 'astar',     epsilonWorse: 0.10, bias: { bandGain: 1.6, keepHeading: 0.08, deltaH: 0.00, eastNudge: 0.00 } },
+  beeLine:  { pathHeur: 'astar',     epsilonWorse: 0.05, bias: { bandGain: 2.2, keepHeading: 0.05, deltaH: 0.00, eastNudge: 0.00 } },
+  wanderer: { pathHeur: 'manhattan', epsilonWorse: 0.40, bias: { bandGain: 0.9, keepHeading: 0.05, deltaH: 0.00, eastNudge: 0.00 } },
+  cautious: { pathHeur: 'manhattan', epsilonWorse: 0.20, bias: { bandGain: 1.2, keepHeading: 0.12, deltaH: 0.02, eastNudge: 0.00 } },
 };
 
 function __mergeBias(a={}, b={}) {
@@ -155,10 +155,14 @@ function buildEnemyNav(type, gs) {
   const preset = (presetName && NAV_PRESETS[presetName]) || {};
   const ov = base.nav || {};
   return {
-    pathHeur: ov.pathHeur ?? preset.pathHeur ?? 'manhattan',
+    pathHeur:     ov.pathHeur     ?? preset.pathHeur     ?? 'manhattan',
+    epsilonWorse: (typeof ov.epsilonWorse === 'number') ? ov.epsilonWorse
+                   : (typeof preset.epsilonWorse === 'number') ? preset.epsilonWorse
+                   : 0.30,
     bias: __mergeBias(preset.bias, ov.bias),
   };
 }
+
 
 
 function acquireEffect(kind, seedObj) {
