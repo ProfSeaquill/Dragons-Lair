@@ -67,18 +67,30 @@ export function drawClawSlashes(ctx, gs) {
   const list = gs.effects || [];
   if (!Array.isArray(list) || !list.length) return;
 
+  // Count how many slashes exist
+  const slashes = list.filter(fx => fx && fx.type === 'clawSlash');
+  if (!slashes.length) return;
+
+  // One-time debug so we know this renderer is actually running
+  if (!drawClawSlashes._loggedOnce) {
+    drawClawSlashes._loggedOnce = true;
+    console.log('[claw] draw pass', {
+      count: slashes.length,
+      imgW: clawImg.width,
+      imgH: clawImg.height
+    });
+  }
+
   const sheetW = clawImg.width;
   const sheetH = clawImg.height;
-  const fw = sheetW / CLAW_FRAMES;
+  const fw = sheetW / CLAW_FRAMES; // expect 4 frames across
   const fh = sheetH;
 
   const cw = ctx.canvas.width;
   const ch = ctx.canvas.height;
 
-  for (const fx of list) {
-    if (!fx || fx.type !== 'clawSlash') continue;
-
-    const dur = fx.dur || 0.35;
+  for (const fx of slashes) {
+    const dur = fx.dur || 0.7;
     const t   = Math.min(1, (fx.t || 0) / dur);
 
     const x = fx.x;
@@ -90,17 +102,17 @@ export function drawClawSlashes(ctx, gs) {
     const sx = frameIdx * fw;
     const sy = 0;
 
-    const scale = fx.scale || 1.0;
+    const scale = fx.scale || 1.4;
     const dstW  = fw * scale;
     const dstH  = fh * scale;
 
     if (!isOnScreen(x - dstW / 2, y - dstH / 2, dstW, dstH, cw, ch)) continue;
 
-    // Simple fade-out as the slash finishes
-    const alpha = 0.2 + 0.8 * (1 - t); // 1.0 → 0.2 over time
+    // Strong alpha at start, fades toward zero
+    const alpha = 1.0 - t;   // 1 → 0 over lifetime
 
     ctx.save();
-    ctx.globalAlpha *= alpha;
+    ctx.globalAlpha = alpha; // set, don't multiply
     ctx.translate(x, y);
     ctx.rotate(fx.angle || 0);
 
@@ -114,4 +126,5 @@ export function drawClawSlashes(ctx, gs) {
     ctx.restore();
   }
 }
+
 
