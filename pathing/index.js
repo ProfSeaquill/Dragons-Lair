@@ -50,10 +50,23 @@ export function spawnAgent(enemy /*, ctx */) {
     ? enemy.cy
     : Number.isFinite(enemy.y) ? Math.floor(enemy.y / tile) : EXIT.y;
 
-  const seed = (enemy.seed ?? enemy.id ?? (Math.random() * 0xFFFFFFFF)) | 0;
+    const seed = (enemy.seed ?? enemy.id ?? (Math.random() * 0xFFFFFFFF)) | 0;
 
-  enemy._fsm = createAgent({ x: sx, y: sy, targetX: EXIT.x, targetY: EXIT.y, seed, nav: enemy.nav });
-    // remember current topology revision to detect mid-wave edits
+  enemy._fsm = createAgent({
+    x: sx,
+    y: sy,
+    targetX: EXIT.x,
+    targetY: EXIT.y,
+    seed,
+    nav: enemy.nav,
+    // NEW: group-follow metadata
+    ownerId:        enemy.id,
+    groupId:        enemy.groupId,
+    followLeaderId: enemy.followLeaderId,
+    independentNav: !!enemy.independentNav,
+  });
+
+  // remember current topology revision to detect mid-wave edits
   enemy._topoSeen = (GameState.topologyVersion | 0);
 
 
