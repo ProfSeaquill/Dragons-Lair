@@ -212,6 +212,7 @@ if (state.canEditMaze(gs)) {
   drawDragonAndMouthFire(ctx, gs);
   drawClawSlashes(ctx, gs);
   drawWingGusts(ctx, gs);
+  drawRoarFx(ctx, gs); 
   // drawHeatShimmer(ctx, gs); // subtle, after dragon + fire for overlay then
 drawFireSplash(ctx, gs);
 
@@ -523,6 +524,49 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
   } 
 }
 
+function drawRoarFx(ctx, gs) {
+  if (!roarReady) return;
+  const effects = gs.effects || [];
+  if (!effects.length) return;
+
+  for (const fx of effects) {
+    if (!fx || fx.type !== 'roarWave') continue;
+
+    const dur = fx.dur || ROAR_DEFAULT_DUR;
+    const t   = Math.max(0, Math.min(dur, fx.t || 0));
+    const progress = dur > 0 ? t / dur : 0;
+
+    // Map 0..1 → frame index 0..(FRAME_COUNT-1)
+    const frame = Math.min(
+      ROAR_FRAME_COUNT - 1,
+      Math.floor(progress * ROAR_FRAME_COUNT)
+    );
+
+    const sx = frame * ROAR_FRAME_W;
+    const sy = 0;
+
+    // World coords are in px already (we set them that way in applyRoar)
+    const size = state.GRID.tile * 2.0; // scaling factor; tweak as needed
+    const half = size / 2;
+
+    ctx.save();
+
+    // Slight fade-out toward the end
+    ctx.globalAlpha = 1 - progress * 0.3;
+
+    // Flip over Y axis around the effect center
+    ctx.translate(fx.x, fx.y);
+    ctx.scale(-1, 1); // mirror horizontally
+    ctx.drawImage(
+      roarImg,
+      sx, sy, ROAR_FRAME_W, ROAR_FRAME_H,
+      -half, -half,
+      size, size
+    );
+
+    ctx.restore();
+  }
+}
 
 function drawFireSplash(ctx, gs) {
   const tsize = state.GRID.tile;
