@@ -5,7 +5,7 @@ import { pathSpawnAgent, pathUpdateAgent, pathRenderOffset, GRID, ENTRY, EXIT, e
 import { isInAttackZone } from './grid/attackzone.js';
 import { updateAttacks } from './pathing/attack.js';
 import { spawnClawSlashEffect } from './combat/upgrades/abilities/claw.js';
-import { spawnWingGustAtDragon } from './combat/upgrades/abilities/wing_gust.js';
+import { spawnWingGustAtDragon, spawnWingGustCorridorFX } from './combat/upgrades/abilities/wing_gust.js';
 import { applyRoar } from './combat/upgrades/abilities/roar.js';
 
 
@@ -2255,19 +2255,52 @@ updateAttacks(gs, dt);
     }
   }
   
+function buildGustPathFromMouthToExit(gs, maxTiles) {
+  const mouth = state.dragonMouthCell(gs);
+  if (!mouth) return null;
 
-    // --- Wing Gust (button request → push away, respect walls)
+  const tileSize = state.GRID.tile || 32;
+  const maxSteps = Math.max(1, maxTiles | 0);
+
+  // Reuse existing BFS helper (respects walls)
+  const { dist, prev } = bfsFrom(gs, mouth.x, mouth.y, maxSteps);
+
+  const exit = state.EXIT; // { x, y }
+  if (!exit) return null;
+
+  // reconstructPath(sPrev, sx, sy, tx, ty) — same usage as in dragonBreathTick
+  const rawPath = reconstructPath(prev, mouth.x, mouth.y, exit.x, exit.y);
+  if (!Array.isArray(rawPath) || rawPath.length < 2) return null;
+
+  // Clamp to maxTiles so gust doesn’t travel farther than its push radius
+  const clamped = rawPath.slice(0, maxSteps + 1);
+
+  // Normalize to simple { x, y } objects in tile coords
+  return clamped.map(seg => ({ x: seg.x, y: seg.y }));
+}
+
+  
+// --- Wing Gust (button request → push away, respect walls)
 if (gs.reqWingGust && gustCooldown <= 0) {
   gs.reqWingGust = false;
   globalThis.Telemetry?.log('ability:use', { key: 'gust' });
 
   const ps = state.getGustStatsTuned(gs);
 
-  // Gameplay push (local helper in combat.js, can see stepIfOpen & markHit)
+  // Gameplay: shove enemies + bombs
   wingGustPush(gs, ps.pushTiles);
 
-  // Visual FX (module in combat/upgrades/abilities/wing_gust.js)
-  spawnWingGustAtDragon(gs);
+  // Visual: build a corridor path from dragon mouth → exit, within push radius
+  const gustPath = buildGustPathFromMouthToExit(gs, ps.pushTiles);
+  if (gustPath && gustPath.length > 1) {
+    spawnWingGustCorridorFX(gs, gustPath, {
+      speedTilesPerSec: 30, // tweak: higher = faster gust
+      tailLen: 8            // tweak: how long the trailing wake is
+    });
+  } else {
+    // Fallback: if no path (weird edge case), at least show center swirl
+    spawnWingGustAtDragon(gs);
+  }
 
   gustCooldown = ps.cd;
 }
