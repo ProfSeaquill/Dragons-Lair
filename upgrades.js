@@ -193,8 +193,8 @@ export const STAT_UPGRADES = [
   { key: 'burn',  title: 'Burn DoT',    base: 22, mult: 1.5, type: 'stat' },
 ];
 
-const ABILITY_MAX_LEVEL = 30;
-const CAP_LEVEL = 30;
+const ABILITY_MAX_LEVEL = 10;
+const CAP_LEVEL = 10;
 
 /** Build live description strings for the stat upgrades using current dragon stats */
 function buildFireDesc(gs) {
