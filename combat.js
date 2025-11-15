@@ -4,6 +4,7 @@ import * as state from './state.js';
 import { pathSpawnAgent, pathUpdateAgent, pathRenderOffset, GRID, ENTRY, EXIT, ensureFreshPathing, pathDespawnAgent } from './state.js';
 import { isInAttackZone } from './grid/attackzone.js';
 import { updateAttacks } from './pathing/attack.js';
+import { spawnClawSlashEffect } from './combat/upgrades/abilities/claw.js';
 
 
 // === Ability cooldown timers (module-local) ===
@@ -2242,14 +2243,7 @@ updateAttacks(gs, dt);
 
             const angle = Math.atan2(ey - dy, ex - dx);
 
-            (gs.effects || (gs.effects = [])).push(
-              acquireEffect('clawSlash', {
-                x: ex,
-                y: ey,
-                angle,
-                dur: 0.4   // very short-lived
-              })
-            );
+            spawnClawSlashEffect(gs, ex, ey, angle);
           }
 
           if (e.hp <= 0) {
