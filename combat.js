@@ -523,16 +523,17 @@ function lerpCap(base, cap, p, {shape='exp', k=3, a=1}={}) {
 
 
 const FLAGS = {
-  kingsguardEvery: bossEvery - 1,        // miniboss cadence
   bossEvery: 5,             // Knight of the Round Table cadence
-  engineerBombTimer: 5,     // seconds until detonation
-  engineerTravelTime: 4.0,   // seconds "digging" underground before popping up
-  engineerBombDmg: 35,       // damage to the dragon on bomb detonation
-  spawnGap: 0.45,          // time between members in a group
-  groupGap: 2.0,           // extra pause between groups
-  groupMin: 6,
+  kingsguardEvery: 1,       // truthy → enable "one wave before each boss"
+  engineerBombTimer: 5,
+  engineerTravelTime: 4.0,
+  engineerBombDmg: 35,
+  spawnGap: 0.45,
+  groupGap: 2.0,
+  groupMin: 4,
   groupMax: 10,
 };
+
 
 // -------- Wave helpers --------
 // Progress gated by unlock (minWave): 0 before unlock; 1 at maxWave
@@ -1472,12 +1473,25 @@ function _apportion(total, sharesMap) {
 // Optional sparse specials (kept out of shares)
 function _cadenceSpecials(wave, cadence, FLAGS) {
   const out = [];
-  const kgEvery = cadence?.kingsguardEvery ?? FLAGS.kingsguardEvery;
+
+  // Boss cadence is still “every N waves”
   const bossEvery = cadence?.bossEvery ?? FLAGS.bossEvery;
-  if (kgEvery && wave % kgEvery === 0) out.push('kingsguard');
-  if (bossEvery && wave % bossEvery === 0) out.push('boss');
+
+  // If truthy, we spawn a kingsguard exactly *one wave before* each boss wave
+  const kgBeforeBoss = cadence?.kingsguardEvery ?? FLAGS.kingsguardEvery;
+
+  if (bossEvery && wave % bossEvery === 0) {
+    out.push('boss');
+  }
+
+  if (kgBeforeBoss && bossEvery && (wave + 1) % bossEvery === 0) {
+    // i.e. waves 4, 9, 14, 19, ... when bossEvery=5
+    out.push('kingsguard');
+  }
+
   return out;
 }
+
 
 // Main builder: reads getCfg(gs).waves { count, mixCurves, mixOptions, cadence }
 function buildWaveListFromCurves(gs, wave, W, FLAGS) {
