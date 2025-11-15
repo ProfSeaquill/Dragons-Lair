@@ -2034,9 +2034,6 @@ if (bombAccum >= 1.0) {
   }
 }
 
-    if (efx.type === 'wingGust') {
-      if (efx.t >= (efx.dur || 1.0)) { gs.effects.splice(i, 1); continue; }
-    }
 
       if (efx.type === 'wingGustCorridor') {
     const path = efx.path || [];
