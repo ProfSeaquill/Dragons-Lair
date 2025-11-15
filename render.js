@@ -526,7 +526,6 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
   } 
 }
 
-function drawRoarFx(ctx, gs) {
   function drawRoarFx(ctx, gs) {
   if (!roarReady) {
     // Only log once to avoid spam
