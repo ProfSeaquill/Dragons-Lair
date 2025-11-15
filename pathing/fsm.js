@@ -401,12 +401,16 @@ function tickFollowPlan(agent) {
 
 function recordGroupJunctionChoice(agent, dir) {
   if (!agent || !dir) return;
-  // Only non-independent leaders record choices:
   if (agent.independentNav) return;
-  if (agent.followLeaderId) return;       // followers don't define the route
 
-  const leaderId = agent.ownerId;
+  // Treat the *group leader* as the unit whose ownerId matches the leader id.
+  // - If followLeaderId is set, that is the leader id.
+  // - If followLeaderId is null, the agent is effectively its own leader.
+  const leaderId = agent.followLeaderId || agent.ownerId;
   if (!leaderId) return;
+
+  // Only let the actual leader write the route table
+  if (agent.ownerId !== leaderId) return;
 
   const gs = GameState;
   if (!gs) return;
@@ -418,11 +422,12 @@ function recordGroupJunctionChoice(agent, dir) {
     gs.groupRoutes.set(leaderId, table);
   }
 
-  const key = (agent.x|0) + ',' + (agent.y|0);
+  const key = (agent.x | 0) + ',' + (agent.y | 0);
   if (!table.has(key)) {
     table.set(key, dir);
   }
 }
+
 
 function lookupGroupJunctionChoice(agent) {
   if (!agent || !agent.followLeaderId) return null;
