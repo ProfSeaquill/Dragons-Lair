@@ -10,7 +10,7 @@ const CLAW_FRAMES      = 4;
 const CLAW_FRAME_SIZE  = 96;
 
 // 👉 Adjust this path to wherever you put the PNG in your project:
-const CLAW_SPRITE_SRC  = 'assets/claw_slash.png';
+const CLAW_SPRITE_SRC  = './assets/claw_slash.png';
 
 const clawImg = new Image();
 let clawReady = false;
