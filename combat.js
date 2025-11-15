@@ -5,7 +5,7 @@ import { pathSpawnAgent, pathUpdateAgent, pathRenderOffset, GRID, ENTRY, EXIT, e
 import { isInAttackZone } from './grid/attackzone.js';
 import { updateAttacks } from './pathing/attack.js';
 import { spawnClawSlashEffect } from './combat/upgrades/abilities/claw.js';
-import { addWingGustEffect } from './combat/upgrades/abilities/wing_gust.js';
+import { wingGustPush, spawnWingGustAtDragon } from './combat/upgrades/abilities/wing_gust.js';
 
 
 // === Ability cooldown timers (module-local) ===
@@ -2268,16 +2268,17 @@ updateAttacks(gs, dt);
   
 
     // --- Wing Gust (button request → push away, respect walls)
-  if (gs.reqWingGust && gustCooldown <= 0) {
+   if (gs.reqWingGust && gustCooldown <= 0) {
     gs.reqWingGust = false;
     globalThis.Telemetry?.log('ability:use', { key: 'gust' });
+
     const ps = state.getGustStatsTuned(gs);
 
-    // Gameplay: push enemies back through tunnels
+    // Gameplay push
     wingGustPush(gs, ps.pushTiles);
 
-    // Visual: spawn a wing gust sprite centered on the dragon
-    addWingGustEffect(gs, acquireEffect);
+    // Visual FX
+    spawnWingGustAtDragon(gs);
 
     gustCooldown = ps.cd;
   }
