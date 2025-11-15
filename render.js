@@ -42,14 +42,16 @@ wingGustImg.src = './assets/wing_gust.png';
  * --------------------------------------------------------- */
 const roarImg = new Image();
 let roarReady = false;
-roarImg.onload = () => { roarReady = true; };
-// TODO: update this path to match where you save the PNG
-roarImg.src = './assets/roar.png';
+roarImg.onload = () => {
+  roarReady = true;
+  console.log('[roar] sprite loaded', roarImg.src, roarImg.width, roarImg.height);
+};
+roarImg.onerror = (e) => {
+  roarReady = false;
+  console.error('[roar] FAILED TO LOAD SPRITE', roarImg.src, e);
+};
+roarImg.src = './assets/roar.png';  // keep whatever path you're using
 
-const ROAR_FRAME_W      = 96;
-const ROAR_FRAME_H      = 96;
-const ROAR_FRAME_COUNT  = 4;
-const ROAR_DEFAULT_DUR  = 0.70; // fallback if fx.dur is missing
 
 /* -----------------------------------------------------------
  * FLAME STRIPS (corridor fire) — optional textures
@@ -525,11 +527,31 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
 }
 
 function drawRoarFx(ctx, gs) {
-  if (!roarReady) return;
-  const effects = gs.effects || [];
-  if (!effects.length) return;
+  function drawRoarFx(ctx, gs) {
+  if (!roarReady) {
+    // Only log once to avoid spam
+    if (!drawRoarFx._noSpriteLogged) {
+      console.warn('[roarFx] roar sprite not ready yet');
+      drawRoarFx._noSpriteLogged = true;
+    }
+    return;
+  }
 
-  for (const fx of effects) {
+  const effects = gs.effects || [];
+  const roarFx = effects.filter(fx => fx && fx.type === 'roarWave');
+
+  if (!roarFx.length) {
+    // Optional: uncomment if you want to see this a lot
+    // console.log('[roarFx] no roarWave effects this frame');
+    return;
+  }
+
+  if (!drawRoarFx._loggedOnce) {
+    drawRoarFx._loggedOnce = true;
+    console.log('[roarFx] drawing', roarFx.length, 'roarWave effect(s)');
+  }
+
+  for (const fx of roarFx) {
     if (!fx || fx.type !== 'roarWave') continue;
 
     const dur = fx.dur || ROAR_DEFAULT_DUR;
