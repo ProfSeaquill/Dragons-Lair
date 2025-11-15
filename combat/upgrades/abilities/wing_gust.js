@@ -28,7 +28,7 @@ export function addWingGustEffect(gs, acquireEffect) {
     x,
     y,
     t: 0,
-    dur: 0.4,      // seconds; tweak for slower/faster gust anim
+    dur: 2.0,      // seconds; tweak for slower/faster gust anim
   });
 
   (gs.effects || (gs.effects = [])).push(fx);
