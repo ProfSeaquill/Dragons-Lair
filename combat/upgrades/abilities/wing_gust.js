@@ -32,38 +32,6 @@ function isOnScreen(x, y, w, h, cw, ch) {
   return !(right < 0 || bottom < 0 || x > cw || y > ch);
 }
 
-// -------------------------------------------------------------
-// (A) OPTIONAL: SIMPLE SWIRL AT DRAGON CENTER
-// -------------------------------------------------------------
-
-export function spawnWingGustAtDragon(gs) {
-  if (!gs) return;
-  const list = gs.effects || (gs.effects = []);
-
-  const tsize = state.GRID.tile || 32;
-  const cells = state.dragonCells(gs);
-  if (!cells || !cells.length) return;
-
-  let sx = 0, sy = 0;
-  for (const c of cells) { sx += c.x; sy += c.y; }
-  const cx = sx / cells.length;
-  const cy = sy / cells.length;
-
-  const x = (cx + 0.5) * tsize;
-  const y = (cy + 0.5) * tsize;
-
-  const fx = {
-    type:  'wingGust',
-    x,
-    y,
-    t:   0,
-    dur: 0.40,
-    scale: 0.5
-  };
-
-  list.push(fx);
-  console.log('[wingGust] spawn(center)', { x, y, effectsLen: list.length });
-}
 
 // -------------------------------------------------------------
 // (B) MAIN: CORRIDOR GUST WAVE
@@ -83,8 +51,8 @@ export function spawnWingGustCorridorFX(gs, tilePath, opts = {}) {
     path: tilePath.map(c => ({ x: c.x, y: c.y })),
     headT: 0,                      // "distance" in tiles traveled along path
     headIdx: 0,                    // integer index into path (updated in combat.js)
-    speedTilesPerSec: opts.speedTilesPerSec ?? 25, // visual speed
-    tailLen: opts.tailLen ?? 8,    // how many tiles behind the head stay visible
+    speedTilesPerSec: opts.speedTilesPerSec ?? 10, // visual speed
+    tailLen: opts.tailLen ?? 3,    // how many tiles behind the head stay visible
     life: 0                        // extra time after reaching the end
   };
 
