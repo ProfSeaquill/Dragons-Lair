@@ -116,6 +116,16 @@ export function drawClawSlashes(ctx, gs) {
     ctx.translate(x, y);
     ctx.rotate(fx.angle || 0);
 
+    // DEBUG: bright marker so we can’t miss it
+ctx.save();
+ctx.globalAlpha = 1;
+ctx.fillStyle = 'magenta';
+ctx.beginPath();
+ctx.arc(0, 0, 10, 0, Math.PI * 2);
+ctx.fill();
+ctx.restore();
+
+
     ctx.drawImage(
       clawImg,
       sx, sy, fw, fh,
