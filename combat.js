@@ -1994,7 +1994,7 @@ if (bombAccum >= 1.0) {
   }
 }
 
-  // 2) Effects array
+// 2) Effects array
 if (!effectsLoopLoggedOnce) {
   effectsLoopLoggedOnce = true;
   console.log('[combat] effects loop running');
@@ -2003,50 +2003,59 @@ if (!effectsLoopLoggedOnce) {
 for (let i = gs.effects.length - 1; i >= 0; i--) {
   const efx = gs.effects[i];
   if (!efx) continue;
+
+  // Advance lifetime
   efx.t = (efx.t || 0) + dt;
-}
 
+  // --- Traveling flame wave along corridor ---
+  if (efx.type === 'flameWave') {
+    const p = efx.path || [];
+    const tsize = state.GRID.tile;
 
-    if (efx.type === 'flameWave') {
-      const p = efx.path || [];
-      const tsize = state.GRID.tile;
+    // Advance head along path by tilesPerSec
+    const tilesPerSec = Math.max(1, efx.tilesPerSec || 10);
+    const advance = tilesPerSec * dt;
+    // accumulate fractional progress in efx._acc
+    efx._acc = (efx._acc || 0) + advance;
+    while (efx._acc >= 1 && efx.headIdx < p.length - 1) {
+      efx.headIdx++;
+      efx._acc -= 1;
 
-      // Advance head along path by tilesPerSec
-      const tilesPerSec = Math.max(1, efx.tilesPerSec || 10);
-      const advance = tilesPerSec * dt;
-      // accumulate fractional progress in efx._acc
-      efx._acc = (efx._acc || 0) + advance;
-      while (efx._acc >= 1 && efx.headIdx < p.length - 1) {
-        efx.headIdx++;
-        efx._acc -= 1;
-
-        // Optional: annotate segment orientation for draw fallback
-        const prev = p[efx.headIdx - 1], cur = p[efx.headIdx];
-        efx._dir = (cur.x !== prev.x) ? 'h' : 'v';
-        if (prev) prev.dir = efx._dir; // so renderer can read seg.dir
-      }
-      if (efx.headIdx >= p.length - 1 || efx.t >= (efx.dur || 0.8)) {
-        gs.effects.splice(i, 1); // done
-        continue;
-      }
+      // Optional: annotate segment orientation for draw fallback
+      const prev = p[efx.headIdx - 1], cur = p[efx.headIdx];
+      efx._dir = (cur.x !== prev.x) ? 'h' : 'v';
+      if (prev) prev.dir = efx._dir; // so renderer can read seg.dir
     }
-
-    if (efx.type === 'fireSplash') {
-      if (efx.t >= (efx.dur || 0.35)) { gs.effects.splice(i, 1); continue; }
+    if (efx.headIdx >= p.length - 1 || efx.t >= (efx.dur || 0.8)) {
+      gs.effects.splice(i, 1); // done
+      continue;
     }
-
-    if (efx.type === 'clawSlash') {
-  const dur = Math.max(0.01, efx.dur || 2.0); // safe floor + longer default
-  if (efx.t >= dur) {
-    gs.effects.splice(i, 1);
-    continue;
   }
-}
 
+  // --- Fire splash (short-lived impact) ---
+  if (efx.type === 'fireSplash') {
+    if (efx.t >= (efx.dur || 0.35)) {
+      gs.effects.splice(i, 1);
+      continue;
+    }
+  }
 
-      if (efx.type === 'wingGustCorridor') {
+  // --- Claw slash sprite ---
+  if (efx.type === 'clawSlash') {
+    const dur = Math.max(0.01, efx.dur || 2.0); // safe floor + longer default
+    if (efx.t >= dur) {
+      gs.effects.splice(i, 1);
+      continue;
+    }
+  }
+
+  // --- Wing gust travelling corridor ---
+  if (efx.type === 'wingGustCorridor') {
     const path = efx.path || [];
-    if (!path.length) { gs.effects.splice(i, 1); continue; }
+    if (!path.length) {
+      gs.effects.splice(i, 1);
+      continue;
+    }
 
     const speed = efx.speedTilesPerSec || 25; // tiles per second
     const maxIdx = path.length - 1;
@@ -2064,28 +2073,33 @@ for (let i = gs.effects.length - 1; i >= 0; i--) {
     }
   }
 
-
-    if (efx.type === 'roarWave') {
-      if (efx.t >= (efx.dur || 0.40)) { gs.effects.splice(i, 1); continue; }
+  // --- Roar wave effect lifetime ---
+  if (efx.type === 'roarWave') {
+    if (efx.t >= (efx.dur || 0.40)) {
+      gs.effects.splice(i, 1);
+      continue;
     }
-    
-if (efx.type === 'tunnel') {
-  // efx follows the burrowed engineer by id
-  const carrier = (gs.enemies || []).find(x => x.id === efx.targetId);
-  if (carrier && carrier.tunneling) {
-    efx.x = carrier.x;
-    efx.y = carrier.y;
-  } else {
-    // Engineer surfaced or no longer exists → kill the effect
-    efx.dead = true;
+  }
+
+  // --- Tunnel effect follows burrowed engineer ---
+  if (efx.type === 'tunnel') {
+    // efx follows the burrowed engineer by id
+    const carrier = (gs.enemies || []).find(x => x.id === efx.targetId);
+    if (carrier && carrier.tunneling) {
+      efx.x = carrier.x;
+      efx.y = carrier.y;
+    } else {
+      // Engineer surfaced or no longer exists → kill the effect
+      efx.dead = true;
+    }
+  }
+
+  // After all type-specific updates, cull dead effects:
+  if (efx.dead) {
+    gs.effects.splice(i, 1);
+    continue;
   }
 }
-
-// After all type-specific updates, cull dead effects:
-if (efx.dead) { gs.effects.splice(i, 1); continue; }
-
-
-  }
 
   // 2) Enemy status (engineer tunneling, burn DoT, deaths, contact/attack)
   const exitCx = state.EXIT.x, exitCy = state.EXIT.y;
