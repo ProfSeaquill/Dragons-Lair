@@ -212,7 +212,7 @@ if (state.canEditMaze(gs)) {
   drawDragonAndMouthFire(ctx, gs);
   drawClawSlashes(ctx, gs);
   drawWingGusts(ctx, gs);
-  // drawRoarFx(ctx, gs); 
+  drawRoarFx(ctx, gs); 
   // drawHeatShimmer(ctx, gs); // subtle, after dragon + fire for overlay then
 drawFireSplash(ctx, gs);
 
