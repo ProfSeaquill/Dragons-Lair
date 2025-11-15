@@ -1722,7 +1722,7 @@ export function previewWaveList(arg) {
 
   // Otherwise, derive the *full* plan from tuning.waves and flatten ALL groups.
   const fakeGs = { ...gsArg, wave };
-  const plan = makePlanDerived(gsArg);
+  const plan = makePlanDerived(fakeGs);
   const out = [];
   for (const G of (plan?.groups || [])) {
     if (Array.isArray(G.__types) && G.__types.length) {
