@@ -29,7 +29,7 @@
     "nav": {
       "epsilonWorse": 0.25,
       "bias": { "bandGain": 1.0 },
-      "tags": [trash]
+      "tags": ["trash"]
     }
   },
   
@@ -46,7 +46,7 @@
     "nav": {
       "epsilonWorse": 0.20,
       "bias": { "bandGain": 1.0 },
-      "tags": [scout]
+      "tags": ["scout"]
     }
   },
   
