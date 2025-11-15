@@ -2278,23 +2278,39 @@ updateAttacks(gs, dt);
   
 function buildGustPathFromMouthToEntry(gs, maxTiles) {
   const mouth = state.dragonMouthCell(gs);
-  if (!mouth) return null;
+  if (!mouth) {
+    console.warn('[gust] no dragon mouth cell');
+    return null;
+  }
 
+  // How far the *visual* should extend
   const maxSteps = Math.max(1, maxTiles | 0);
 
-  // BFS from mouth, respecting walls
-  const { dist, prev } = bfsFrom(gs, mouth.x, mouth.y, maxSteps);
+  // IMPORTANT: let BFS explore the whole corridor, not just maxTiles
+  // so ENTRY is always reachable if a path exists.
+  const bfsRange = 999; // large enough for your map
+  const { dist, prev } = bfsFrom(gs, mouth.x, mouth.y, bfsRange);
 
-  // Use the ENTRY tile as the outward target (toward where enemies come from)
-  const entry = state.ENTRY; // { x, y }
-  if (!entry) return null;
+  // Use ENTRY as the outward target (toward where enemies come from)
+  const entry = state.ENTRY; // or ENTRY, depending on how you expose it
+  if (!entry) {
+    console.warn('[gust] ENTRY tile missing on state');
+    return null;
+  }
 
   const rawPath = reconstructPath(prev, mouth.x, mouth.y, entry.x, entry.y);
-  if (!Array.isArray(rawPath) || rawPath.length < 2) return null;
+  if (!Array.isArray(rawPath) || rawPath.length < 2) {
+    console.warn('[gust] no path mouth→ENTRY found');
+    return null;
+  }
 
+  // Now clamp the *visual* path length so it doesn't extend past gust range.
   const clamped = rawPath.slice(0, maxSteps + 1);
+
+  // Normalize to { x, y } tile coords
   return clamped.map(seg => ({ x: seg.x, y: seg.y }));
 }
+
 
   
 // --- Wing Gust (button request → push away, respect walls)
