@@ -791,9 +791,9 @@ if (typeof e.trailStrength === 'number') {
 function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
   console.debug('[spawn base]', type, state.enemyBase?.(type, gs));
   const e = acquireEnemy(type, gs.wave | 0);
-
-e.id = (++__ENEMY_ID);
-
+  e.id = (++__ENEMY_ID);
+  e.nav = buildEnemyNav(type, gs);
+  
 if (type === 'engineer') {
  e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
  e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
