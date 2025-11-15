@@ -38,6 +38,8 @@ function isOnScreen(x, y, w, h, cw, ch) {
  * - x, y: pixel coordinates
  * - angle: radians (dragon → target)
  */
+// combat/upgrades/abilities/claw.js
+
 export function spawnClawSlashEffect(gs, x, y, angle = 0) {
   const list = gs.effects || (gs.effects = []);
 
@@ -47,13 +49,14 @@ export function spawnClawSlashEffect(gs, x, y, angle = 0) {
     y,
     angle,
     t:     0,
-    dur:   0.45,  // slightly longer for visibility
-    scale: 1.2    // a bit larger slash
+    dur:   0.70,  // longer life so it's clearly visible
+    scale: 1.4    // noticeably bigger than the enemy
   };
-
   list.push(fx);
+  // one-line debug: how many claw effects exist this frame?
   console.log('[claw] spawn', { x, y, angle, effectsLen: list.length });
 }
+
 
 
 /**
