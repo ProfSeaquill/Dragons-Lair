@@ -80,12 +80,10 @@
           "boss": 1,
           "knight": 2
         },
-        "forceLeaderFrom": ["kingsguard", "boss", "knight", "hero"],
+        "forceLeaderFrom": ["kingsguard", "boss", "hero"],
         "independent": ["engineer", "knight"],
         "leaderPlace": {
           "hero": "front",
-          "knight": "front",
-          "engineer": "back",
           "kingsguard": "back",
           "boss": "back",
           "*": "front"
