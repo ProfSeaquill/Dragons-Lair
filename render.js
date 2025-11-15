@@ -35,7 +35,7 @@ const wingGustImg = new Image();
 let wingGustReady = false;
 wingGustImg.onload = () => { wingGustReady = true; };
 // 4 frames horizontally, each 96x96px
-wingGustImg.src = './assets/wing_gust_sprite.png'; // ← update if you named it differently
+wingGustImg.src = './assets/wing_gust.png';
 
 /* -----------------------------------------------------------
  * FLAME STRIPS (corridor fire) — optional textures
