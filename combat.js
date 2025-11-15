@@ -2038,6 +2038,27 @@ if (bombAccum >= 1.0) {
       if (efx.t >= (efx.dur || 1.0)) { gs.effects.splice(i, 1); continue; }
     }
 
+      if (efx.type === 'wingGustCorridor') {
+    const path = efx.path || [];
+    if (!path.length) { gs.effects.splice(i, 1); continue; }
+
+    const speed = efx.speedTilesPerSec || 25; // tiles per second
+    const maxIdx = path.length - 1;
+
+    efx.headT = (efx.headT || 0) + dt * speed;
+    const idx = Math.min(maxIdx, Math.floor(efx.headT));
+    efx.headIdx = idx;
+
+    if (idx >= maxIdx) {
+      efx.life = (efx.life || 0) + dt;
+      if (efx.life > 0.25) {        // hang around for a short moment, then vanish
+        gs.effects.splice(i, 1);
+        continue;
+      }
+    }
+  }
+
+
     if (efx.type === 'roarWave') {
       if (efx.t >= (efx.dur || 0.40)) { gs.effects.splice(i, 1); continue; }
     }
