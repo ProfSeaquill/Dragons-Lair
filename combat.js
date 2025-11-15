@@ -2269,20 +2269,20 @@ updateAttacks(gs, dt);
   
 
     // --- Wing Gust (button request → push away, respect walls)
-   if (gs.reqWingGust && gustCooldown <= 0) {
-    gs.reqWingGust = false;
-    globalThis.Telemetry?.log('ability:use', { key: 'gust' });
+if (gs.reqWingGust && gustCooldown <= 0) {
+  gs.reqWingGust = false;
+  globalThis.Telemetry?.log('ability:use', { key: 'gust' });
 
-    const ps = state.getGustStatsTuned(gs);
+  const ps = state.getGustStatsTuned(gs);
 
-    // Gameplay push
-    wingGustPush(gs, ps.pushTiles);
+  // Gameplay push (local helper in combat.js, can see stepIfOpen & markHit)
+  wingGustPush(gs, ps.pushTiles);
 
-    // Visual FX
-    spawnWingGustAtDragon(gs);
+  // Visual FX (module in combat/upgrades/abilities/wing_gust.js)
+  spawnWingGustAtDragon(gs);
 
-    gustCooldown = ps.cd;
-  }
+  gustCooldown = ps.cd;
+}
 
 
   // --- Roar (button request → stun + fear buffs)
