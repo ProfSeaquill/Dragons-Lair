@@ -80,7 +80,7 @@
     "nav": {
       "epsilonWorse": 0.00,
       "bias": { "bandGain": 2.0 },
-      "tags": ["utility"]
+      "tags": ["scout"]
     }
   },
   
