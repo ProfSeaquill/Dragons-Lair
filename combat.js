@@ -20,6 +20,8 @@ let clawCooldown  = 0;
 // Unique enemy IDs (module-local counter)
 let __ENEMY_ID = 0;
 
+let effectsLoopLoggedOnce = false;
+
 
 // ===== Phase 9: object pools (prevent GC churn) =====
 const ENEMY_POOL = new Map();   // type -> array of recycled enemies
@@ -1992,16 +1994,18 @@ if (bombAccum >= 1.0) {
   }
 }
 
-
   // 2) Effects array
-  if (!combatUpdate._loggedEffectsOnce) {
-    combatUpdate._loggedEffectsOnce = true;
-    console.log('[combat] effects loop running');
-  }
-   
-  for (let i = gs.effects.length - 1; i >= 0; i--) {
-    const efx = gs.effects[i];
-    efx.t = (efx.t || 0) + dt;
+if (!effectsLoopLoggedOnce) {
+  effectsLoopLoggedOnce = true;
+  console.log('[combat] effects loop running');
+}
+
+for (let i = gs.effects.length - 1; i >= 0; i--) {
+  const efx = gs.effects[i];
+  if (!efx) continue;
+  efx.t = (efx.t || 0) + dt;
+}
+
 
     if (efx.type === 'flameWave') {
       const p = efx.path || [];
