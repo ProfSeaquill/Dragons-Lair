@@ -15,7 +15,14 @@ const CLAW_SPRITE_SRC  = './assets/claw_slash.png';
 const clawImg = new Image();
 let clawReady = false;
 
-clawImg.onload = () => { clawReady = true; };
+clawImg.onload = () => {
+  clawReady = true;
+  console.log('[claw] sprite loaded', CLAW_SPRITE_SRC, clawImg.width, clawImg.height);
+};
+clawImg.onerror = (e) => {
+  clawReady = false;
+  console.error('[claw] FAILED TO LOAD SPRITE', CLAW_SPRITE_SRC, e);
+};
 clawImg.src = CLAW_SPRITE_SRC;
 
 // Simple screen culling so we don’t draw off-canvas
@@ -39,9 +46,11 @@ export function spawnClawSlashEffect(gs, x, y, angle = 0) {
     y,
     angle,
     t:     0,
-    dur:   0.35,  // lifetime in seconds (tweaked in effect cull in combat.js)
-    scale: 1.0
+    dur:   0.45,  // lifetime in seconds (tweaked in effect cull in combat.js)
+    scale: 1.2
   });
+  list.push(fx);
+  console.log('[claw] spawn', { x, y, angle, effectsLen: list.length });
 }
 
 /**
