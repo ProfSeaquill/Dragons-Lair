@@ -510,7 +510,7 @@ function initializeSpawnPrevAndCommit(e) {
  * Enemy templates & scaling
  * ========================= */
 // k controls “tempo” (higher = faster early growth). Always reaches cap at p=1.
-const ENEMY_MAX_WAVE = 101;
+const ENEMY_MAX_WAVE = 51;
 function waveP(w, max = ENEMY_MAX_WAVE) { return Math.min(1, Math.max(0, (Math.max(1, w|0)-1) / (max-1))); }
 function exp01(p, k=3){ 
   const d=1-Math.exp(-k); 
@@ -523,8 +523,8 @@ function lerpCap(base, cap, p, {shape='exp', k=3, a=1}={}) {
 
 
 const FLAGS = {
-  kingsguardEvery: 5,        // miniboss cadence
-  bossEvery: 10,             // Knight of the Round Table cadence
+  kingsguardEvery: bossEvery - 1,        // miniboss cadence
+  bossEvery: 5,             // Knight of the Round Table cadence
   engineerBombTimer: 5,     // seconds until detonation
   engineerTravelTime: 4.0,   // seconds "digging" underground before popping up
   engineerBombDmg: 35,       // damage to the dragon on bomb detonation
@@ -851,15 +851,21 @@ e.fromXY = [e.cx, e.cy];
   e.dirY = v[1];
 }
 
-  // Each member follows the current group leader (set after the first spawn)
+    // Each member follows the current group leader (set after the first spawn)
   e.followLeaderId = currentLeaderId ?? null;
-  // Independent types roam on their own (don’t tail the leader)
-try {
-  const { independentSet } = getGroupPolicy(gs, FLAGS);
-  if (independentSet && independentSet.has(e.type)) {
-    e.followLeaderId = null;
+  e.independentNav = false;
+
+  // Independent types (scouts / bosses / minibosses, etc.) roam on their own
+  // and do NOT participate in group-follow behavior.
+  try {
+    const { independentSet } = getGroupPolicy(gs, FLAGS);
+    if (independentSet && independentSet.has(e.type)) {
+      e.followLeaderId = null;
+      e.independentNav = true;
+    }
+  } catch (_) {
+    // safe if helper not yet loaded
   }
-} catch (_) { /* safe if helper not yet loaded */ }
 
   
   initializeSpawnPrevAndCommit(e);
