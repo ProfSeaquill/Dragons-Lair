@@ -108,10 +108,13 @@ function abilityCostFor(gs, key, level) {
 
 /** Safe getters for current levels in both stores */
 function statLvl(gs, key) {
-  return Math.max(0, (gs.upgrades?.[key] | 0));
+  const raw = (gs.upgrades?.[key] | 0);
+  return Math.min(CAP_LEVEL, Math.max(0, raw));
 }
+
 function abilityLvl(gs, key) {
-  return Math.max(0, (gs.upgrades?.[key] | 0));
+  const raw = (gs.upgrades?.[key] | 0);
+  return Math.min(ABILITY_MAX_LEVEL, Math.max(0, raw));
 }
 
 // ---- helper to build the live rows the UI expects
