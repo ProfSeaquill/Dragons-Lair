@@ -5,7 +5,7 @@ import { pathSpawnAgent, pathUpdateAgent, pathRenderOffset, GRID, ENTRY, EXIT, e
 import { isInAttackZone } from './grid/attackzone.js';
 import { updateAttacks } from './pathing/attack.js';
 import { spawnClawSlashEffect } from './combat/upgrades/abilities/claw.js';
-import { wingGustPush, spawnWingGustAtDragon } from './combat/upgrades/abilities/wing_gust.js';
+import { spawnWingGustAtDragon } from './combat/upgrades/abilities/wing_gust.js';
 
 
 // === Ability cooldown timers (module-local) ===
