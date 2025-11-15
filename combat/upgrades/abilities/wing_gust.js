@@ -1,23 +1,17 @@
 // combat/upgrades/abilities/wing_gust.js
 //
-// Handles the Wing Gust gameplay push + visual FX using a 4-frame 96×96 spritesheet.
-// Effect type: "wingGust"
-// Usage:
-//   wingGustPush(gs, tiles);              // gameplay: shove enemies & bombs
-//   spawnWingGustAtDragon(gs);            // visual: spawn gust FX at dragon
-//   drawWingGusts(ctx, gs);               // render from render.js
+// Visual FX for the Wing Gust ability using a 4-frame 96×96 spritesheet.
+// Types:
+//   - "wingGust"          → simple swirl at dragon (optional, currently unused)
+//   - "wingGustCorridor"  → traveling gust along a tunnel path
 
 import * as state from '../../../state.js';
-
-// -------------------------------------------------------------
-// SPRITE LOADING
-// -------------------------------------------------------------
 
 const WING_FRAMES     = 4;
 const WING_FRAME_SIZE = 96;
 
-// 👉 Adjust this path to match your actual PNG location
-const WING_SPRITE_SRC = './assets/wing_gust.png';
+// 👉 Adjust this path to your actual PNG:
+const WING_SPRITE_SRC = './assets/wing_gust_sprite.png';
 
 const wingImg = new Image();
 let wingReady = false;
@@ -32,7 +26,6 @@ wingImg.onerror = (e) => {
 };
 wingImg.src = WING_SPRITE_SRC;
 
-// Simple culling helper (duplicated from claw.js for isolation)
 function isOnScreen(x, y, w, h, cw, ch) {
   const right  = x + w;
   const bottom = y + h;
@@ -40,117 +33,7 @@ function isOnScreen(x, y, w, h, cw, ch) {
 }
 
 // -------------------------------------------------------------
-// GAMEPLAY: PUSH ENEMIES & BOMBS
-// -------------------------------------------------------------
-
-// You can now delete the old wingGustPush definition from combat.js
-export function wingGustPush(gs, tiles) {
-  const t = state.GRID.tile || 32;
-
-  // Dragon anchor (centroid of dragon footprint)
-  const cells = state.dragonCells(gs);
-  if (!cells || !cells.length) return;
-
-  let sx = 0, sy = 0;
-  for (const c of cells) { sx += c.x; sy += c.y; }
-  const ax = Math.round(sx / Math.max(1, cells.length));
-  const ay = Math.round(sy / Math.max(1, cells.length));
-
-  // ---- Enemies ----
-  for (const e of gs.enemies || []) {
-    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    if (e.type === 'engineer' && e.tunneling) continue; // don’t shove burrowers
-
-    const dx0 = e.cx - ax, dy0 = e.cy - ay;
-    const distMan = Math.abs(dx0) + Math.abs(dy0);
-    if (distMan <= 0) continue;                 // sitting inside dragon; ignore
-    if (distMan > tiles) continue;              // out of gust radius
-
-    const pushSteps = Math.max(0, tiles - distMan);
-    if (pushSteps === 0) continue;
-
-    // Pick outward direction along dominant axis (away from anchor)
-    let dir;
-    if (Math.abs(dx0) >= Math.abs(dy0)) dir = (dx0 >= 0) ? 'E' : 'W';
-    else                                dir = (dy0 >= 0) ? 'S' : 'N';
-
-    // Walk step-by-step, respecting walls and not shoving into dragon
-    let nx = e.cx, ny = e.cy;
-    for (let k = 0; k < pushSteps; k++) {
-      const step = stepIfOpen(gs, nx, ny, dir);
-      if (step.x === nx && step.y === ny) break;            // blocked
-      if (state.isDragonCell(step.x, step.y, gs)) break;    // don't push into dragon
-      nx = step.x; ny = step.y;
-    }
-
-    if (nx === e.cx && ny === e.cy) continue;
-
-    // Build the per-tile path we just traced
-    const path = [{ x: e.cx, y: e.cy }];
-    {
-      const dx0b = e.cx - ax, dy0b = e.cy - ay;
-      const dir2 = (Math.abs(dx0b) >= Math.abs(dy0b))
-        ? (dx0b >= 0 ? 'E' : 'W')
-        : (dy0b >= 0 ? 'S' : 'N');
-      let px = e.cx, py = e.cy;
-      const steps = Math.max(1, Math.abs(nx - e.cx) + Math.abs(ny - e.cy));
-      for (let k = 0; k < steps; k++) {
-        const step = stepIfOpen(gs, px, py, dir2);
-        if (step.x === px && step.y === py) break;
-        if (state.isDragonCell(step.x, step.y, gs)) break;
-        px = step.x; py = step.y;
-        path.push({ x: px, y: py });
-        if (px === nx && py === ny) break;
-      }
-    }
-
-    if (path.length >= 2) {
-      e.kb = {
-        path,
-        seg: 0,
-        acc: 0,
-        durPerTile: 0.08,            // tune: 0.06 snappier, 0.12 chunkier
-        tsize: state.GRID.tile || 32
-      };
-      e.isAttacking     = false;
-      e.pausedForAttack = false;
-      e.commitDir       = null;
-      e.commitSteps     = 0;
-      e.commitTilesLeft = 0;
-
-      // tiny tick just to show HP bar flash
-      markHit(e, 0.0001);
-    }
-  }
-
-  // ---- Bombs (optional, same falloff & walls) ----
-  for (const fx of (gs.effects || [])) {
-    if (fx.type !== 'bomb') continue;
-    let cx = Math.floor(fx.x / t);
-    let cy = Math.floor(fx.y / t);
-
-    const dx0 = cx - ax, dy0 = cy - ay;
-    const distMan = Math.abs(dx0) + Math.abs(dy0);
-    if (distMan <= 0 || distMan > tiles) continue;
-
-    const pushSteps = Math.max(0, tiles - distMan);
-    let dir;
-    if (Math.abs(dx0) >= Math.abs(dy0)) dir = (dx0 >= 0) ? 'E' : 'W';
-    else                                dir = (dy0 >= 0) ? 'S' : 'N';
-
-    for (let k = 0; k < pushSteps; k++) {
-      const step = stepIfOpen(gs, cx, cy, dir);
-      if (step.x === cx && step.y === cy) break;
-      cx = step.x; cy = step.y;
-    }
-
-    fx.x = (cx + 0.5) * t;
-    fx.y = (cy + 0.5) * t;
-  }
-}
-
-// -------------------------------------------------------------
-// VISUAL: SPAWN FX AT DRAGON CENTER
+// (A) OPTIONAL: SIMPLE SWIRL AT DRAGON CENTER
 // -------------------------------------------------------------
 
 export function spawnWingGustAtDragon(gs) {
@@ -179,11 +62,42 @@ export function spawnWingGustAtDragon(gs) {
   };
 
   list.push(fx);
-  console.log('[wingGust] spawn', { x, y, effectsLen: list.length });
+  console.log('[wingGust] spawn(center)', { x, y, effectsLen: list.length });
 }
 
 // -------------------------------------------------------------
-// RENDERING
+// (B) MAIN: CORRIDOR GUST WAVE
+// -------------------------------------------------------------
+
+/**
+ * Spawn a traveling corridor gust along a tile path.
+ * - tilePath: array of { x, y } in TILE COORDS (not pixels)
+ */
+export function spawnWingGustCorridorFX(gs, tilePath, opts = {}) {
+  if (!gs || !Array.isArray(tilePath) || tilePath.length === 0) return;
+  const list = gs.effects || (gs.effects = []);
+
+  const fx = {
+    type: 'wingGustCorridor',
+    // path stays in tile coords; renderer will convert to pixels
+    path: tilePath.map(c => ({ x: c.x, y: c.y })),
+    headT: 0,                      // "distance" in tiles traveled along path
+    headIdx: 0,                    // integer index into path (updated in combat.js)
+    speedTilesPerSec: opts.speedTilesPerSec ?? 25, // visual speed
+    tailLen: opts.tailLen ?? 8,    // how many tiles behind the head stay visible
+    life: 0                        // extra time after reaching the end
+  };
+
+  list.push(fx);
+  console.log('[wingGust] spawn corridor', {
+    len: fx.path.length,
+    speedTilesPerSec: fx.speedTilesPerSec,
+    tailLen: fx.tailLen
+  });
+}
+
+// -------------------------------------------------------------
+// RENDERING FOR BOTH TYPES
 // -------------------------------------------------------------
 
 export function drawWingGusts(ctx, gs) {
@@ -191,55 +105,96 @@ export function drawWingGusts(ctx, gs) {
   const list = gs.effects || [];
   if (!Array.isArray(list) || !list.length) return;
 
-  const gusts = list.filter(fx => fx && fx.type === 'wingGust');
-  if (!gusts.length) return;
+  const cw = ctx.canvas.width;
+  const ch = ctx.canvas.height;
+  const tsize = state.GRID.tile || 32;
 
-  if (!drawWingGusts._loggedOnce) {
-    drawWingGusts._loggedOnce = true;
-    console.log('[wingGust] draw pass', {
-      count: gusts.length,
-      imgW: wingImg.width,
-      imgH: wingImg.height
-    });
-  }
-
-  const sheetW = wingImg.width;
-  const sheetH = wingImg.height;
+  const sheetW = wingImg.width || (WING_FRAMES * WING_FRAME_SIZE);
+  const sheetH = wingImg.height || WING_FRAME_SIZE;
   const fw = sheetW / WING_FRAMES;
   const fh = sheetH;
 
-  const cw = ctx.canvas.width;
-  const ch = ctx.canvas.height;
+  let firstLog = false;
 
-  for (const fx of gusts) {
+  // --- Simple center swirls, if any (currently optional) ---
+  const centerGusts = list.filter(fx => fx && fx.type === 'wingGust');
+  for (const fx of centerGusts) {
     const dur = fx.dur || 0.4;
     const t   = Math.min(1, (fx.t || 0) / dur);
-
-    const x = fx.x;
-    const y = fx.y;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-
     const frameIdx = Math.min(WING_FRAMES - 1, Math.floor(t * WING_FRAMES));
     const sx = frameIdx * fw;
     const sy = 0;
-
     const scale = fx.scale || 1.0;
     const dstW  = fw * scale;
     const dstH  = fh * scale;
-
+    const x = fx.x;
+    const y = fx.y;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
     if (!isOnScreen(x - dstW / 2, y - dstH / 2, dstW, dstH, cw, ch)) continue;
 
-    const alpha = 1.0 - t;   // fades out
+    const alpha = 1.0 - t;
 
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.translate(x, y);
     ctx.drawImage(
       wingImg,
       sx, sy, fw, fh,
-      -dstW / 2, -dstH / 2,
+      x - dstW / 2, y - dstH / 2,
       dstW, dstH
     );
     ctx.restore();
+  }
+
+  // --- Corridor gust waves ---
+  const waves = list.filter(fx => fx && fx.type === 'wingGustCorridor');
+  if (waves.length && !drawWingGusts._loggedOnce) {
+    drawWingGusts._loggedOnce = true;
+    console.log('[wingGust] draw corridor waves', { count: waves.length });
+    firstLog = true;
+  }
+
+  for (const fx of waves) {
+    const path = fx.path || [];
+    if (!path.length) continue;
+
+    const headIdx = fx.headIdx ?? 0;
+    const tailLen = fx.tailLen ?? 8;
+    const start = Math.max(0, headIdx - tailLen);
+    const end   = Math.min(path.length - 1, headIdx);
+
+    for (let i = start; i <= end; i++) {
+      const c = path[i];
+      if (!c) continue;
+
+      const px = (c.x + 0.5) * tsize;
+      const py = (c.y + 0.5) * tsize;
+
+      const age   = end - i;             // 0 = freshest (at head)
+      const alpha = Math.max(0, 1 - age / tailLen);
+
+      // For a bit of variation, use frame 0 at the head and higher frames toward the tail
+      const frameIdx = Math.min(
+        WING_FRAMES - 1,
+        Math.floor((age / Math.max(1, tailLen)) * WING_FRAMES)
+      );
+      const sx = frameIdx * fw;
+      const sy = 0;
+
+      const scale = 1.0; // tweak if you want bigger gust tiles
+      const dstW  = fw * scale;
+      const dstH  = fh * scale;
+
+      if (!isOnScreen(px - dstW / 2, py - dstH / 2, dstW, dstH, cw, ch)) continue;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(
+        wingImg,
+        sx, sy, fw, fh,
+        px - dstW / 2, py - dstH / 2,
+        dstW, dstH
+      );
+      ctx.restore();
+    }
   }
 }
