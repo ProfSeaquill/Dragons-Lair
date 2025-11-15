@@ -447,23 +447,6 @@ export function wingGustPush(gs, tiles) {
   }
 }
 
-// Roar: stun + temporary behavior buff within range
-function roarAffect(gs, rs) {
-  const a = state.dragonAnchor(gs);
-    for (const e of gs.enemies) {
-    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    if (e.type === 'engineer' && e.tunneling) continue; // ← roar doesn’t affect burrowers
-    const distMan = Math.abs(e.cx - a.cx) + Math.abs(e.cy - a.cy);
-    if (distMan <= rs.rangeTiles) {
-      e.stunLeft     = Math.max(e.stunLeft || 0, rs.stunSec);
-      e.roarBuffLeft = Math.max(e.roarBuffLeft || 0, rs.buffDur);
-      e.senseBuff    = rs.senseMult;
-      e.herdingBuff  = rs.herdingMult;
-      markHit(e, 0.0001);
-    }
-  }
-  // TODO (FX): roar shockwave ring / screen shake
-}
 
 // Stomp: low dmg + slow in a big radius
 function stompAffect(gs, ss) {
@@ -2055,6 +2038,10 @@ if (bombAccum >= 1.0) {
       if (efx.t >= (efx.dur || 1.0)) { gs.effects.splice(i, 1); continue; }
     }
 
+    if (efx.type === 'roarWave') {
+      if (efx.t >= (efx.dur || 0.40)) { gs.effects.splice(i, 1); continue; }
+    }
+    
 if (efx.type === 'tunnel') {
   // efx follows the burrowed engineer by id
   const carrier = (gs.enemies || []).find(x => x.id === efx.targetId);
@@ -2286,14 +2273,15 @@ if (gs.reqWingGust && gustCooldown <= 0) {
 }
 
 
-  // --- Roar (button request → stun + fear buffs)
+    // --- Roar (button request → stun + fear buffs)
   if (gs.reqRoar && roarCooldown <= 0) {
     gs.reqRoar = false;
     globalThis.Telemetry?.log('ability:use', { key: 'roar' });
     const rs = state.getRoarStatsTuned(gs);
-    roarAffect(gs, rs);
+    applyRoar(gs, rs);      // moved to combat/upgrades/abilities/roar.js
     roarCooldown = rs.cd;
   }
+
 
   // --- Stomp (button request → AoE slow + chip dmg)
   if (gs.reqStomp && stompCooldown <= 0) {
