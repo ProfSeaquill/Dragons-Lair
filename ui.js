@@ -123,17 +123,24 @@ export function refreshHUD() {
   if (hud.bones && bonesNow !== _lastBones) { _lastBones = bonesNow; hud.bones.textContent = String(bonesNow); }
   if (hud.hp && hpStrNow !== _lastHPStr)    { _lastHPStr = hpStrNow; hud.hp.textContent = hpStrNow; }
   if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.checked = autoNow; }
-  if (hud.speed && speedNow !== _lastSpeed) { _lastSpeed = speedNow; hud.speed.textContent = `${speedNow}× Speed`;
 
-  if (gs.cfgLoaded && (gs.wave | 0) !== _lastPreviewWave) {
-    _lastPreviewWave = gs.wave | 0;
+  // 🔧 Fix: close the speed block here so preview & heal/grid are NOT gated on speed changes
+  if (hud.speed && speedNow !== _lastSpeed) {
+    _lastSpeed = speedNow;
+    hud.speed.textContent = `${speedNow}× Speed`;
+  }
+
+  // 🔁 Wave preview should depend on wave, not speed
+  if (gs.cfgLoaded && (waveNow !== _lastPreviewWave)) {
+    _lastPreviewWave = waveNow;
     renderNextWavePreview().catch(err => console.warn('preview failed:', err));
   }
 
+  // These should run every refresh (or at least not be tied to speed)
   renderHealButtonLabel(gs);
   renderGridHelp(gs);
 }
-}
+
 // ---------- Buttons / HUD wiring ----------
 function wireButtons() {
   if (hud.healBtn) {
