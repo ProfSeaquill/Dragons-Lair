@@ -4,7 +4,7 @@
 
 import * as state from './state.js';
 import { drawClawSlashes } from './combat/upgrades/abilities/claw.js';
-
+import { drawWingGusts }   from './combat/upgrades/abilities/wing_gust.js';
 
 // DEBUG toggle
 window.__logFlame = window.__logFlame ?? false; // default quiet; toggle in console if needed
@@ -197,7 +197,7 @@ if (state.canEditMaze(gs)) {
   drawEnemies(ctx, gs);
   drawDragonAndMouthFire(ctx, gs);
   drawClawSlashes(ctx, gs);
-  drawWingGustFX(ctx, gs);
+  drawWingGusts(ctx, gs);
   // drawHeatShimmer(ctx, gs); // subtle, after dragon + fire for overlay then
 drawFireSplash(ctx, gs);
 
@@ -546,34 +546,6 @@ function drawFireSplash(ctx, gs) {
   }
 }
 
-function drawWingGustFX(ctx, gs) {
-  if (!wingGustReady || !Array.isArray(gs.effects)) return;
-
-  const frameW = 96;
-  const frameH = 96;
-  const frames = 4;
-
-  for (const fx of gs.effects) {
-    if (fx.type !== 'wingGust') continue;
-
-    const progress = Math.min(1, (fx.t || 0) / Math.max(0.001, fx.dur || 0.4));
-    const frame = Math.min(frames - 1, Math.floor(progress * frames));
-
-    const sx = frame * frameW;
-    const sy = 0;
-
-    const dx = fx.x - frameW / 2;
-    const dy = fx.y - frameH / 2;
-
-    if (!isOnScreen(dx, dy, frameW, frameH, ctx.canvas.width, ctx.canvas.height)) continue;
-
-    ctx.drawImage(
-      wingGustImg,
-      sx, sy, frameW, frameH,
-      dx, dy, frameW, frameH
-    );
-  }
-}
 
 /**
  * Subtle heat shimmer near the dragon’s mouth.
