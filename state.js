@@ -236,7 +236,7 @@ function approachMin(base, min, level, k = 0.07) {
 }
 
 // ==== Finite-horizon (finish exactly at L = 30) ====
-const MAX_UPGRADE_LVL = 30;
+const MAX_UPGRADE_LVL = 10;
 
 function levelProgress(level, max = MAX_UPGRADE_LVL) {
   const L = Math.max(0, level|0);
