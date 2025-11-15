@@ -38,6 +38,20 @@ wingGustImg.onload = () => { wingGustReady = true; };
 wingGustImg.src = './assets/wing_gust.png';
 
 /* -----------------------------------------------------------
+ * ROAR WAVE SPRITE SHEET (4× frames, 96×96 each, 1 row)
+ * --------------------------------------------------------- */
+const roarImg = new Image();
+let roarReady = false;
+roarImg.onload = () => { roarReady = true; };
+// TODO: update this path to match where you save the PNG
+roarImg.src = './assets/roar.png';
+
+const ROAR_FRAME_W      = 96;
+const ROAR_FRAME_H      = 96;
+const ROAR_FRAME_COUNT  = 4;
+const ROAR_DEFAULT_DUR  = 0.70; // fallback if fx.dur is missing
+
+/* -----------------------------------------------------------
  * FLAME STRIPS (corridor fire) — optional textures
  * --------------------------------------------------------- */
 const fireStripH = new Image();
