@@ -2276,27 +2276,23 @@ updateAttacks(gs, dt);
     }
   }
   
-function buildGustPathFromMouthToExit(gs, maxTiles) {
+function buildGustPathFromMouthToEntry(gs, maxTiles) {
   const mouth = state.dragonMouthCell(gs);
   if (!mouth) return null;
 
-  const tileSize = state.GRID.tile || 32;
   const maxSteps = Math.max(1, maxTiles | 0);
 
-  // Reuse existing BFS helper (respects walls)
+  // BFS from mouth, respecting walls
   const { dist, prev } = bfsFrom(gs, mouth.x, mouth.y, maxSteps);
 
-  const exit = state.EXIT; // { x, y }
-  if (!exit) return null;
+  // Use the ENTRY tile as the outward target (toward where enemies come from)
+  const entry = state.ENTRY; // { x, y }
+  if (!entry) return null;
 
-  // reconstructPath(sPrev, sx, sy, tx, ty) — same usage as in dragonBreathTick
-  const rawPath = reconstructPath(prev, mouth.x, mouth.y, exit.x, exit.y);
+  const rawPath = reconstructPath(prev, mouth.x, mouth.y, entry.x, entry.y);
   if (!Array.isArray(rawPath) || rawPath.length < 2) return null;
 
-  // Clamp to maxTiles so gust doesn’t travel farther than its push radius
   const clamped = rawPath.slice(0, maxSteps + 1);
-
-  // Normalize to simple { x, y } objects in tile coords
   return clamped.map(seg => ({ x: seg.x, y: seg.y }));
 }
 
@@ -2311,20 +2307,21 @@ if (gs.reqWingGust && gustCooldown <= 0) {
   // Gameplay: shove enemies + bombs
   wingGustPush(gs, ps.pushTiles);
 
-  // Visual: build a corridor path from dragon mouth → exit, within push radius
-  const gustPath = buildGustPathFromMouthToExit(gs, ps.pushTiles);
+  // Visual: build a corridor path from dragon mouth → ENTRY, within push radius
+  const gustPath = buildGustPathFromMouthToEntry(gs, ps.pushTiles);
   if (gustPath && gustPath.length > 1) {
     spawnWingGustCorridorFX(gs, gustPath, {
-      speedTilesPerSec: 30, // tweak: higher = faster gust
-      tailLen: 8            // tweak: how long the trailing wake is
+      speedTilesPerSec: 10,  // higher = faster gust
+      tailLen: 4      // how long the trailing wake is
     });
   } else {
-    // Fallback: if no path (weird edge case), at least show center swirl
-    spawnWingGustAtDragon(gs);
+    // optional: if no path, still show a center swirl
+    // spawnWingGustAtDragon(gs);
   }
 
   gustCooldown = ps.cd;
 }
+
 
 
     // --- Roar (button request → stun + fear buffs)
