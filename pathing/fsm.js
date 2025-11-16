@@ -319,12 +319,15 @@ function applyGroupFollowStep(agent) {
   const table = gs.groupRoutes.get(agent.followLeaderId);
   if (!table) return false;
 
-  const key = (agent.x|0) + ',' + (agent.y|0);
+  // 🔁 Use TILE coords, not pixel coords
+  const tx = agent.cx | 0;
+  const ty = agent.cy | 0;
+  const key = tx + ',' + ty;
   const dir = table.get(key);
   if (!dir) return false;
 
   // Only follow if that exit is still valid
-  if (!edgeOpen(gs, agent.x|0, agent.y|0, dir)) {
+  if (!edgeOpen(gs, tx, ty, dir)) {
     // Tile topology changed since leader passed; let normal FSM handle it.
     return false;
   }
@@ -332,18 +335,20 @@ function applyGroupFollowStep(agent) {
   // Commit a breadcrumb that only has this exit
   pushBreadcrumb(
     agent.mem,
-    agent.x, agent.y,
+    tx, ty,
     agent.prevDir,
     [dir],
-    agent.x, agent.y
+    tx, ty
   );
 
-  const [nx, ny] = stepFrom(agent.x, agent.y, dir);
-  if (nx === agent.x && ny === agent.y) return false; // defensive
+  const [nx, ny] = stepFrom(tx, ty, dir);
+  if (nx === tx && ny === ty) return false; // defensive
 
   moveOne(agent, nx, ny);
 
-  if (agent.x === agent.gx && agent.y === agent.gy) {
+  // REACHED check also uses tile coords
+  if ((agent.cx | 0) === (agent.gx | 0) &&
+      (agent.cy | 0) === (agent.gy | 0)) {
     agent.state = S.REACHED;
   } else {
     agent.state = S.WALK_STRAIGHT;
@@ -351,14 +356,17 @@ function applyGroupFollowStep(agent) {
 
   if (NAV().logChoices) {
     console.debug('[DECISION] group-follow(global)', {
-      at: { x: agent.x, y: agent.y },
+      at: { x: tx, y: ty },
       dir,
-      leaderId: agent.followLeaderId
+      leaderId: agent.followLeaderId,
+      id: agent.id,
+      state: agent.state
     });
   }
 
   return true;
 }
+
 
 
 export function tick(agent) {
