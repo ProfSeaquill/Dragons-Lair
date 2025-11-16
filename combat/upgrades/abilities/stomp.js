@@ -38,14 +38,10 @@ export function applyStomp(gs, ss, acquireEffect, markHit) {
     acquireEffect('stompRipple', {
       x: px,
       y: py,
-      // How long the ring travels (seconds)
-      dur: 0.7,
-      // How far the wave front gets; a bit beyond the slow radius looks nice
-      maxRadius: ss.rangeTiles * tsize * 1.6,
-      // Maximum pixel offset at the active ring
-      strengthPx: tsize * 0.45,
-      // Thickness of the “active” band (in pixels)
-      bandWidthPx: tsize * 0.9,
+      dur: 0.7,  // How long the ring travels (seconds). Lower = faster
+      maxRadius: ss.rangeTiles * tsize * 10.0, // How far the wave front gets; a bit beyond the slow radius looks nice
+      strengthPx: tsize * 0.45,  // Maximum pixel offset at the active ring 
+      bandWidthPx: tsize * 0.9,  // Thickness of the “active” band (in pixels)
     })
   );
 }
