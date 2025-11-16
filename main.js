@@ -397,17 +397,28 @@ function boot() {
   // Bind all CustomEvent listeners before UI wiring
   window.addEventListener('dl-start-wave', () => { startWave(); });
 
-  // --- FSM time bootstrap (exists even before the first frame) ---
-{
-  const nowSec = (typeof performance !== 'undefined' && performance.now)
-    ? performance.now() / 1000
-    : Date.now() / 1000;
-  const gs = state.GameState;
-  if (!gs.time) gs.time = { now: nowSec, dt: 0, t: 0, since: (t) => nowSec - t };
-  if (typeof gs.timeScale !== 'number' || gs.timeScale <= 0) {
-    gs.timeScale = 1;
-  gs.tileSize = state.GRID.tile;
-}
+    // --- FSM time bootstrap (exists even before the first frame) ---
+  {
+    const nowSec = (typeof performance !== 'undefined' && performance.now)
+      ? performance.now() / 1000
+      : Date.now() / 1000;
+
+    const gs = state.GameState;
+
+    if (!gs.time) {
+      gs.time = {
+        now:   nowSec,
+        dt:    0,
+        t:     0,
+        since: (t) => nowSec - t,
+      };
+    }
+    if (typeof gs.timeScale !== 'number' || gs.timeScale <= 0) {
+      gs.timeScale = 1;
+    }
+    gs.tileSize = state.GRID.tile;
+  }
+
 
 
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
@@ -537,7 +548,6 @@ state.applyConfig(state.GameState, cfg);
       const startBtn3 = document.getElementById('startBtn');
       if (startBtn3) startBtn3.disabled = false;
     });
-}
 }       
 
 function startWave() {
