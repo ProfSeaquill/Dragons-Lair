@@ -38,7 +38,7 @@ wingGustImg.onload = () => { wingGustReady = true; };
 wingGustImg.src = './assets/wing_gust.png';
 
 /* -----------------------------------------------------------
- * ROAR WAVE SPRITE SHEET (4× frames, 96×96 each, 1 row)
+ * ROAR WAVE SPRITE SHEET (4× frames, 1 row)
  * --------------------------------------------------------- */
 const roarImg = new Image();
 let roarReady = false;
@@ -53,13 +53,13 @@ roarImg.onerror = (e) => {
   console.error('[roar] FAILED TO LOAD SPRITE', roarImg.src, e);
 };
 
-// 👇 Make sure this matches your actual file name/path
+// 👇 keep your existing path if it's correct
 roarImg.src = './assets/roar.png';
 
-const ROAR_FRAME_W     = 96;
-const ROAR_FRAME_H     = 96;
+// We *only* fix the frame count. Frame W/H are derived from the actual image size.
 const ROAR_FRAME_COUNT = 4;
-const ROAR_DEFAULT_DUR = 0.70; // or whatever you prefer
+const ROAR_DEFAULT_DUR = 0.70;
+
 
 
 /* -----------------------------------------------------------
@@ -537,7 +537,6 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
 
   function drawRoarFx(ctx, gs) {
   if (!roarReady) {
-    // Only log once to avoid spam
     if (!drawRoarFx._noSpriteLogged) {
       console.warn('[roarFx] roar sprite not ready yet');
       drawRoarFx._noSpriteLogged = true;
@@ -547,51 +546,53 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
 
   const effects = gs.effects || [];
   const roarFx = effects.filter(fx => fx && fx.type === 'roarWave');
+  if (!roarFx.length) return;
 
-  if (!roarFx.length) {
-    // Optional: uncomment if you want to see this a lot
-    // console.log('[roarFx] no roarWave effects this frame');
-    return;
-  }
+  const sheetW = roarImg.width || 1;
+  const sheetH = roarImg.height || 1;
+
+  const fw = sheetW / ROAR_FRAME_COUNT; // width of one frame
+  const fh = sheetH;                    // single row
+
+  const tsize = state.GRID.tile || 32;
 
   if (!drawRoarFx._loggedOnce) {
     drawRoarFx._loggedOnce = true;
-    console.log('[roarFx] drawing', roarFx.length, 'roarWave effect(s)');
+    console.log('[roarFx] using frame size', { fw, fh, sheetW, sheetH });
   }
 
   for (const fx of roarFx) {
-    if (!fx || fx.type !== 'roarWave') continue;
-
     const dur = fx.dur || ROAR_DEFAULT_DUR;
     const t   = Math.max(0, Math.min(dur, fx.t || 0));
     const progress = dur > 0 ? t / dur : 0;
 
-    // Map 0..1 → frame index 0..(FRAME_COUNT-1)
     const frame = Math.min(
       ROAR_FRAME_COUNT - 1,
       Math.floor(progress * ROAR_FRAME_COUNT)
     );
 
-    const sx = frame * ROAR_FRAME_W;
+    const sx = frame * fw;
     const sy = 0;
 
-    // World coords are in px already (we set them that way in applyRoar)
-    const size = state.GRID.tile * 2.0; // scaling factor; tweak as needed
-    const half = size / 2;
+    const x = fx.x;
+    const y = fx.y;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+    // How big on screen? 2 tiles wide is a good starting point
+    const dstW = tsize * 2.0;
+    const dstH = dstW * (fh / fw); // preserve aspect ratio
 
     ctx.save();
-
-    // Slight fade-out toward the end
     ctx.globalAlpha = 1 - progress * 0.3;
 
-    // Flip over Y axis around the effect center
-    ctx.translate(fx.x, fx.y);
-    ctx.scale(-1, 1); // mirror horizontally
+    // Flip horizontally so it "points" the right way, centered at (x, y)
+    ctx.translate(x, y);
+    ctx.scale(-1, 1);
     ctx.drawImage(
       roarImg,
-      sx, sy, ROAR_FRAME_W, ROAR_FRAME_H,
-      -half, -half,
-      size, size
+      sx, sy, fw, fh,           // source frame
+      -dstW / 2, -dstH / 2,     // destination (centered)
+      dstW, dstH
     );
 
     ctx.restore();
