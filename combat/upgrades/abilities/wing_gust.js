@@ -101,7 +101,7 @@ export function drawWingGusts(ctx, gs) {
     if (!isOnScreen(x - dstW / 2, y - dstH / 2, dstW, dstH, cw, ch)) continue;
 
     const alphaBase = Math.max(0, 1 - age / tailLen);
-    const alpha = alphaBase * 0.6; // 60% as opaque overall
+    const alpha = alphaBase * 0.1; // 60% as opaque overall
 
 
     ctx.save();
