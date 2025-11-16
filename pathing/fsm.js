@@ -626,8 +626,21 @@ function tickDecision(agent) {
   }
   // ---- end downhill block ----
 
+  // Prefer unexplored exits at junctions:
+  //   - Look at *forward* options only (no pure back edge)
+  //   - Among those, keep only edges we haven't traversed yet
+  const mem = ensureMem(agent.mem);
+  const unexploredForwardOpts = forwardOptsOnly.filter(o => {
+    const [nx, ny] = stepFrom(agent.x, agent.y, o.side);
+    return !isEdgeExplored(mem, agent.x, agent.y, nx, ny);
+  });
+
+  // If any unexplored forward exits exist, only consider those at this junction.
+  // Otherwise, fall back to all forward exits (and eventually open exits).
+  const junctionOpts = unexploredForwardOpts.length ? unexploredForwardOpts : forwardOptsOnly;
+
   // Score exits (gentle band bias), highest first
-  const scoredBase = atJunction ? forwardOptsOnly : openOpts;
+  const scoredBase = atJunction ? junctionOpts : openOpts;
   const scored = scoredBase
     .map(o => scoreDir(agent, GameState, agent.x, agent.y, o.side, agent.prevDir))
     .sort((a,b) => b.score - a.score);
