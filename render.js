@@ -545,16 +545,10 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
 
   const sheetW = roarImg.width || 1;
   const sheetH = roarImg.height || 1;
-
-  const fw = sheetW / ROAR_FRAME_COUNT; // width of one frame
+  const fw = sheetW / ROAR_FRAME_COUNT; // 4 frames across
   const fh = sheetH;                    // single row
 
   const tsize = state.GRID.tile || 32;
-
-  if (!drawRoarFx._loggedOnce) {
-    drawRoarFx._loggedOnce = true;
-    console.log('[roarFx] using frame size', { fw, fh, sheetW, sheetH });
-  }
 
   // --- Anchor: dragon mouth (fallback to anchor if needed) ---
   const mouth  = state.dragonMouthCell ? state.dragonMouthCell(gs) : null;
@@ -565,6 +559,13 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
 
   const anchorX = (anchor.x + 0.5) * tsize;
   const anchorY = (anchor.y - offsetTiles) * tsize;
+
+  if (!drawRoarFx._loggedOnce) {
+    drawRoarFx._loggedOnce = true;
+    console.log('[roarFx] using frame size & anchor', {
+      fw, fh, sheetW, sheetH, anchorX, anchorY
+    });
+  }
 
   for (const fx of roarFx) {
     const dur = fx.dur || ROAR_DEFAULT_DUR;
@@ -579,30 +580,25 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
     const sx = frame * fw;
     const sy = 0;
 
-    const x = fx.x;
-    const y = fx.y;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-
-    // How big on screen? 2 tiles wide is a good starting point
-    const dstW = tsize * 2.0;
-    const dstH = dstW * (fh / fw); // preserve aspect ratio
+    const dstW = tsize * sizeTiles;
+    const dstH = dstW * (fh / fw); // keep aspect ratio
 
     ctx.save();
     ctx.globalAlpha = 1 - progress * 0.3;
 
-    // Flip horizontally so it "points" the right way, centered at (x, y)
-    ctx.translate(x, y);
+    // Draw centered over the dragon’s head, flipped horizontally
+    ctx.translate(anchorX, anchorY);
     ctx.scale(-1, 1);
     ctx.drawImage(
       roarImg,
-      sx, sy, fw, fh,           // source frame
-      -dstW / 2, -dstH / 2,     // destination (centered)
+      sx, sy, fw, fh,
+      -dstW / 2, -dstH / 2,
       dstW, dstH
     );
-
     ctx.restore();
   }
 }
+
 
 function drawFireSplash(ctx, gs) {
   const tsize = state.GRID.tile;
