@@ -81,7 +81,7 @@ const lighting = initLighting(outCanvas, logicalW, logicalH);
 const TorchLights = new Map(); // enemyId -> { x,y, r, color, initialized, waveTag, px,py }
 
 function torchColorFor(e) { return [1.00, 0.86, 0.58]; } // keep your look
-function torchRadius(t)  { return t * 0.85; }
+function torchRadius(t)  { return t * 0.65; }
 
 function getOrMakeTorch(e, gs, t) {
   let L = TorchLights.get(e.id);
@@ -93,8 +93,11 @@ function getOrMakeTorch(e, gs, t) {
 }
 
 // Treat enemies as “just spawned” if we first see them recently.
-// Prefer e.tBorn if you set it on spawn; fallback to first-seen timestamp here.
 const __firstSeen = new Map(); // id -> ms timestamp
+
+// Expose for combat.js clean-up (releaseEnemy)
+globalThis.TorchLights = TorchLights;
+globalThis.__firstSeen = __firstSeen;
 
 function markFirstSeen(e) {
   if (!__firstSeen.has(e.id)) __firstSeen.set(e.id, performance.now());
