@@ -327,14 +327,44 @@ function frame(now) {
   
   });
 
-  // 3) build lights & present via WebGL
-  // computeTorchLights already slices to 16; no need to slice again
+    // 3) build lights & present via WebGL
   const lights = computeTorchLights(state.GameState);
   const ambient = 0.58; // lower values = brighter map
+
+  // --- NEW: stomp ripple descriptor → WebGL ---
+  let ripple = null;
+  {
+    const arr = state.GameState.effects || [];
+    // Scan from the end so the newest stompRipple wins
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const fx = arr[i];
+      if (!fx || fx.type !== 'stompRipple') continue;
+      const dur = fx.dur || 0.7;
+      const t   = fx.t || 0;
+      const progress = dur > 0 ? Math.max(0, Math.min(1, t / dur)) : 0;
+
+      ripple = {
+        active: true,
+        x: fx.x || 0,
+        y: fx.y || 0,
+        progress,
+        maxRadius: fx.maxRadius || ((state.GRID.tile || 32) * 6),
+        strengthPx: fx.strengthPx ?? ((state.GRID.tile || 32) * 0.45),
+        bandWidthPx: fx.bandWidthPx ?? ((state.GRID.tile || 32) * 0.9),
+      };
+      break;
+    }
+  }
+
+  if (typeof lighting.setRipple === 'function') {
+    lighting.setRipple(ripple);
+  }
+
   lighting.render(sceneCanvas, lights, ambient);
 
   requestAnimationFrame(frame);
 }
+
 
 
 // Fires very early (you already dispatch this inside boot())
@@ -680,7 +710,7 @@ function update(dt) {
  {
   const arr = gs.effects || [];
   for (const fx of arr) {
-    if (!fx || fx.type === 'flameWave') continue;     // handled earlier
+    if (!fx || fx.type === 'flameWave' || fx.type === 'stompRipple') continue;
 
     // ⛔ Do NOT auto-expire these; they are lifetime-managed elsewhere
     if (fx.type === 'tunnel' || fx.type === 'bomb') continue;
