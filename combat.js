@@ -7,6 +7,8 @@ import { updateAttacks } from './pathing/attack.js';
 import { spawnClawSlashEffect } from './combat/upgrades/abilities/claw.js';
 import { spawnWingGustCorridorFX } from './combat/upgrades/abilities/wing_gust.js';
 import { applyRoar } from './combat/upgrades/abilities/roar.js';
+import { applyStomp } from './combat/upgrades/abilities/stomp.js';
+
 
 
 // === Ability cooldown timers (module-local) ===
@@ -449,22 +451,6 @@ export function wingGustPush(gs, tiles) {
   }
 }
 
-
-// Stomp: low dmg + slow in a big radius
-function stompAffect(gs, ss) {
-  const a = state.dragonAnchor(gs);
-  for (const e of gs.enemies) {
-    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    const distMan = Math.abs(e.cx - a.cx) + Math.abs(e.cy - a.cy);
-    if (distMan <= ss.rangeTiles) {
-      e.hp -= ss.dmg;
-      markHit(e, ss.dmg);
-      e.slowLeft = Math.max(e.slowLeft || 0, ss.slowSec);
-      e.slowMult = Math.min(e.slowMult || 1, ss.slowMult); // strongest slow wins
-    }
-  }
-  // TODO (FX): cracks/dust ring
-}
 
 
 // --- Spawn helper: give freshly-spawned enemies a "previous cell" (if available)
@@ -2094,6 +2080,15 @@ for (let i = gs.effects.length - 1; i >= 0; i--) {
     }
   }
 
+  // Stomp ripple: simple lifetime based on t/dur (managed here; shader just reads)
+    if (efx.type === 'stompRipple') {
+      if (efx.dur == null) efx.dur = 0.7;
+      if (efx.t >= efx.dur) {
+        gs.effects.splice(i, 1);
+        continue;
+      }
+    }
+  
   // After all type-specific updates, cull dead effects:
   if (efx.dead) {
     gs.effects.splice(i, 1);
@@ -2370,14 +2365,18 @@ if (gs.reqWingGust && gustCooldown <= 0) {
   }
 
 
-  // --- Stomp (button request → AoE slow + chip dmg)
+   // --- Stomp (button request → AoE slow + chip dmg)
   if (gs.reqStomp && stompCooldown <= 0) {
     gs.reqStomp = false;
     globalThis.Telemetry?.log('ability:use', { key: 'stomp' });
     const ss = state.getStompStatsTuned(gs);
-    stompAffect(gs, ss);
+
+    // Ability module handles gameplay + ripple spawn
+    applyStomp(gs, ss, acquireEffect, markHit);
+
     stompCooldown = ss.cd;
   }
+
 
 // 4) Dragon breath (with shield rule)
 if (enemies.length > 0) {
