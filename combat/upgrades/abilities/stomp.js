@@ -32,7 +32,13 @@ export function applyStomp(gs, ss, acquireEffect, markHit) {
   const px = (a.cx + 0.5) * tsize;
   const py = (a.cy + 0.5) * tsize;
 
-  const arr = gs.effects || (gs.effects = []);
+  // --- Visual: stomp ground ripple, centered at dragon anchor in pixel space ---
+  if (typeof acquireEffect !== 'function') return;
+
+  const tsize = state.GRID?.tile || 32;
+
+  const px = (a.cx + 0.5) * tsize;
+  const py = (a.cy + 0.5) * tsize;
 
   arr.push(
     acquireEffect('stompRipple', {
