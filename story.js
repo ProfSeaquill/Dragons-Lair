@@ -59,8 +59,8 @@ export function getOffscreenSynopsis() {
 
 // Dragon identity + reveal cadence
 const DRAGON = {
-  canonicalName: 'Caerdrake', // pick one; you can change anytime
-  titles: ['The Last Ember', 'Winged General', 'Pendragon’s Shadow'],
+  canonicalName: 'Cargarax', // pick one; you can change anytime
+  titles: ['The Last Ember', 'The Calamity from the Clouds', 'Pendragon’s Shadow', 'Car', 'The Hearth of Camelot'],
   // Reveal beats:
   nameRevealedAt: 20,   // Gawain (Lv. 20)
   titlesRevealedAt: 10, // Kay (Lv. 10)
