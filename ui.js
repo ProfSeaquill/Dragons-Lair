@@ -82,6 +82,17 @@ function ensureDialogueLayer() {
   dlgBox.style.boxShadow = '0 0 18px rgba(0,0,0,0.65)';
   dlgBox.style.cursor = 'pointer';
 
+  // Fixed size box + text wrapping
+  dlgBox.style.width = '420px';        // pick a fixed width you like
+  dlgBox.style.height = '140px';       // fixed height so it stops growing
+  dlgBox.style.display = 'flex';
+  dlgBox.style.alignItems = 'flex-start';
+  dlgBox.style.justifyContent = 'flex-start';
+  dlgBox.style.boxSizing = 'border-box';
+  dlgBox.style.overflow = 'hidden';    // or 'auto' if you’d prefer a scrollbar
+  dlgBox.style.wordWrap = 'break-word';
+  dlgBox.style.lineHeight = '1.3';
+  
   dlgSpeaker = document.createElement('div');
   dlgSpeaker.style.fontWeight = '600';
   dlgSpeaker.style.marginBottom = '4px';
