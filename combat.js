@@ -2017,7 +2017,7 @@ if (bombAccum >= 1.0) {
           // center the blast where the bomb was
           x: fx.x || ((bx + 0.5) * tsize),
           y: fx.y || ((by + 0.5) * tsize),
-          dur: 0.35,          // ~⅓ second flash
+          dur: 1.5,          // ~⅓ second flash
           rTiles: R           // reuse your logical radius (2 tiles)
         })
       );
