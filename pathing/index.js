@@ -124,10 +124,19 @@ export function updateAgent(enemy, dtSec = ((GameState && GameState.dtSec) || 1/
     }
   }
 
+    // --- pacing with status effects (stomp slow, etc.) ---
+  const baseTilesPerSec =
+    (enemy.speedTilesPerSec ?? enemy.speedTiles ?? enemy.tilesPerSec ?? 1.0);
 
-  // --- pacing unchanged ---
-  const tilesPerSec = (enemy.speedTilesPerSec ?? enemy.speedTiles ?? enemy.tilesPerSec ?? 1.0);
-  const stepPeriod = 1 / Math.max(0.001, tilesPerSec);
+  // Slow from stomp: while slowLeft > 0, apply slowMult (<= 1).
+  const slowMult =
+    (enemy.slowLeft > 0 && typeof enemy.slowMult === 'number')
+      ? Math.max(0, enemy.slowMult)
+      : 1.0;
+
+  const tilesPerSec = baseTilesPerSec * slowMult;
+  const stepPeriod  = 1 / Math.max(0.001, tilesPerSec);
+
 
   const tile = GRID.tile || 32;
 
