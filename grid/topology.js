@@ -125,19 +125,42 @@ export function isCorridorJunction(x, y, prevDir) {
   // Need heading to define “forward” vs “side”
   if (!prevDir) return false;
 
-  // Look at the tile we came FROM (one step opposite prevDir)
+  // The tile we came FROM (one step opposite prevDir)
   const [px, py] = __stepFrom(x, y, OPP[prevDir]);
 
-  // We came out of a corridor (straight continuation, no side branches) …
+  // 1) We must have come out of a corridor (straight only, no side forks)
   const prev = __continuations_at(px, py, prevDir);
   const cameFromCorridor = (prev.straightCont >= 1) && (prev.sideCont === 0);
+  if (!cameFromCorridor) return false;
 
-  // … and NOW there’s at least one side branch at the current tile.
-  const cur = __continuations_at(x, y, prevDir);
-  const forkHere = (cur.sideCont >= 1);
+  // 2) At the current tile, require:
+  //    - at least TWO forward exits (excluding back) → true choice point
+  //    - at least ONE *side* branch whose corridor run length >= FORK_MIN_RUN
+  const opts = neighbors4(x, y);
+  const back = OPP[prevDir];
 
-  return cameFromCorridor && forkHere;
+  let forwardCount = 0;
+  let longSideBranches = 0;
+
+  for (const o of opts) {
+    if (o.side === back) continue;      // ignore the edge we came from
+    forwardCount++;
+
+    // Only treat non-straight exits as "side branches"
+    if (o.side !== prevDir) {
+      const runLen = __corridorRunLenFrom(o.x, o.y, o.side, FORK_MIN_RUN);
+      if (runLen >= FORK_MIN_RUN) {
+        longSideBranches++;
+      }
+    }
+  }
+
+  // Junction iff:
+  //  - there is a choice (≥2 forward exits)
+  //  - and at least one side branch is a real corridor (run ≥ FORK_MIN_RUN)
+  return (forwardCount >= 2) && (longSideBranches >= 1);
 }
+
 
 export function isJunction(x, y, prevDir) {
   return isCorridorJunction(x, y, prevDir);
