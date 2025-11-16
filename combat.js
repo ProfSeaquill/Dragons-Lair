@@ -502,7 +502,7 @@ const FLAGS = {
   kingsguardEvery: 1,       // truthy → enable "one wave before each boss"
   engineerBombTimer: 5,
   engineerTravelTime: 4.0,
-  engineerBombDmg: 35,
+  engineerBombDmg: 25,
   spawnGap: 0.45,
   groupGap: 2.0,
   groupMin: 4,
