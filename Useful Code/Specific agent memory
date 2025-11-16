@@ -1,0 +1,37 @@
+// Probe 3: dump nav/memory info for a specific agent id
+window.dumpNavFor = function (agentId) {
+  const gs = window.GameState;
+  if (!gs || !Array.isArray(gs.enemies)) {
+    console.warn('No GameState.enemies visible');
+    return;
+  }
+  const e = gs.enemies.find(en => en.id === agentId || en._id === agentId);
+  if (!e) {
+    console.warn('No enemy found with id', agentId);
+    return;
+  }
+  const fsm = e._fsm;
+  if (!fsm) {
+    console.warn('Enemy has no _fsm attached', e);
+    return;
+  }
+  const mem = fsm.mem || {};
+  const stack = mem.stack || [];
+
+  console.log('[DUMP NAV] agent', agentId, {
+    pos: { cx: e.cx | 0, cy: e.cy | 0 },
+    state: fsm.state,
+    prevDir: fsm.prevDir,
+    stackDepth: stack.length,
+    totalEdges: mem.edges ? mem.edges.size : undefined,
+  });
+
+  console.log('  Top 5 breadcrumbs (oldest→newest):');
+  console.table(stack.slice(-5));
+
+  if (mem.edges) {
+    console.log('  Sample of explored edges:');
+    const sample = Array.from(mem.edges).slice(-10);
+    console.table(sample.map(k => ({ edge: k })));
+  }
+};
