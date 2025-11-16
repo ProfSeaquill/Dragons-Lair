@@ -556,12 +556,23 @@ state.applyConfig(state.GameState, cfg);
 }       
 
 // --- Narrative helper (story.js integration) ---
-// lines: Array<{ speaker, text, mood?, sfx?, speed? }>
+// lines: Array<{ speaker, text, mood?, portrait?, sfx?, speed? }>
 function showDialogue(lines) {
   if (!Array.isArray(lines) || lines.length === 0) {
     return Promise.resolve();
   }
 
+  // Prefer dedicated UI-layer dialogue if available
+  if (UI && typeof UI.showDialogue === 'function') {
+    try {
+      const p = UI.showDialogue(lines);
+      if (p && typeof p.then === 'function') return p;
+    } catch (err) {
+      console.warn('[story] UI.showDialogue failed, falling back to HUD banner', err);
+    }
+  }
+
+  // Fallback: simple HUD banner messages (non-blocking)
   for (const line of lines) {
     const speaker = line.speaker || '';
     const prefix =
@@ -570,13 +581,12 @@ function showDialogue(lines) {
         : speaker
           ? `${speaker}: `
           : '';
-
     UI.tell?.(prefix + line.text);
   }
 
-  // Stub: resolve immediately. Later you can make this wait on a real textbox.
   return Promise.resolve();
 }
+
 
 async function startWave() {
   if (!state.GameState.cfgLoaded) return; // don’t start waves before tuning exists
