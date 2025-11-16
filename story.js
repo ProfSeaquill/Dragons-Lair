@@ -91,8 +91,8 @@ const MOOD = {
 // Optional SFX/typing speed hints for your typewriter effect
 const TYPE = {
   short: { sfx: 'blip', speed: 28 },
-  normal: { sfx: 'blip', speed: 22 },
-  slow: { sfx: 'blip', speed: 16 },
+  normal: { sfx: 'blip', speed: 30 },
+  slow: { sfx: 'blip', speed: 25 },
 };
 
 // =========================
