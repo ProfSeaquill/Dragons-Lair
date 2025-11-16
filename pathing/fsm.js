@@ -307,67 +307,6 @@ function heurToGoal(agent, x = agent.x, y = agent.y) {
   return Math.abs(x - gx) + Math.abs(y - gy);
 }
 
-function applyGroupFollowStep(agent) {
-  // Only followers (not independent units, not the leader itself)
-  if (!agent || agent.independentNav) return false;
-  if (!agent.followLeaderId) return false;
-  if (agent.ownerId === agent.followLeaderId) return false; // leader
-
-  const gs = GameState;
-  if (!gs || !gs.groupRoutes) return false;
-
-  const table = gs.groupRoutes.get(agent.followLeaderId);
-  if (!table) return false;
-
-  // 🔁 Use TILE coords, not pixel coords
-  const tx = agent.cx | 0;
-  const ty = agent.cy | 0;
-  const key = tx + ',' + ty;
-  const dir = table.get(key);
-  if (!dir) return false;
-
-  // Only follow if that exit is still valid
-  if (!edgeOpen(gs, tx, ty, dir)) {
-    // Tile topology changed since leader passed; let normal FSM handle it.
-    return false;
-  }
-
-  // Commit a breadcrumb that only has this exit
-  pushBreadcrumb(
-    agent.mem,
-    tx, ty,
-    agent.prevDir,
-    [dir],
-    tx, ty
-  );
-
-  const [nx, ny] = stepFrom(tx, ty, dir);
-  if (nx === tx && ny === ty) return false; // defensive
-
-  moveOne(agent, nx, ny);
-
-  // REACHED check also uses tile coords
-  if ((agent.cx | 0) === (agent.gx | 0) &&
-      (agent.cy | 0) === (agent.gy | 0)) {
-    agent.state = S.REACHED;
-  } else {
-    agent.state = S.WALK_STRAIGHT;
-  }
-
-  if (NAV().logChoices) {
-    console.debug('[DECISION] group-follow(global)', {
-      at: { x: tx, y: ty },
-      dir,
-      leaderId: agent.followLeaderId,
-      id: agent.id,
-      state: agent.state
-    });
-  }
-
-  return true;
-}
-
-
 
 export function tick(agent) {
   const tv = GameState.topologyVersion | 0;
@@ -383,13 +322,6 @@ if (agent._seenTopoVer !== tv) {
     agent.state = S.STOPPED;
     return agent.state;
     }
-
-  // 🔒 Global group-follow override:
-  // If this agent is a follower standing on a tile where the leader
-  // has already committed a direction, force it to take that same exit.
-  if (applyGroupFollowStep(agent)) {
-    return agent.state;
-  }
   
   switch (agent.state) {
     case S.WALK_STRAIGHT: return tickWalkStraight(agent);
