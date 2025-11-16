@@ -244,6 +244,16 @@ export function createAgent({
   return agent;
 }
 
+function oppositeDir(dir) {
+  switch (dir) {
+    case "N": return "S";
+    case "S": return "N";
+    case "E": return "W";
+    case "W": return "E";
+    default:  return null;
+  }
+}
+
 
 /** Move a single tile to (nx,ny), updating direction & memory edge marks. */
 function moveOne(agent, nx, ny) {
@@ -500,12 +510,13 @@ if (groupDir && openOpts.length > 0) {
   if (allowed && edgeOpen(GameState, agent.x, agent.y, groupDir)) {
     // Keep breadcrumb stack coherent: record only this exit as taken
     pushBreadcrumb(
-      agent.mem,
-      agent.x, agent.y,
-      agent.prevDir,
-      [groupDir],
-      agent.x, agent.y
-    );
+  agent.mem,
+  agent.x, agent.y,
+  oppositeDir(agent.prevDir),
+  [groupDir],
+  agent.x, agent.y
+);
+
 
     const [nx, ny] = stepFrom(agent.x, agent.y, groupDir);
     moveOne(agent, nx, ny);
@@ -593,12 +604,13 @@ for (const o of openOpts) {
 
   // Push breadcrumb so backtracking works; then (if ε) force the chosen on the crumb
   const { chosenDir: sticky } = pushBreadcrumb(
-    agent.mem,
-    agent.x, agent.y,
-    agent.prevDir,
-    scored.map(s => s.dir),
-    agent.x, agent.y
-  );
+  agent.mem,
+  agent.x, agent.y,
+  oppositeDir(agent.prevDir),
+  scored.map(s => s.dir),
+  agent.x, agent.y
+);
+
 
   // If memory chose something else but ε picked a different dir, override the crumb's chosen
   if (epsilonActive && chosenDir && sticky && sticky !== chosenDir) {
