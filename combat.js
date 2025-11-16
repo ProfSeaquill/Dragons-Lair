@@ -1145,14 +1145,15 @@ if (fullPath.length >= 2) {
   const heroIdxOnPath = fullPath.findIndex(p => heroTiles.has(tkey(p.x, p.y)));
 
   // Determine how far the breath travels this shot:
-  //  - cannot exceed range
-  //  - if a hero is closer, stop at the hero tile (no direct past it)
-  const farthestIdxInRange = Math.min(fullPath.length - 1, maxTiles - 1);
-  const stopIdx = Math.min(
-    farthestIdxInRange,
-    (heroIdxOnPath >= 0 ? heroIdxOnPath : Infinity)
-  );
-  const travelPath = fullPath.slice(0, stopIdx + 1);
+//  - cannot exceed range (in tiles from the mouth)
+//  - if a hero is closer, stop at the hero tile (no direct past it)
+const maxIdxFromRange = Math.min(fullPath.length - 1, maxTiles);
+const stopIdx = Math.min(
+  maxIdxFromRange,
+  (heroIdxOnPath >= 0 ? heroIdxOnPath : Infinity)
+);
+const travelPath = fullPath.slice(0, stopIdx + 1);
+
 
   // If we truncated, make sure the head still has a dir
 if (travelPath.length >= 2 && !travelPath[travelPath.length - 1].dir) {
