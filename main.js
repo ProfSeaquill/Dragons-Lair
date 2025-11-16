@@ -81,7 +81,7 @@ const lighting = initLighting(outCanvas, logicalW, logicalH);
 const TorchLights = new Map(); // enemyId -> { x,y, r, color, initialized, waveTag, px,py }
 
 function torchColorFor(e) { return [1.00, 0.86, 0.58]; } // keep your look
-function torchRadius(t)  { return t * 0.65; }
+function torchRadius(t)  { return t * 0.80; }
 
 function getOrMakeTorch(e, gs, t) {
   let L = TorchLights.get(e.id);
