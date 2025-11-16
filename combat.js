@@ -2215,6 +2215,10 @@ if (e.type === 'engineer' && e.tunneling) {
     e.tileX = e.cx;
     e.tileY = e.cy;
 
+    // 🔧 Re-seed the navigator at the new location so it doesn't snap back to pre-tunnel tiles
+    try { pathDespawnAgent?.(e); } catch (_) {}
+    // (On the next update, pathUpdateAgent will spawn a fresh FSM at e.cx/e.cy.)
+    
     // Exit tunneling; hand control back to FSM
     e.tunneling = false;
     e.updateByCombat = false;
