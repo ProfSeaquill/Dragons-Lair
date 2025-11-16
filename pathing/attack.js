@@ -53,10 +53,28 @@ e._suppressSep = false;
 
     if (!canAttack) continue;
 
-    e._atkCD = (e._atkCD ?? 0) - dt;
+        e._atkCD = (e._atkCD ?? 0) - dt;
     if (e._atkCD <= 0) {
-      const rate = Math.max(0.05, e.rate || 0.5);
-      const dmg  = Math.max(1, e.damage | 0);
+      // Raw configured rate (attacks per second)
+      const rawRate = Number(e.rate) || 0.5;
+
+      // Global hard cap so nothing can machine-gun the dragon.
+      // Tune this to taste: 1 = very slow, 2 = moderate, 3 = pretty fast.
+      const MAX_RATE = 2;
+
+      const rate = Math.min(
+        Math.max(0.05, rawRate), // sane lower bound
+        MAX_RATE                 // hard upper bound
+      );
+
+      const dmg = Math.max(1, e.damage | 0);
+
+      // Optional: one-time debug to see who got clamped
+      if (rawRate > MAX_RATE && !e._rateClampedLogged) {
+        console.log('[attack clamp]', e.id, e.type, { rawRate, rate });
+        e._rateClampedLogged = true;
+      }
+
       gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - dmg);
       e._atkCD = 1 / rate;
       _markHit(e, dmg);
