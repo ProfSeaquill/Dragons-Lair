@@ -561,6 +561,15 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
     console.log('[roarFx] using frame size', { fw, fh, sheetW, sheetH });
   }
 
+  // --- Anchor: dragon mouth (fallback to anchor if needed) ---
+  const mouth = state.dragonMouthCell
+    ? state.dragonMouthCell(gs)
+    : null;
+  const anchor = mouth || state.dragonAnchor(gs);
+
+  const anchorX = (anchor.x + 0.5) * tsize;
+  const anchorY = (anchor.y - 0.8) * tsize; // tweak offset above head
+
   for (const fx of roarFx) {
     const dur = fx.dur || ROAR_DEFAULT_DUR;
     const t   = Math.max(0, Math.min(dur, fx.t || 0));
