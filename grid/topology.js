@@ -2,7 +2,7 @@
 import * as state from '../state.js';
 
 const OPP = { N:'S', S:'N', E:'W', W:'E' };
-const FORK_MIN_RUN = 2; // side branch must stay a corridor for at least 2 tiles
+const FORK_MIN_RUN = 1; // how long a side branch must stay a corridor for
 const useGS = (maybeGs) => (maybeGs && maybeGs.GRID ? maybeGs : state.GameState);
 
 // ───────────────── Registry (shim) ─────────────────
