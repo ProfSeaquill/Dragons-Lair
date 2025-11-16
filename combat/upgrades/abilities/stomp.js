@@ -44,5 +44,13 @@ export function applyStomp(gs, ss, acquireEffect, markHit) {
       bandWidthPx: tsize * 1.00,  // Thickness of the “active” band (in pixels)
     })
   );
-}
 
+ // --- Camera shake trigger ---
+  const SHAKE_DURATION = 0.25;   // seconds
+  const SHAKE_STRENGTH = 6;      // pixels at start
+
+  if (!gs.cameraShake) gs.cameraShake = {};
+  gs.cameraShake.timeLeft = SHAKE_DURATION;
+  gs.cameraShake.duration = SHAKE_DURATION;
+  gs.cameraShake.strength = SHAKE_STRENGTH;
+} 
