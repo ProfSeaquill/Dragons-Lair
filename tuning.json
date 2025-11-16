@@ -11,7 +11,7 @@
       "dmgPerHit": 10,
       "burnDps": 0,
       "fireRate": 0.5,
-      "burnDuration": 2,
+      "burnDuration": 3,
 
       "enemyHpScaleAtMax": 100,
       "efficiencyAtMax": 0.9,
