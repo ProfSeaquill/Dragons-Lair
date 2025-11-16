@@ -1997,7 +1997,7 @@ if (bombAccum >= 1.0) {
       const tsize = state.GRID.tile || 32;
       const bx = Math.floor((fx.x || 0) / tsize);
       const by = Math.floor((fx.y || 0) / tsize);
-      const R = 2;                       // radius in tiles (Manhattan)
+      const R = 1;                       // radius in tiles (Manhattan)
 
       // 1) Damage enemies in radius
       for (let j = gs.enemies.length - 1; j >= 0; j--) {
