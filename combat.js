@@ -306,44 +306,65 @@ function tickKnockback(e, dt) {
     kb.acc -= kb.durPerTile;
     kb.seg++;
     const node = kb.path[kb.seg];
-    e.cx = node.x; e.cy = node.y;
-    e.tileX = node.x; e.tileY = node.y;
+    e.cx = node.x;
+    e.cy = node.y;
+    e.tileX = node.x;
+    e.tileY = node.y;
   }
+
+  const t = kb.tsize || (state.GRID.tile || 32);
 
   // finished?
   if (kb.seg >= kb.path.length - 1) {
     const last = kb.path[kb.path.length - 1];
-    const prev = kb.path[Math.max(0, kb.path.length - 2)];
-    const t = kb.tsize;
 
     // snap to last tile center
     e.x = (last.x + 0.5) * t;
     e.y = (last.y + 0.5) * t;
+    e.drawX = e.x;
+    e.drawY = e.y;
 
     // face generally toward EXIT so FSM resumes sensibly
-    const dx = state.EXIT.x - last.x, dy = state.EXIT.y - last.y;
-    e.dir = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'E' : 'W') : (dy >= 0 ? 'S' : 'N');
-    e.commitDir = null; e.commitSteps = 0; e.commitTilesLeft = 0;
-    e.isAttacking = false; e.pausedForAttack = false;
+    const dx = state.EXIT.x - last.x;
+    const dy = state.EXIT.y - last.y;
+    e.dir = Math.abs(dx) >= Math.abs(dy)
+      ? (dx >= 0 ? 'E' : 'W')
+      : (dy >= 0 ? 'S' : 'N');
+    e.commitDir = null;
+    e.commitSteps = 0;
+    e.commitTilesLeft = 0;
+    e.isAttacking = false;
+    e.pausedForAttack = false;
 
+    // Clear knockback and re-seed the navigator at this new tile
     e.kb = null;
+    try {
+      pathSpawnAgent?.(e); // restart FSM from e.cx/e.cy
+    } catch (_) {}
     return;
   }
 
-  // interpolate within current segment
+  // mid-flight: interpolate within current segment and drive drawX/drawY
   const a = kb.path[kb.seg];
   const b = kb.path[kb.seg + 1];
   const u = Math.max(0, Math.min(1, kb.acc / kb.durPerTile));
-  const t = kb.tsize;
 
   const ax = (a.x + 0.5) * t, ay = (a.y + 0.5) * t;
   const bx = (b.x + 0.5) * t, by = (b.y + 0.5) * t;
 
-  e.x = ax + (bx - ax) * u;
-  e.y = ay + (by - ay) * u;
+  const px = ax + (bx - ax) * u;
+  const py = ay + (by - ay) * u;
+
+  e.x = px;
+  e.y = py;
+  e.drawX = px;
+  e.drawY = py;
 
   // keep facing coherent with motion
-  e.dir = (bx > ax) ? 'E' : (bx < ax) ? 'W' : (by > ay) ? 'S' : 'N';
+  e.dir = (bx > ax) ? 'E'
+       : (bx < ax) ? 'W'
+       : (by > ay) ? 'S'
+       : 'N';
 }
 
 export function wingGustPush(gs, tiles) {
@@ -1783,7 +1804,8 @@ for (const e of enemies) {
   for (const e of enemies) {
     if (!e) continue;
     if (e.type === 'engineer' && e.tunneling) continue;
-    if (e.stunLeft > 0) continue;  // frozen by Roar/Stomp
+    if (e.stunLeft > 0 || e.kb) continue;  // frozen OR mid-knockback
+
 
 // -- Attack-zone lock: freeze & face the lair if inside the 3×1 west column --
 if (isInAttackZone(gs, e.cx|0, e.cy|0)) {
