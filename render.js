@@ -5,6 +5,7 @@
 import * as state from './state.js';
 import { drawClawSlashes } from './combat/upgrades/abilities/claw.js';
 import { drawWingGusts }   from './combat/upgrades/abilities/wing_gust.js';
+import { ROAR_FX_VISUAL } from './combat/upgrades/abilities/roar.js';
 
 // DEBUG toggle
 window.__logFlame = window.__logFlame ?? false; // default quiet; toggle in console if needed
@@ -562,13 +563,14 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
   }
 
   // --- Anchor: dragon mouth (fallback to anchor if needed) ---
-  const mouth = state.dragonMouthCell
-    ? state.dragonMouthCell(gs)
-    : null;
+  const mouth  = state.dragonMouthCell ? state.dragonMouthCell(gs) : null;
   const anchor = mouth || state.dragonAnchor(gs);
 
-  const anchorX = (anchor.x + 0.5) * tsize; // positive number moves it east?
-  const anchorY = (anchor.y - 9.8) * tsize; // tweak offset above head; bigger negative raises it
+  const sizeTiles   = (ROAR_FX_VISUAL && ROAR_FX_VISUAL.sizeTiles)   || 2.0;
+  const offsetTiles = (ROAR_FX_VISUAL && ROAR_FX_VISUAL.offsetYTiles) || 0.8;
+
+  const anchorX = (anchor.x + 0.5) * tsize;
+  const anchorY = (anchor.y - offsetTiles) * tsize;
 
   for (const fx of roarFx) {
     const dur = fx.dur || ROAR_DEFAULT_DUR;
