@@ -7,7 +7,7 @@ import * as state from '../../../state.js';
 // How Roar FX should look / where it sits (visual tunables)
 export const ROAR_FX_VISUAL = {
   sizeTiles: 2.0,    // how wide the sprite should be in tiles
-  offsetYTiles: 0.8, // how far *above* the dragon in tiles
+  offsetYTiles: 4.8, // how far *above* the dragon in tiles
 };
 
 /**
