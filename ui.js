@@ -26,6 +26,185 @@ const hud = {
 // For render.js hover highlight
 state.GameState.uiHoverEdge = null;
 
+// ---------- Story Dialogue Layer (boss conversations) ----------
+const SPEAKER_LABELS = {
+  dragon:   'Cargarax',
+  mordred:  'Sir Mordred',
+  kay:      'Sir Kay',
+  palamedes:'Sir Palamedes',
+  gawain:   'Sir Gawain',
+  percival: 'Sir Percival',
+  bors:     'Sir Bors',
+  tristan:  'Sir Tristan',
+  galahad:  'Sir Galahad',
+  bedivere: 'Sir Bedivere',
+  lancelot: 'Sir Lancelot',
+  arthur:   'King Arthur',
+};
+
+let dlgRoot = null;
+let dlgBox, dlgSpeaker, dlgText, dlgHint;
+let dlgActive = false;
+let dlgLines = [];
+let dlgIndex = 0;
+let dlgResolve = null;
+let dlgTypingTimer = null;
+let dlgTypingDone = true;
+let dlgFullText = '';
+
+function ensureDialogueLayer() {
+  if (dlgRoot) return;
+
+  dlgRoot = document.createElement('div');
+  dlgRoot.id = 'dlDialogueLayer';
+  dlgRoot.style.position = 'fixed';
+  dlgRoot.style.left = '0';
+  dlgRoot.style.right = '0';
+  dlgRoot.style.bottom = '0';
+  dlgRoot.style.zIndex = '999';
+  dlgRoot.style.display = 'none';
+  dlgRoot.style.justifyContent = 'center';
+  dlgRoot.style.alignItems = 'flex-end';
+  dlgRoot.style.pointerEvents = 'auto';
+  dlgRoot.style.padding = '12px';
+  dlgRoot.style.boxSizing = 'border-box';
+
+  dlgBox = document.createElement('div');
+  dlgBox.style.background = 'rgba(6,10,24,0.94)';
+  dlgBox.style.border = '1px solid #445';
+  dlgBox.style.borderRadius = '10px';
+  dlgBox.style.padding = '8px 14px 10px';
+  dlgBox.style.minWidth = '320px';
+  dlgBox.style.maxWidth = '720px';
+  dlgBox.style.color = '#f5f7ff';
+  dlgBox.style.fontFamily = 'system-ui, sans-serif';
+  dlgBox.style.fontSize = '14px';
+  dlgBox.style.boxShadow = '0 0 18px rgba(0,0,0,0.65)';
+  dlgBox.style.cursor = 'pointer';
+
+  dlgSpeaker = document.createElement('div');
+  dlgSpeaker.style.fontWeight = '600';
+  dlgSpeaker.style.marginBottom = '4px';
+  dlgSpeaker.style.opacity = '0.9';
+
+  dlgText = document.createElement('div');
+  dlgText.style.minHeight = '32px';
+  dlgText.style.lineHeight = '1.4';
+
+  dlgHint = document.createElement('div');
+  dlgHint.style.marginTop = '4px';
+  dlgHint.style.fontSize = '11px';
+  dlgHint.style.opacity = '0.7';
+  dlgHint.textContent = 'Click or press Space/Enter to continue…';
+
+  dlgBox.appendChild(dlgSpeaker);
+  dlgBox.appendChild(dlgText);
+  dlgBox.appendChild(dlgHint);
+  dlgRoot.appendChild(dlgBox);
+  document.body.appendChild(dlgRoot);
+
+  dlgRoot.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    dialogueAdvance();
+  });
+
+  window.addEventListener('keydown', (ev) => {
+    if (!dlgActive) return;
+    if (ev.key === ' ' || ev.key === 'Enter') {
+      ev.preventDefault();
+      dialogueAdvance();
+    }
+  });
+}
+
+function dialogueStartTyping(text, speed) {
+  if (dlgTypingTimer) {
+    clearInterval(dlgTypingTimer);
+    dlgTypingTimer = null;
+  }
+  dlgFullText = String(text || '');
+  dlgText.textContent = '';
+  if (!dlgFullText) {
+    dlgTypingDone = true;
+    return;
+  }
+
+  // Interpret line.speed as chars-per-second (see story.js TYPE)
+  const cps = (typeof speed === 'number' && speed > 0) ? speed : 22;
+  const delay = 1000 / cps;
+  let i = 0;
+  dlgTypingDone = false;
+
+  dlgTypingTimer = setInterval(() => {
+    if (i >= dlgFullText.length) {
+      clearInterval(dlgTypingTimer);
+      dlgTypingTimer = null;
+      dlgTypingDone = true;
+      dlgText.textContent = dlgFullText;
+      return;
+    }
+    i++;
+    dlgText.textContent = dlgFullText.slice(0, i);
+  }, delay);
+}
+
+function dialogueFinishTyping() {
+  if (dlgTypingTimer) {
+    clearInterval(dlgTypingTimer);
+    dlgTypingTimer = null;
+  }
+  dlgTypingDone = true;
+  dlgText.textContent = dlgFullText;
+}
+
+function dialogueShowNext() {
+  if (!dlgLines || dlgIndex >= dlgLines.length) {
+    dialogueEnd();
+    return;
+  }
+
+  const line = dlgLines[dlgIndex++] || {};
+  const id = line.speaker || '';
+  const label =
+    SPEAKER_LABELS[id] ||
+    (id ? id.charAt(0).toUpperCase() + id.slice(1) : '');
+
+  dlgSpeaker.textContent = label || '';
+  dlgSpeaker.dataset.speaker = id || '';
+
+  dialogueStartTyping(line.text, line.speed);
+}
+
+function dialogueAdvance() {
+  if (!dlgActive) return;
+  if (!dlgTypingDone) {
+    dialogueFinishTyping();
+  } else {
+    dialogueShowNext();
+  }
+}
+
+function dialogueEnd() {
+  dlgActive = false;
+  if (dlgTypingTimer) {
+    clearInterval(dlgTypingTimer);
+    dlgTypingTimer = null;
+  }
+  if (dlgRoot) {
+    dlgRoot.style.display = 'none';
+  }
+  document.body.classList.remove('dl-dialogue-open');
+
+  const resolve = dlgResolve;
+  dlgResolve = null;
+  dlgLines = [];
+  dlgIndex = 0;
+
+  if (resolve) resolve();
+}
+
+
 // ---------- Enemy meta for the Preview ----------
 const ENEMY_META = {
   villager:   { name: 'Villager',  color: '#9acd32', blurb: 'Basic grunt. Slow and squishy.' },
@@ -78,7 +257,35 @@ let _abilityButtons = []; // [{ key, btn }]
 
 
 // ---------- Optional small API for main/render ----------
-export const UI = { refreshHUD, tell, renderUpgradesPanel };
+export const UI = { refreshHUD, tell, renderUpgradesPanel, showDialogue };
+
+// Boss / story dialogue API (used by main.js)
+export function showDialogue(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) {
+    return Promise.resolve();
+  }
+
+  // If another dialogue is somehow active, end it cleanly first.
+  if (dlgActive) {
+    dialogueEnd();
+  }
+
+  ensureDialogueLayer();
+
+  dlgLines = lines.slice(); // copy to avoid outside mutation
+  dlgIndex = 0;
+  dlgActive = true;
+
+  if (dlgRoot) {
+    dlgRoot.style.display = 'flex';
+  }
+  document.body.classList.add('dl-dialogue-open');
+
+  return new Promise((resolve) => {
+    dlgResolve = resolve;
+    dialogueShowNext();
+  });
+}
 
 // Lightweight message banner
 function tell(s, color = '') {
