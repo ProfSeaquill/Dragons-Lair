@@ -461,43 +461,49 @@ function tickDecision(agent) {
   : (NAV().epsilonWorse ?? 0.33);
   const epsilonActive = atJunction && openOpts.length >= 2 && Math.random() < EPS;
 
-    // --- Group-follow override: followers reuse the leader's choice at junctions ---
-  if (atJunction && openOpts.length > 0) {
-    const groupDir = lookupGroupJunctionChoice(agent);
-    if (groupDir) {
-      // Only follow if that exit is still valid / open
-      const allowed = openOpts.some(o => o.side === groupDir);
-      if (allowed && edgeOpen(GameState, agent.x, agent.y, groupDir)) {
-        // Keep breadcrumb stack coherent: record only this exit as taken
-        pushBreadcrumb(
-          agent.mem,
-          agent.x, agent.y,
-          agent.prevDir,
-          [groupDir],
-          agent.x, agent.y
-        );
+    // --- Group-follow override: followers reuse the leader's choice when available ---
+const groupDir = lookupGroupJunctionChoice(agent);
+if (groupDir && openOpts.length > 0) {
+  // Only follow if that exit is still valid / open
+  const allowed = openOpts.some(o => o.side === groupDir);
+  if (allowed && edgeOpen(GameState, agent.x, agent.y, groupDir)) {
+    // Keep breadcrumb stack coherent: record only this exit as taken
+    pushBreadcrumb(
+      agent.mem,
+      agent.x, agent.y,
+      agent.prevDir,
+      [groupDir],
+      agent.x, agent.y
+    );
 
-        const [nx, ny] = stepFrom(agent.x, agent.y, groupDir);
-        moveOne(agent, nx, ny);
-        if (agent.x === agent.gx && agent.y === agent.gy) {
-          agent.state = S.REACHED;
-        } else {
-          agent.state = S.WALK_STRAIGHT;
-        }
-
-        if (NAV().logChoices) {
-          console.debug('[DECISION] group-follow', {
-            at: { x: agent.x, y: agent.y },
-            dir: groupDir,
-            leaderId: agent.followLeaderId
-          });
-        }
-        return agent.state;
-      }
-      // If the stored direction is no longer open (new wall, etc.), fall through
-      // to normal heuristic logic instead of forcing the follower into a wall.
+    const [nx, ny] = stepFrom(agent.x, agent.y, groupDir);
+    moveOne(agent, nx, ny);
+    if (agent.x === agent.gx && agent.y === agent.gy) {
+      agent.state = S.REACHED;
+    } else {
+      agent.state = S.WALK_STRAIGHT;
     }
+
+    if (NAV().logChoices) {
+      console.debug('[DECISION] group-follow', {
+        at: { x: agent.x, y: agent.y },
+        dir: groupDir,
+        leaderId: agent.followLeaderId
+      });
+    }
+    return agent.state;
+  } else if (NAV().logChoices) {
+    // Helpful to see when we *wanted* to follow but the path is blocked or mismatched
+    console.debug('[DECISION] group-follow blocked or invalid', {
+      at: { x: agent.x, y: agent.y },
+      groupDir,
+      opts: openOpts.map(o => o.side),
+      atJunction
+    });
   }
+}
+// (then continue into the downhill / scoring logic as you already have)
+
 
 
   // ---- Downhill block (only skipped when ε fires at a junction) ----
