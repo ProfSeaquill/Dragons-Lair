@@ -32,6 +32,8 @@ export function applyStomp(gs, ss, acquireEffect, markHit) {
   const px = (a.cx + 0.5) * tsize;
   const py = (a.cy + 0.5) * tsize;
 
+  const arr = gs.effects || (gs.effects = []);
+
   arr.push(
     acquireEffect('stompRipple', {
       x: px,
