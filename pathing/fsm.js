@@ -403,18 +403,16 @@ function recordGroupJunctionChoice(agent, dir) {
   if (!agent || !dir) return;
   if (agent.independentNav) return;
 
-  // Treat the *group leader* as the unit whose ownerId matches the leader id.
-  // - If followLeaderId is set, that is the leader id.
-  // - If followLeaderId is null, the agent is effectively its own leader.
-  const leaderId = agent.followLeaderId || agent.ownerId;
-  if (!leaderId) return;
-
-  // Only let the actual leader write the route table
-  if (agent.ownerId !== leaderId) return;
-
   const gs = GameState;
   if (!gs) return;
+
+  // Ensure the routes map exists
   if (!gs.groupRoutes) gs.groupRoutes = new Map();
+
+  // The leader’s id is the key we use for this route table.
+  // With the new tickDecision guard, only the leader calls this.
+  const leaderId = agent.id;
+  if (!leaderId) return;
 
   let table = gs.groupRoutes.get(leaderId);
   if (!table) {
@@ -423,10 +421,11 @@ function recordGroupJunctionChoice(agent, dir) {
   }
 
   const key = (agent.x | 0) + ',' + (agent.y | 0);
-  if (!table.has(key)) {
-    table.set(key, dir);
-  }
+
+  // Let the leader *update* the choice if it passes here again
+  table.set(key, dir);
 }
+
 
 
 function lookupGroupJunctionChoice(agent) {
@@ -439,6 +438,38 @@ function lookupGroupJunctionChoice(agent) {
 
   const key = (agent.x|0) + ',' + (agent.y|0);
   return table.get(key) || null;
+}
+
+function groupDecisionOverride(agent, exits, tx, ty) {
+  const gs = GameState;
+  if (!agent.groupId || !agent.followLeaderId || agent.independentNav) return null;
+
+  const allRoutes = gs.groupRoutes;
+  if (!allRoutes) return null;
+
+  const table = allRoutes.get(agent.followLeaderId);
+  if (!table) return null;
+
+  const key = tx + ',' + ty;
+  const dir = table.get(key);
+  if (!dir) return null;
+
+  // Only valid if that exit is still open from this tile
+  if (exits && exits.includes(dir)) {
+    if (gs.navDebug?.logChoices) {
+      console.debug('[DECISION group-follow OVERRIDE]', {
+        id: agent.id,
+        type: agent.type,
+        groupId: agent.groupId,
+        leaderId: agent.followLeaderId,
+        at: { x: tx, y: ty },
+        dir
+      });
+    }
+    return dir;
+  }
+
+  return null;
 }
 
 function tickDecision(agent) {
@@ -575,10 +606,11 @@ for (const o of openOpts) {
     if (top) top.chosen = chosenDir; // surgical override of sticky randomness at this junction
   }
 
-    const dir = chosenDir || sticky;
+      const dir = chosenDir || sticky;
   if (dir) {
-    // NEW: let the leader remember this junction choice for the group
-    if (isCorridorJunction(agent.x, agent.y, agent.prevDir)) {
+    // Only the *leader* records the group’s junction decision.
+    // Followers read via lookupGroupJunctionChoice but never write.
+    if (!agent.followLeaderId && isCorridorJunction(agent.x, agent.y, agent.prevDir)) {
       recordGroupJunctionChoice(agent, dir);
     }
 
@@ -593,6 +625,7 @@ for (const o of openOpts) {
       return agent.state;
     }
   }
+
 
 
   // If no exit (or blocked unexpectedly), backtrack
