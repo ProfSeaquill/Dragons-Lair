@@ -41,7 +41,7 @@ export function applyStomp(gs, ss, acquireEffect, markHit) {
       dur: 4.0,  // How long the ring travels (seconds). Lower = faster
       maxRadius: ss.rangeTiles * tsize * 10.0, // How far the wave front gets; a bit beyond the slow radius looks nice
       strengthPx: tsize * 3.00,  // Maximum pixel offset at the active ring 
-      bandWidthPx: tsize * 3.00,  // Thickness of the “active” band (in pixels)
+      bandWidthPx: tsize * 1.00,  // Thickness of the “active” band (in pixels)
     })
   );
 }
