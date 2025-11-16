@@ -42,15 +42,24 @@ wingGustImg.src = './assets/wing_gust.png';
  * --------------------------------------------------------- */
 const roarImg = new Image();
 let roarReady = false;
+
 roarImg.onload = () => {
   roarReady = true;
   console.log('[roar] sprite loaded', roarImg.src, roarImg.width, roarImg.height);
 };
+
 roarImg.onerror = (e) => {
   roarReady = false;
   console.error('[roar] FAILED TO LOAD SPRITE', roarImg.src, e);
 };
-roarImg.src = './assets/roar.png';  // keep whatever path you're using
+
+// 👇 Make sure this matches your actual file name/path
+roarImg.src = './assets/roar.png';
+
+const ROAR_FRAME_W     = 96;
+const ROAR_FRAME_H     = 96;
+const ROAR_FRAME_COUNT = 4;
+const ROAR_DEFAULT_DUR = 0.70; // or whatever you prefer
 
 
 /* -----------------------------------------------------------
