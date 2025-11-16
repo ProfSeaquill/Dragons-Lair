@@ -7,17 +7,17 @@
 // Public API
 // =========================
 export const BOSS_SCHEDULE = {
-  10: 'sir mordred',
-  20: 'sir kay',
-  30: 'sir palamedes',
-  40: 'sir gawain',
-  50: 'sir percival',
-  60: 'sir bors',
-  70: 'sir tristan',
-  80: 'sir galahad',
-  90: 'sir bedivere',
-  100: 'sir lancelot',
-  101: 'king arthur',
+  5: 'sir mordred',
+  10: 'sir kay',
+  15: 'sir palamedes',
+  20: 'sir gawain',
+  25: 'sir percival',
+  30: 'sir bors',
+  35: 'sir tristan',
+  40: 'sir galahad',
+  45: 'sir bedivere',
+  50: 'sir lancelot',
+  51: 'king arthur',
 };
 
 export function isBossLevel(wave) {
@@ -62,24 +62,24 @@ const DRAGON = {
   canonicalName: 'Caerdrake', // pick one; you can change anytime
   titles: ['The Last Ember', 'Winged General', 'Pendragon’s Shadow'],
   // Reveal beats:
-  nameRevealedAt: 40,   // Gawain (Lv. 40)
-  titlesRevealedAt: 20, // Kay (Lv. 20)
+  nameRevealedAt: 20,   // Gawain (Lv. 20)
+  titlesRevealedAt: 10, // Kay (Lv. 10)
 };
 
 // Verbosity ramp — how “talkative” the dragon becomes
 const VERBOSITY = {
-  dragonRepliesStart: 50,     // first short replies
-  fullConversationsStart: 90, // multi-exchange
+  dragonRepliesStart: 25,     // first short replies
+  fullConversationsStart: 45, // multi-exchange
 };
 
 // Off-screen Camelot collapse — phase gates for flavor + tone
 const PHASES = [
   { at: 1,   label: 'Hunt',        msg: 'Rumors spread: a “beast” lairs in the mountains.' },
-  { at: 20,  label: 'Recognition', msg: 'Whispers from Camelot: it may be their dragon.' },
-  { at: 50,  label: 'Retrieval',   msg: 'Envoys fail; knights sent to retrieve their weapon.' },
-  { at: 80,  label: 'Crisis',      msg: 'Fronts falter; fires light distant coasts.' },
-  { at: 100, label: 'Desperation', msg: 'Only legends remain to stand between Camelot and ruin.' },
-  { at: 101, label: 'The King',    msg: 'Arthur rides, not to conquer, but to plead.' },
+  { at: 10,  label: 'Recognition', msg: 'Whispers from Camelot: it may be their dragon.' },
+  { at: 25,  label: 'Retrieval',   msg: 'Envoys fail; knights sent to retrieve their weapon.' },
+  { at: 40,  label: 'Crisis',      msg: 'Fronts falter; fires light distant coasts.' },
+  { at: 50, label: 'Desperation', msg: 'Only legends remain to stand between Camelot and ruin.' },
+  { at: 51, label: 'The King',    msg: 'Arthur rides, not to conquer, but to plead.' },
 ];
 
 // Minimal, safe “moods” for your textbox portraits/animations if you want
@@ -170,7 +170,7 @@ function composeDialogue(id, wave, event, T) {
 
 // ============ Boss Beats ============
 
-// Lv.10 — Mordred: first recognition (short, cryptic)
+// Lv.5 — Mordred: first recognition (short, cryptic)
 function mordred(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('mordred', '…You.', 'k_stern', 'short') ];
@@ -182,7 +182,7 @@ function mordred(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.20 — Kay: titles revealed, sarcastic edge
+// Lv.10 — Kay: titles revealed, sarcastic edge
 function kay(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('kay', `Look at you—{DRAGON_TITLES} skulking in a cave. Seneschal says hello.`, 'k_neutral', 'normal') ];
@@ -193,7 +193,7 @@ function kay(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.30 — Palamedes: outsider rebuke
+// Lv.15 — Palamedes: outsider rebuke
 function palamedes(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [
@@ -207,7 +207,7 @@ function palamedes(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.40 — Gawain: name reveal (reverent, angry)
+// Lv.20 — Gawain: name reveal (reverent, angry)
 function gawain(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('gawain', `Name yourself… No. I remember. {DRAGON_NAME}.`, 'k_stern', 'slow') ];
@@ -218,7 +218,7 @@ function gawain(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.50 — Percival: naïve awe + gratitude
+// Lv.25 — Percival: naïve awe + gratitude
 function percival(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('percival', 'You saved me once. I was small. You were… vast.', 'k_neutral', 'normal') ];
@@ -229,7 +229,7 @@ function percival(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.60 — Bors: cold duty
+// Lv.30 — Bors: cold duty
 function bors(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('bors', 'Kingdom before creature. Return, or be ended.', 'k_stern', 'normal') ];
@@ -240,7 +240,7 @@ function bors(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.70 — Tristan: melancholy
+// Lv.35 — Tristan: melancholy
 function tristan(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('tristan', 'Even love cannot argue with ruin. Come back with me.', 'k_sorrow', 'slow') ];
@@ -251,7 +251,7 @@ function tristan(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.80 — Galahad: holy condemnation
+// Lv.40 — Galahad: holy condemnation
 function galahad(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('galahad', 'Purity does not flee its purpose. Repent or be purged.', 'k_holy', 'normal') ];
@@ -262,7 +262,7 @@ function galahad(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.90 — Bedivere: weary reflection; dragon begins fuller replies
+// Lv.45 — Bedivere: weary reflection; dragon begins fuller replies
 function bedivere(wave, event, talk, convo, T) {
   if (event === 'entry') {
     const lines = [
@@ -277,7 +277,7 @@ function bedivere(wave, event, talk, convo, T) {
   ];
 }
 
-// Lv.100 — Lancelot: speaks on entry; full conversation
+// Lv.50 — Lancelot: speaks on entry; full conversation
 function lancelot(wave, event, talk, convo, T) {
   if (event === 'entry') {
     const lines = [
