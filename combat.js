@@ -871,13 +871,28 @@ e.fromXY = [e.cx, e.cy];
   // seed navigator once so its internal chain is fresh
 try { pathUpdateAgent(e, 0, gs); } catch (_) {}
 
-  (gs.enemies || (gs.enemies = [])).push(e);
+    (gs.enemies || (gs.enemies = [])).push(e);
 
-if (typeof e.trailStrength === 'number') {
-  bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
-}
+  if (typeof e.trailStrength === 'number') {
+    bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
+  }
+
+  // --- Boss story hook: first time we spawn a boss this wave ---
+  if (isBossEnemy(e) && !gs.__bossSpawnedThisWave) {
+    gs.__bossSpawnedThisWave = true;
+    gs.__bossIdThisWave      = e.id;
+    try {
+      window.dispatchEvent?.(
+        new CustomEvent('dl-boss-appeared', {
+          detail: { wave: gs.wave | 0, id: e.id, type: e.type }
+        })
+      );
+    } catch (_) {}
+  }
+
   return e;
 }
+
 
 
 /* --- Dev / Playtest helpers --- */
@@ -1312,6 +1327,11 @@ if (!_jsonPlan || !Array.isArray(_jsonPlan.groups) || _jsonPlan.groups.length ==
   R.groupLeaderId = null;
   R.spawning = true;
   R.waveActive = true;
+    // Boss tracking for story system
+  gs.__bossSpawnedThisWave  = false;
+  gs.__bossDefeatedThisWave = false;
+  gs.__bossIdThisWave       = null;
+
 
   // --- NEW: reset wave-scoped systems (junction graph, herding trail, strays) ---
   // Fresh success-trail so herding consolidates on current wave’s choices.
@@ -1373,6 +1393,17 @@ return {
 };
 }
 
+
+// Helper: is this enemy a boss/miniboss?
+function isBossEnemy(e) {
+  if (!e) return false;
+  if (e.boss || e.miniboss) return true;
+  if (e.type === 'boss' || e.type === 'kingsguard') return true;
+  if (Array.isArray(e.tags)) {
+    if (e.tags.includes('boss') || e.tags.includes('miniboss')) return true;
+  }
+  return false;
+}
 
 // ===== Wave mix (asymptotic shares) =========================================
 
@@ -2301,16 +2332,30 @@ if (e.type === 'engineer' && e.tunneling) {
 // --- Contact/zone attacks (centralized) ---
 updateAttacks(gs, dt);
 
-    // Death -> rewards (DoT, projectiles, or other effects may have killed them)
+       // Death -> rewards (DoT, projectiles, or other effects may have killed them)
     if (e.hp <= 0) {
-  const eg = (typeof e.gold  === 'number') ? (e.gold  | 0) : 5;
-  const eb = (typeof e.bones === 'number') ? (e.bones | 0) : 1;
-  gs.gold  = (gs.gold  | 0) + eg;
-  gs.bones = (gs.bones | 0) + eb;
-  enemies.splice(i, 1);
-  releaseEnemy(e);
-  continue;
-}
+
+      // --- Boss story hook: first time boss dies this wave ---
+      if (isBossEnemy(e) && !gs.__bossDefeatedThisWave) {
+        gs.__bossDefeatedThisWave = true;
+        try {
+          window.dispatchEvent?.(
+            new CustomEvent('dl-boss-defeated', {
+              detail: { wave: gs.wave | 0, id: e.id, type: e.type }
+            })
+          );
+        } catch (_) {}
+      }
+
+      const eg = (typeof e.gold  === 'number') ? (e.gold  | 0) : 5;
+      const eb = (typeof e.bones === 'number') ? (e.bones | 0) : 1;
+      gs.gold  = (gs.gold  | 0) + eg;
+      gs.bones = (gs.bones | 0) + eb;
+      enemies.splice(i, 1);
+      releaseEnemy(e);
+      continue;
+    }
+
 }
 
     // once per frame (not in any enemy loop)
