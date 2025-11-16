@@ -370,6 +370,11 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// Fires very early (you already dispatch this inside boot())
+window.addEventListener('dl-boot-ok', () => {
+  console.log('[probe] dl-boot-ok: GameState?', !!window.GameState);
+});
+
 // Fires after config applied + UI bound in your current boot chain
 window.addEventListener('dl-preview-refresh', () => {
   const gs = window.GameState;
@@ -417,9 +422,7 @@ function boot() {
     gs.tileSize = state.GRID.tile;
   }
 
-
-
-  window.dispatchEvent(new CustomEvent('dl-boot-ok'));
+   // Init debug overlay (it will wait for dl-boot-ok from ui.bindUI)
   Debug.init();
 
   // --- UI event wiring (unchanged) ---
