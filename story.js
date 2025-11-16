@@ -313,6 +313,44 @@ function arthur(wave, event, talk, convo, T) {
 }
 
 // =========================
+// Boss lifecycle hooks (events from combat.js)
+// =========================
+//
+// combat.js will dispatch:
+//   window.dispatchEvent(new CustomEvent('dl-boss-appeared', { detail: { wave, id, type } }));
+//   window.dispatchEvent(new CustomEvent('dl-boss-defeated', { detail: { wave, id, type } }));
+//
+// This section listens for those events, builds the right dialogue using
+// getDialogueFor(wave, 'entry' | 'defeat'), and re-emits a single
+// 'dl-story-dialog' event for the UI layer to render.
+
+function emitBossDialogue(wave, event) {
+  if (!wave) return;
+  const lines = getDialogueFor(wave, event);
+  if (!lines || !lines.length) return;
+
+  try {
+    window.dispatchEvent?.(
+      new CustomEvent('dl-story-dialog', {
+        detail: { wave, event, lines },
+      })
+    );
+  } catch (_) {}
+}
+
+// When the first boss actually spawns on the map
+window.addEventListener('dl-boss-appeared', (ev) => {
+  const wave = ev?.detail?.wave | 0;
+  emitBossDialogue(wave, 'entry');
+});
+
+// When that boss actually dies (not when the wave ends)
+window.addEventListener('dl-boss-defeated', (ev) => {
+  const wave = ev?.detail?.wave | 0;
+  emitBossDialogue(wave, 'defeat');
+});
+
+// =========================
 // Integration Hints
 // =========================
 //
