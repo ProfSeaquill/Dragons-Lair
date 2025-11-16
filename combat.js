@@ -2012,6 +2012,15 @@ if (bombAccum >= 1.0) {
       }
 
       // (optional) add a blast FX here if you’ve got one in render
+      (gs.effects || (gs.effects = [])).push(
+        acquireEffect('bombBlast', {
+          // center the blast where the bomb was
+          x: fx.x || ((bx + 0.5) * tsize),
+          y: fx.y || ((by + 0.5) * tsize),
+          dur: 0.35,          // ~⅓ second flash
+          rTiles: R           // reuse your logical radius (2 tiles)
+        })
+      );
 
       // Remove the bomb effect after detonation
       gs.effects.splice(i, 1);
@@ -2065,6 +2074,10 @@ for (let i = gs.effects.length - 1; i >= 0; i--) {
     }
   }
 
+  if (efx.type === 'bombBlast') {
+      if (efx.t >= (efx.dur || 0.35)) { gs.effects.splice(i, 1); continue; }
+    }
+  
   // --- Claw slash sprite ---
   if (efx.type === 'clawSlash') {
     const dur = Math.max(0.01, efx.dur || 2.0); // safe floor + longer default
