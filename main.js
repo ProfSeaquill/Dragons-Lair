@@ -11,7 +11,7 @@ import { buyUpgrade } from './upgrades.js';
 import { updateAgent } from './pathing/index.js';
 // ----- Combat (robust namespace import; tolerant of export name variants) -----
 import * as combat from './combat.js';
-import { isBossLevel, getDialogueFor } from './story.js';
+import './story.js'; // load narrative hooks (boss dialogue events)
 
 
 
@@ -583,20 +583,20 @@ function showDialogue(lines) {
   return Promise.resolve();
 }
 
+// Bridge story.js boss events → on-screen dialogue
+window.addEventListener('dl-story-dialog', (ev) => {
+  const lines = ev?.detail?.lines;
+  if (!lines || !lines.length) return;
+
+  // Fire-and-forget; UI.showDialogue can queue internally if needed
+  showDialogue(lines);
+});
+
 
 async function startWave() {
   if (!state.GameState.cfgLoaded) return; // don’t start waves before tuning exists
 
   const gs = state.GameState;
-  const waveNow = gs.wave | 0;
-
-  // Boss ENTRY dialogue (before enemies spawn)
-  if (isBossLevel(waveNow)) {
-    const lines = getDialogueFor(waveNow, 'entry');
-    if (lines && lines.length > 0) {
-      await showDialogue(lines);
-    }
-  }
 
   console.log('[B startWave guard]', state.getCfg(state.GameState)?.tuning?.waves);
 
@@ -630,6 +630,7 @@ async function startWave() {
   state.GameState.dev = state.GameState.dev || {};
   state.GameState.dev.autosave = false;
 }
+
 
 function update(dt) {
   ensureFreshPathing(state.GameState);
@@ -676,21 +677,11 @@ function update(dt) {
 
 
     // End-of-wave detection (simple + robust):
-  const anyAlive = gs.enemies && gs.enemies.length > 0;
+    const anyAlive = gs.enemies && gs.enemies.length > 0;
   const cooldownMs = 400; // tiny grace after start to avoid flicker
   const justStarted = (performance.now() - waveJustStartedAt) < cooldownMs;
 
   if (!anyAlive && !justStarted) {
-    // If we were in a wave and this was a boss, trigger DEFEAT dialogue
-    if (gs.phase === 'wave') {
-      const waveNow = gs.wave | 0;
-      if (isBossLevel(waveNow)) {
-        const lines = getDialogueFor(waveNow, 'defeat');
-        // Fire-and-forget; showDialogue returns a Promise but we don't need to await inside update()
-        showDialogue(lines);
-      }
-    }
-
     gs.phase = 'build';         // ← unlock building
   }
 
