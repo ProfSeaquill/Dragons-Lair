@@ -103,7 +103,7 @@ export function initLighting(glCanvas, W, H) {
         }
       }
 
-      vec3 base = texture2D(uScene, vUV).rgb;
+      vec3 base = texture2D(uScene, sampleUV).rgb;
 
       // Start with ambient darkness (your convention: lower ambient = brighter map)
       float bright = 1.0 - clamp(uAmbient, 0.0, 1.0);
