@@ -237,6 +237,9 @@ drawFireSplash(ctx, gs);
   // -------- Bombs (engineer)
   drawBombs(ctx, gs);
 
+  // -------- Bomb blast (detonation flash)
+  drawBombBlasts(ctx, gs);
+
 }
 
 /* ===================== visuals ===================== */
@@ -850,6 +853,39 @@ function drawBombs(ctx, gs) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(Math.ceil(Math.max(0, fx.timer)).toString(), fx.x, fx.y);
+    ctx.restore();
+  }
+}
+
+function drawBombBlasts(ctx, gs) {
+  if (!Array.isArray(gs.effects)) return;
+  const t = state.GRID.tile;
+
+  for (const fx of gs.effects) {
+    if (fx.type !== 'bombBlast') continue;
+
+    const dur = fx.dur || 0.35;
+    const tt  = Math.max(0, Math.min(1, (fx.t || 0) / dur)); // 0 → 1 over life
+    const baseR = (fx.rTiles || 2) * t;
+
+    // Slight expansion over time
+    const r = baseR * (0.85 + 0.35 * tt);
+
+    if (!isOnScreen(fx.x - r, fx.y - r, r * 2, r * 2, ctx.canvas.width, ctx.canvas.height)) continue;
+
+    ctx.save();
+
+    // Fade out over time
+    const alpha = 1 - tt;
+
+    // Soft inner flash
+    ctx.globalAlpha = 0.35 * alpha;
+    circle(ctx, fx.x, fx.y, r * 0.9, '#f97316', true); // warm orange fill
+
+    // Bright ring
+    ctx.globalAlpha = 0.85 * alpha;
+    ring(ctx, fx.x, fx.y, r, '#fde68a'); // pale yellow rim
+
     ctx.restore();
   }
 }
