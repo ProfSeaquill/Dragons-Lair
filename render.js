@@ -567,8 +567,8 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
     : null;
   const anchor = mouth || state.dragonAnchor(gs);
 
-  const anchorX = (anchor.x + 0.5) * tsize;
-  const anchorY = (anchor.y - 0.8) * tsize; // tweak offset above head
+  const anchorX = (anchor.x + 0.5) * tsize; // positive number moves it east?
+  const anchorY = (anchor.y - 2.8) * tsize; // tweak offset above head; bigger negative raises it
 
   for (const fx of roarFx) {
     const dur = fx.dur || ROAR_DEFAULT_DUR;
