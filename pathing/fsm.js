@@ -549,7 +549,7 @@ if (groupDir && openOpts.length > 0) {
 
 
   // ---- Downhill block (only skipped when ε fires at a junction) ----
-  if (!epsilonActive) {
+  if (!epsilonActive && !atJunction) {
     const usePathHeur = agent?.nav?.pathHeur === 'astar';
 const curH = usePathHeur
   ? stepsToNearestBand(agent, agent.x, agent.y)
