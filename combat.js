@@ -1579,11 +1579,33 @@ const { prioOf, capOf, forceLeaderFrom, leaderPlaceOf } = getGroupPolicy(gs, FLA
 const pool = new Map();
 for (const t of list) pool.set(t, (pool.get(t) || 0) + 1);
 
+// Determine which types are "late" (boss / miniboss) for this wave
+const lateTypes = new Set();
+for (const type of pool.keys()) {
+  // Always treat explicit boss/kingsguard types as late
+  if (type === 'boss' || type === 'kingsguard') {
+    lateTypes.add(type);
+    continue;
+  }
+  // Also treat any enemyBase tagged as boss/miniboss as late
+  try {
+    const base = state.enemyBase?.(type, gs);
+    if (base && Array.isArray(base.tags)) {
+      if (base.tags.includes('boss') || base.tags.includes('miniboss')) {
+        lateTypes.add(type);
+      }
+    }
+  } catch (_) {
+    // fail-safe: ignore errors, just don't classify as late
+  }
+}
+
 // Deterministic scan order
 const scanOrder = Array.from(pool.keys()).sort((a,b)=>a.localeCompare(b));
 
 const groups = [];
 let cursor = now;
+
 
 function tryTake(type, takenMap) {
   const left = (pool.get(type) || 0);
@@ -1596,8 +1618,13 @@ function tryTake(type, takenMap) {
 }
 
 while (true) {
-  // stop when pool empty
-  let totalLeft = 0; for (const v of pool.values()) totalLeft += v;
+  // stop when pool empty, and track how many non-late enemies remain
+  let totalLeft = 0;
+  let nonLateRemaining = 0;
+  for (const [type, left] of pool.entries()) {
+    totalLeft += left;
+    if (!lateTypes.has(type)) nonLateRemaining += left;
+  }
   if (totalLeft <= 0) break;
 
   const want = Math.min(totalLeft, (groups.length % 2 === 0 ? gMax : gMin));
@@ -1605,9 +1632,14 @@ while (true) {
   const buffer = [];
 
   // 1) Choose a leader TYPE for this group (if any is available in the pool)
+  //    BUT: don't use late types as leader while any non-late enemies remain.
   let leaderType = null;
   for (const lt of forceLeaderFrom) {
-    if ((pool.get(lt) || 0) > 0) { leaderType = lt; break; }
+    const left = (pool.get(lt) || 0);
+    if (left <= 0) continue;
+    if (lateTypes.has(lt) && nonLateRemaining > 0) continue; // hold bosses/minibosses
+    leaderType = lt;
+    break;
   }
 
   // 2) Ensure the leader is included (if chosen), but don't decide its position yet
@@ -1618,7 +1650,15 @@ while (true) {
     let progressed = false;
     for (const t of scanOrder) {
       if (buffer.length >= want) break;
-      if (tryTake(t, taken)) { buffer.push(t); progressed = true; }
+
+      // While we still have any non-late types left in the pool,
+      // do NOT fill this group with boss/miniboss types.
+      if (lateTypes.has(t) && nonLateRemaining > 0) continue;
+
+      if (tryTake(t, taken)) {
+        buffer.push(t);
+        progressed = true;
+      }
     }
     if (!progressed) break;
   }
@@ -1631,16 +1671,14 @@ while (true) {
   if (leaderType) {
     const where = leaderPlaceOf(leaderType); // 'front' | 'back' | 'priority'
     if (where === 'front') {
-      // move first occurrence of leaderType to index 0
       const i = buffer.indexOf(leaderType);
       if (i > 0) { buffer.splice(i, 1); buffer.unshift(leaderType); }
     } else if (where === 'back') {
-      // move first occurrence of leaderType to end
       const i = buffer.indexOf(leaderType);
       if (i >= 0 && i !== buffer.length - 1) {
         buffer.splice(i, 1); buffer.push(leaderType);
       }
-    } // 'priority' leaves ordering alone
+    }
   }
 
   const slice = buffer.slice();
@@ -1652,7 +1690,7 @@ while (true) {
     nextAt: cursor,
     groupId: 0,
     __types: slice,
-    leaderType: leaderType || null    // <— carry leader type to the spawn loop
+    leaderType: leaderType || null
   });
 
   const groupDurMs = Math.max(0, (slice.length - 1)) * intervalMs;
