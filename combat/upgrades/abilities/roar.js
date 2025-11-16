@@ -7,7 +7,7 @@ import * as state from '../../../state.js';
 // How Roar FX should look / where it sits (visual tunables)
 export const ROAR_FX_VISUAL = {
   sizeTiles: 2.0,    // how wide the sprite should be in tiles
-  offsetYTiles: 0.8, // how far *above* the dragon in tiles
+  offsetYTiles: 1.5, // how far *above* the dragon in tiles
 };
 
 /**
@@ -56,7 +56,7 @@ export function applyRoar(gs = state.GameState, rs) {
 
   const centerX = (a.cx + 0.5) * tsize;
   const centerY = (a.cy - 0.4) * tsize;   // a bit above the dragon sprite
-  const fxDur   = rs.fxDur || 0.40;      // ~0.4s animation by default
+  const fxDur   = rs.fxDur || 1.40;      // ~0.4s animation by default
 
   effects.push({
     type: 'roarWave',
