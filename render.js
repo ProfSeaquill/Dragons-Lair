@@ -537,13 +537,7 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
 }
 
   function drawRoarFx(ctx, gs) {
-  if (!roarReady) {
-    if (!drawRoarFx._noSpriteLogged) {
-      console.warn('[roarFx] roar sprite not ready yet');
-      drawRoarFx._noSpriteLogged = true;
-    }
-    return;
-  }
+  if (!roarReady) return;
 
   const effects = gs.effects || [];
   const roarFx = effects.filter(fx => fx && fx.type === 'roarWave');
