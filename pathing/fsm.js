@@ -307,6 +307,59 @@ function heurToGoal(agent, x = agent.x, y = agent.y) {
   return Math.abs(x - gx) + Math.abs(y - gy);
 }
 
+function applyGroupFollowStep(agent) {
+  // Only followers (not independent units, not the leader itself)
+  if (!agent || agent.independentNav) return false;
+  if (!agent.followLeaderId) return false;
+  if (agent.ownerId === agent.followLeaderId) return false; // leader
+
+  const gs = GameState;
+  if (!gs || !gs.groupRoutes) return false;
+
+  const table = gs.groupRoutes.get(agent.followLeaderId);
+  if (!table) return false;
+
+  const key = (agent.x|0) + ',' + (agent.y|0);
+  const dir = table.get(key);
+  if (!dir) return false;
+
+  // Only follow if that exit is still valid
+  if (!edgeOpen(gs, agent.x|0, agent.y|0, dir)) {
+    // Tile topology changed since leader passed; let normal FSM handle it.
+    return false;
+  }
+
+  // Commit a breadcrumb that only has this exit
+  pushBreadcrumb(
+    agent.mem,
+    agent.x, agent.y,
+    agent.prevDir,
+    [dir],
+    agent.x, agent.y
+  );
+
+  const [nx, ny] = stepFrom(agent.x, agent.y, dir);
+  if (nx === agent.x && ny === agent.y) return false; // defensive
+
+  moveOne(agent, nx, ny);
+
+  if (agent.x === agent.gx && agent.y === agent.gy) {
+    agent.state = S.REACHED;
+  } else {
+    agent.state = S.WALK_STRAIGHT;
+  }
+
+  if (NAV().logChoices) {
+    console.debug('[DECISION] group-follow(global)', {
+      at: { x: agent.x, y: agent.y },
+      dir,
+      leaderId: agent.followLeaderId
+    });
+  }
+
+  return true;
+}
+
 
 export function tick(agent) {
   const tv = GameState.topologyVersion | 0;
@@ -323,6 +376,13 @@ if (agent._seenTopoVer !== tv) {
     return agent.state;
     }
 
+  // 🔒 Global group-follow override:
+  // If this agent is a follower standing on a tile where the leader
+  // has already committed a direction, force it to take that same exit.
+  if (applyGroupFollowStep(agent)) {
+    return agent.state;
+  }
+  
   switch (agent.state) {
     case S.WALK_STRAIGHT: return tickWalkStraight(agent);
     case S.FOLLOW_PLAN:   return tickFollowPlan(agent);
