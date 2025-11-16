@@ -2,6 +2,7 @@
 import * as state from '../state.js';
 
 const OPP = { N:'S', S:'N', E:'W', W:'E' };
+const FORK_MIN_RUN = 2; // side branch must stay a corridor for at least 2 tiles
 const useGS = (maybeGs) => (maybeGs && maybeGs.GRID ? maybeGs : state.GameState);
 
 // ───────────────── Registry (shim) ─────────────────
@@ -86,6 +87,38 @@ export function isCorridor(x, y, prevDir) {
   const { straightCont, sideCont } = __continuations_at(x, y, prevDir);
   // “Corridor” = you can keep going straight and there are no side branches
   return (straightCont >= 1) && (sideCont === 0);
+}
+
+// How many steps can we walk forward from (sx,sy) as a 1-wide corridor
+// (no side forks), given that we arrived there via `dir`?
+function __corridorRunLenFrom(sx, sy, dir, maxSteps = FORK_MIN_RUN) {
+  let steps = 0;
+  let x = sx, y = sy;
+  let prevDir = dir;
+
+  while (steps < maxSteps) {
+    const opts = neighbors4(x, y);
+    const back = OPP[prevDir];
+
+    // Forward exits = neighbors excluding the back edge
+    const forwardOpts = opts.filter(o => o.side !== back);
+
+    // Dead end or “no forward” → corridor stops
+    if (!forwardOpts.length) break;
+
+    // Corridor must be 1-wide: if more than 1 forward exit, it’s already a fork.
+    if (forwardOpts.length > 1) break;
+
+    const f = forwardOpts[0];
+
+    // Step into the next tile
+    x = f.x;
+    y = f.y;
+    prevDir = f.side;
+    steps++;
+  }
+
+  return steps; // 0..maxSteps inclusive
 }
 
 export function isCorridorJunction(x, y, prevDir) {
