@@ -94,11 +94,11 @@ export function initLighting(glCanvas, W, H) {
             float wobble = sin(dist * 0.08 - uRippleProgress * 10.0);
             float offsetMagPx = uRippleStrengthPx * m * wobble;
 
-            if (abs(offsetMagPx) > 0.1) {
+            // if (abs(offsetMagPx) > 0.1) {
               vec2 dir = (fragPx - uRippleCenter) / dist; // normalized
               vec2 offsetUV = (dir * offsetMagPx) / uResolution;
               sampleUV += offsetUV;
-            }
+            // }
           }
         }
       }
