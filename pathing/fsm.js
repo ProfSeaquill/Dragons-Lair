@@ -491,105 +491,146 @@ function tickDecision(agent) {
   // Optional small linger
   if (agent.linger > 0) { agent.linger--; return agent.state; }
 
-  // Junction awareness + open exits (verify edges from source)
-  const atJunction = isCorridorJunction(agent.x, agent.y, agent.prevDir);
+  // --- Junction awareness + open exits (verify edges from source) ---
   const opts = forwardOptions(agent.x, agent.y, agent.prevDir) || [];
   const openOpts = opts.filter(o => edgeOpen(GameState, agent.x, agent.y, o.side));
 
+  // Backwards direction from current tile (toward where we came from)
+  const backDir = oppositeDir(agent.prevDir);
+
+  // Exits that are not the true back edge
+  const forwardOptsOnly = openOpts.filter(o => o.side !== backDir);
+
+  // Raw topology notion + "true fork" refinement:
+  // A real junction must have at least 2 non-backward exits.
+  const rawJunction = isCorridorJunction(agent.x, agent.y, agent.prevDir);
+  const atJunction = rawJunction && forwardOptsOnly.length >= 2;
+
   // ε only at *true forks* with 2+ choices
   const EPS = (agent.nav && typeof agent.nav.epsilonWorse === 'number')
-  ? agent.nav.epsilonWorse
-  : (NAV().epsilonWorse ?? 0.33);
-  const epsilonActive = atJunction && openOpts.length >= 2 && Math.random() < EPS;
+    ? agent.nav.epsilonWorse
+    : (NAV().epsilonWorse ?? 0.33);
+  const epsilonActive =
+    atJunction &&
+    forwardOptsOnly.length >= 2 &&
+    Math.random() < EPS;
 
-    // --- Group-follow override: followers reuse the leader's choice when available ---
-const groupDir = lookupGroupJunctionChoice(agent);
-if (groupDir && openOpts.length > 0) {
-  // Only follow if that exit is still valid / open
-  const allowed = openOpts.some(o => o.side === groupDir);
-  if (allowed && edgeOpen(GameState, agent.x, agent.y, groupDir)) {
-    // Keep breadcrumb stack coherent: record only this exit as taken
-    pushBreadcrumb(
-  agent.mem,
-  agent.x, agent.y,
-  oppositeDir(agent.prevDir),
-  [groupDir],
-  agent.x, agent.y
-);
+  // --- If we’ve been at this junction before, treat this as backtracking ---
+  if (atJunction && !agent.followLeaderId) {
+    const mem = ensureMem(agent.mem);
+    const stack = mem.stack || [];
 
+    // Look for any existing breadcrumb at this junction tile
+    const idx = stack.findIndex(c => c.jx === agent.x && c.jy === agent.y);
 
-    const [nx, ny] = stepFrom(agent.x, agent.y, groupDir);
-    moveOne(agent, nx, ny);
-    if (agent.x === agent.gx && agent.y === agent.gy) {
-      agent.state = S.REACHED;
-    } else {
-      agent.state = S.WALK_STRAIGHT;
+    if (idx !== -1) {
+      // Drop crumbs deeper than this junction; we are physically back here,
+      // so the DFS stack should end at this tile.
+      if (idx < stack.length - 1) {
+        stack.splice(idx + 1);
+      }
+
+      if (NAV().logChoices) {
+        console.debug('[DECISION] revisited junction → BACKTRACK', {
+          at: { x: agent.x, y: agent.y },
+          stackDepth: stack.length,
+        });
+      }
+
+      agent.state = S.BACKTRACK;
+      return agent.state;
     }
+  }
 
-    if (NAV().logChoices) {
-      console.debug('[DECISION] group-follow', {
+  // --- Group-follow override: followers reuse the leader's choice when available ---
+  const groupDir = lookupGroupJunctionChoice(agent);
+  if (groupDir && openOpts.length > 0) {
+    // Only follow if that exit is still valid / open
+    const allowed = openOpts.some(o => o.side === groupDir);
+    if (allowed && edgeOpen(GameState, agent.x, agent.y, groupDir)) {
+      // Keep breadcrumb stack coherent: record only this exit as taken
+      pushBreadcrumb(
+        agent.mem,
+        agent.x, agent.y,
+        oppositeDir(agent.prevDir),
+        [groupDir],
+        agent.x, agent.y
+      );
+
+      const [nx, ny] = stepFrom(agent.x, agent.y, groupDir);
+      moveOne(agent, nx, ny);
+      if (agent.x === agent.gx && agent.y === agent.gy) {
+        agent.state = S.REACHED;
+      } else {
+        agent.state = S.WALK_STRAIGHT;
+      }
+
+      if (NAV().logChoices) {
+        console.debug('[DECISION] group-follow', {
+          at: { x: agent.x, y: agent.y },
+          dir: groupDir,
+          leaderId: agent.followLeaderId
+        });
+      }
+      return agent.state;
+    } else if (NAV().logChoices) {
+      // Helpful to see when we *wanted* to follow but the path is blocked or mismatched
+      console.debug('[DECISION] group-follow blocked or invalid', {
         at: { x: agent.x, y: agent.y },
-        dir: groupDir,
-        leaderId: agent.followLeaderId
+        groupDir,
+        opts: openOpts.map(o => o.side),
+        atJunction
       });
     }
-    return agent.state;
-  } else if (NAV().logChoices) {
-    // Helpful to see when we *wanted* to follow but the path is blocked or mismatched
-    console.debug('[DECISION] group-follow blocked or invalid', {
-      at: { x: agent.x, y: agent.y },
-      groupDir,
-      opts: openOpts.map(o => o.side),
-      atJunction
-    });
   }
-}
-// (then continue into the downhill / scoring logic as you already have)
+  // (then continue into the downhill / scoring logic as you already have)
 
-
-
-  // ---- Downhill block (only skipped when ε fires at a junction) ----
+  // ---- Downhill block (only in corridors, never at forks) ----
   if (!epsilonActive && !atJunction) {
     const usePathHeur = agent?.nav?.pathHeur === 'astar';
-const curH = usePathHeur
-  ? stepsToNearestBand(agent, agent.x, agent.y)
-  : heurToGoal(agent);
+    const curH = usePathHeur
+      ? stepsToNearestBand(agent, agent.x, agent.y)
+      : heurToGoal(agent);
 
-let bestH = Infinity, bestSides = [];
-for (const o of openOpts) {
-  const h = usePathHeur
-    ? stepsToNearestBand(agent, o.x, o.y)
-    : heurToGoal(agent, o.x, o.y);
-  if (h < bestH) { bestH = h; bestSides = [o.side]; }
-  else if (h === bestH) { bestSides.push(o.side); }
-}
-
+    let bestH = Infinity, bestSides = [];
+    for (const o of openOpts) {
+      const h = usePathHeur
+        ? stepsToNearestBand(agent, o.x, o.y)
+        : heurToGoal(agent, o.x, o.y);
+      if (h < bestH) { bestH = h; bestSides = [o.side]; }
+      else if (h === bestH) { bestSides.push(o.side); }
+    }
 
     // Only take the downhill step if it strictly improves heuristic
     if (bestSides.length && bestH < curH) {
       const dir = bestSides[(Math.random() * bestSides.length) | 0];
       const [nx, ny] = stepFrom(agent.x, agent.y, dir);
       moveOne(agent, nx, ny);
-      if (agent.x === agent.gx && agent.y === agent.gy) { agent.state = S.REACHED; return agent.state; }
-      if (NAV().logChoices) console.debug('[DECISION] downhill', { at:{x:agent.x,y:agent.y}, dir, curH, bestH, atJunction });
+      if (agent.x === agent.gx && agent.y === agent.gy) {
+        agent.state = S.REACHED; return agent.state;
+      }
+      if (NAV().logChoices) console.debug('[DECISION] downhill', {
+        at: { x: agent.x, y: agent.y }, dir, curH, bestH, atJunction
+      });
       agent.state = S.WALK_STRAIGHT;
       return agent.state;
     }
 
     if (NAV().logChoices) console.debug('[DECISION] no-downhill', {
-      at:{x:agent.x,y:agent.y}, curH, atJunction, opts: openOpts.map(o=>o.side)
+      at: { x: agent.x, y: agent.y }, curH, atJunction, opts: openOpts.map(o => o.side)
     });
-  } else {
-    if (NAV().logChoices) console.debug('[DECISION ε] override-downhill at junction', {
-      at:{x:agent.x,y:agent.y}, opts: openOpts.map(o=>o.side)
+  } else if (epsilonActive && NAV().logChoices) {
+    console.debug('[DECISION ε] override-downhill at junction', {
+      at: { x: agent.x, y: agent.y }, opts: openOpts.map(o => o.side)
     });
   }
   // ---- end downhill block ----
 
   // Score exits (gentle band bias), highest first
-  const scored = openOpts
-  .map(o => scoreDir(agent, GameState, agent.x, agent.y, o.side, agent.prevDir))
-  .sort((a,b) => b.score - a.score);
+  const scoredBase = atJunction ? forwardOptsOnly : openOpts;
+  const scored = scoredBase
+    .map(o => scoreDir(agent, GameState, agent.x, agent.y, o.side, agent.prevDir))
+    .sort((a,b) => b.score - a.score);
 
   // Default pick is best; ε-pick is any non-best
   let chosenDir = null;
@@ -604,13 +645,12 @@ for (const o of openOpts) {
 
   // Push breadcrumb so backtracking works; then (if ε) force the chosen on the crumb
   const { chosenDir: sticky } = pushBreadcrumb(
-  agent.mem,
-  agent.x, agent.y,
-  oppositeDir(agent.prevDir),
-  scored.map(s => s.dir),
-  agent.x, agent.y
-);
-
+    agent.mem,
+    agent.x, agent.y,
+    oppositeDir(agent.prevDir),
+    scored.map(s => s.dir),
+    agent.x, agent.y
+  );
 
   // If memory chose something else but ε picked a different dir, override the crumb's chosen
   if (epsilonActive && chosenDir && sticky && sticky !== chosenDir) {
@@ -618,7 +658,7 @@ for (const o of openOpts) {
     if (top) top.chosen = chosenDir; // surgical override of sticky randomness at this junction
   }
 
-      const dir = chosenDir || sticky;
+  const dir = chosenDir || sticky;
   if (dir) {
     // Only the *leader* records the group’s junction decision.
     // Followers read via lookupGroupJunctionChoice but never write.
@@ -638,12 +678,11 @@ for (const o of openOpts) {
     }
   }
 
-
-
   // If no exit (or blocked unexpectedly), backtrack
   agent.state = S.BACKTRACK;
   return agent.state;
 }
+
 
 
 function tickBacktrack(agent) {
