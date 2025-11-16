@@ -11,6 +11,8 @@ import { buyUpgrade } from './upgrades.js';
 import { updateAgent } from './pathing/index.js';
 // ----- Combat (robust namespace import; tolerant of export name variants) -----
 import * as combat from './combat.js';
+import { isBossLevel, getDialogueFor } from './story.js';
+
 
 
 window.state = state;             // exposes state.GameState for console tools
@@ -553,36 +555,72 @@ state.applyConfig(state.GameState, cfg);
     });
 }       
 
-function startWave() {
+// --- Narrative helper (story.js integration) ---
+// lines: Array<{ speaker, text, mood?, sfx?, speed? }>
+function showDialogue(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) {
+    return Promise.resolve();
+  }
+
+  for (const line of lines) {
+    const speaker = line.speaker || '';
+    const prefix =
+      speaker === 'dragon'
+        ? '🐉 '
+        : speaker
+          ? `${speaker}: `
+          : '';
+
+    UI.tell?.(prefix + line.text);
+  }
+
+  // Stub: resolve immediately. Later you can make this wait on a real textbox.
+  return Promise.resolve();
+}
+
+async function startWave() {
   if (!state.GameState.cfgLoaded) return; // don’t start waves before tuning exists
-  console.log('[B startWave guard]', state.getCfg(state.GameState)?.tuning?.waves);
+
   const gs = state.GameState;
+  const waveNow = gs.wave | 0;
+
+  // Boss ENTRY dialogue (before enemies spawn)
+  if (isBossLevel(waveNow)) {
+    const lines = getDialogueFor(waveNow, 'entry');
+    if (lines && lines.length > 0) {
+      await showDialogue(lines);
+    }
+  }
+
+  console.log('[B startWave guard]', state.getCfg(state.GameState)?.tuning?.waves);
+
   gs.phase = 'wave';            // ← lock wall building
   gs.__torchWaveId = (gs.__torchWaveId || 0) + 1;
   gs.__firstTorchGiven = false;
-   // Reset per-wave torch lights so old positions don't interpolate in
-   TorchLights.clear();
-   __firstSeen.clear();
 
-  // --- NEW: if someone calls main.startWave directly, ensure topology & trail exist.
-  // If combat.startWave runs next, its calls are idempotent.
+  // Reset per-wave torch lights so old positions don't interpolate in
+  TorchLights.clear();
+  __firstSeen.clear();
+
+  // --- Ensure topology & trail exist before combat.startWave ---
   ensureFreshPathing(gs);
   if (!gs.successTrail) {
     const W = state.GRID.cols, H = state.GRID.rows;
     gs.successTrail = state.makeScalarField(W, H, 0);
   }
   gs._straysActive = 0;
+
   if (typeof combatStartWave === 'function') {
     combatStartWave(state.GameState);
   } else if (typeof combatSpawnWave === 'function') {
     combatSpawnWave(state.GameState);
   }
+
   waveJustStartedAt = performance.now();
 
   globalThis.Telemetry?.log('wave:start', { wave: state.GameState.wave | 0 });
 
-
-    // --- Phase 7: disable autosave by default ---
+  // --- Phase 7: disable autosave by default ---
   state.GameState.dev = state.GameState.dev || {};
   state.GameState.dev.autosave = false;
 }
@@ -631,14 +669,25 @@ function update(dt) {
 }
 
 
-  // End-of-wave detection (simple + robust):
+    // End-of-wave detection (simple + robust):
   const anyAlive = gs.enemies && gs.enemies.length > 0;
   const cooldownMs = 400; // tiny grace after start to avoid flicker
   const justStarted = (performance.now() - waveJustStartedAt) < cooldownMs;
 
   if (!anyAlive && !justStarted) {
+    // If we were in a wave and this was a boss, trigger DEFEAT dialogue
+    if (gs.phase === 'wave') {
+      const waveNow = gs.wave | 0;
+      if (isBossLevel(waveNow)) {
+        const lines = getDialogueFor(waveNow, 'defeat');
+        // Fire-and-forget; showDialogue returns a Promise but we don't need to await inside update()
+        showDialogue(lines);
+      }
+    }
+
     gs.phase = 'build';         // ← unlock building
   }
+
   
   // (nice-to-have:) expose tile size for AI that relies on it
   if (gs.tileSize == null) gs.tileSize = state.GRID.tile;
