@@ -288,6 +288,7 @@ function ensureTorchBearer(e, gs) {
 let lastT = 0;
 let waveJustStartedAt = 0;
 
+
 function frame(now) {
   if (!lastT) lastT = now;
 
@@ -299,8 +300,11 @@ function frame(now) {
   const gs = state.GameState;
   const speed = (typeof gs?.timeScale === 'number' && gs.timeScale > 0) ? gs.timeScale : 1;
 
-  // Scaled simulation delta
-  const dt = rawDt * speed;
+  // Scaled simulation delta (but freeze sim when dialogue is active)
+  let dt = rawDt * speed;
+  if (gs && gs.dialogueActive) {
+    dt = 0; // pause gameplay while dialogue box is open
+  }
 
   // --- FSM time sync (ai/states/* reads gs.time.now/dt/t) ---
   {
@@ -313,8 +317,8 @@ function frame(now) {
         since: (t) => nowSec - t,
       };
     }
-    gs.time.now = nowSec;            // wall-clock seconds
-    gs.time.dt  = dt;                // scaled delta
+    gs.time.now = nowSec;               // wall-clock seconds
+    gs.time.dt  = dt;                   // scaled delta
     gs.time.t   = (gs.time.t || 0) + dt; // accumulated sim time
   }
 
@@ -329,14 +333,14 @@ function frame(now) {
 
   Debug.markFrame();
   Debug.tick({
-  
+    // (you can add probes here later)
   });
 
-    // 3) build lights & present via WebGL
+  // 3) build lights & present via WebGL
   const lights = computeTorchLights(state.GameState);
   const ambient = 0.58; // lower values = brighter map
 
-  // --- NEW: stomp ripple descriptor → WebGL ---
+  // --- stomp ripple descriptor → WebGL ---
   let ripple = null;
   {
     const arr = state.GameState.effects || [];
@@ -353,8 +357,8 @@ function frame(now) {
         x: fx.x || 0,
         y: fx.y || 0,
         progress,
-        maxRadius: fx.maxRadius || ((state.GRID.tile || 32) * 6),
-        strengthPx: fx.strengthPx ?? ((state.GRID.tile || 32) * 0.45),
+        maxRadius:   fx.maxRadius   || ((state.GRID.tile || 32) * 6),
+        strengthPx:  fx.strengthPx  ?? ((state.GRID.tile || 32) * 0.45),
         bandWidthPx: fx.bandWidthPx ?? ((state.GRID.tile || 32) * 0.9),
       };
       break;
@@ -370,24 +374,6 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-// Fires very early (you already dispatch this inside boot())
-window.addEventListener('dl-boot-ok', () => {
-  console.log('[probe] dl-boot-ok: GameState?', !!window.GameState);
-});
-
-// Fires after config applied + UI bound in your current boot chain
-window.addEventListener('dl-preview-refresh', () => {
-  const gs = window.GameState;
-  console.log('[probe] dl-preview-refresh:', {
-    cfgLoaded: !!window.state.getCfg(gs),
-    tileSize:  gs?.tileSize,
-    topoVer:   gs?.topology?.version,
-    topoTv:    gs?.topologyVersion,
-  });
-});
-
-
-globalThis.DL_NAV = globalThis.DL_NAV || {};
 
 
 // ---------- Boot ----------
@@ -554,21 +540,38 @@ state.applyConfig(state.GameState, cfg);
 // --- Narrative helper (story.js integration) ---
 // lines: Array<{ speaker, text, mood?, portrait?, sfx?, speed? }>
 function showDialogue(lines) {
+  const gs = state.GameState;
+
   if (!Array.isArray(lines) || lines.length === 0) {
     return Promise.resolve();
   }
 
+  // Helper toggles
+  const markActive = () => { if (gs) gs.dialogueActive = true; };
+  const markInactive = () => { if (gs) gs.dialogueActive = false; };
+
   // Prefer dedicated UI-layer dialogue if available
   if (UI && typeof UI.showDialogue === 'function') {
     try {
+      markActive();
       const p = UI.showDialogue(lines);
-      if (p && typeof p.then === 'function') return p;
+
+      // If UI.showDialogue returns a Promise, clear the flag when it finishes
+      if (p && typeof p.then === 'function') {
+        return p.finally(markInactive);
+      }
+
+      // If it doesn't return a Promise, treat it as instantaneous
+      markInactive();
+      return Promise.resolve();
     } catch (err) {
       console.warn('[story] UI.showDialogue failed, falling back to HUD banner', err);
+      // make sure we don't stay stuck paused on error
+      markInactive();
     }
   }
 
-  // Fallback: simple HUD banner messages (non-blocking)
+  // Fallback: simple HUD banner messages (non-blocking, no pause needed)
   for (const line of lines) {
     const speaker = line.speaker || '';
     const prefix =
@@ -582,6 +585,7 @@ function showDialogue(lines) {
 
   return Promise.resolve();
 }
+
 
 // Bridge story.js boss events → on-screen dialogue
 window.addEventListener('dl-story-dialog', (ev) => {
