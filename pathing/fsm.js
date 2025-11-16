@@ -24,7 +24,7 @@ import {
 } from "./directpath.js";
 
 import {
-  createMemory, ensureMem, setSeed, pushBreadcrumb, nextUntriedExit, peekBreadcrumb, popBreadcrumb, markEdgeExplored, stepFrom } from "./memory.js";
+  createMemory, ensureMem, setSeed, pushBreadcrumb, nextUntriedExit, peekBreadcrumb, popBreadcrumb, markEdgeExplored, stepFrom, isEdgeExplored } from "./memory.js";
 import { isInAttackZone } from "../grid/attackzone.js"; // to test the west band tiles
 
 
