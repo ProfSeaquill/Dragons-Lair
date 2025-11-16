@@ -59,8 +59,8 @@ e._suppressSep = false;
       const rawRate = Number(e.rate) || 0.5;
 
       // Global hard cap so nothing can machine-gun the dragon.
-      // Tune this to taste: 1 = very slow, 2 = moderate, 3 = pretty fast.
-      const MAX_RATE = 2;
+      // Tune this to taste: 1 = 1 attack per second
+      const MAX_RATE = 0.5;
 
       const rate = Math.min(
         Math.max(0.05, rawRate), // sane lower bound
