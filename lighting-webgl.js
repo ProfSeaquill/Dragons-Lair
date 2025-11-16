@@ -59,16 +59,49 @@ export function initLighting(glCanvas, W, H) {
     uniform vec3 uLightPos[MAX_LIGHTS]; // (x,y,r)
     uniform vec3 uLightCol[MAX_LIGHTS]; // (r,g,b)
 
+     // Stomp ripple (screen-space distortion)
+    uniform int   uRippleActive;
+    uniform vec2  uRippleCenter;      // pixels, top-left origin
+    uniform float uRippleProgress;    // 0..1
+    uniform float uRippleMaxRadius;   // pixels
+    uniform float uRippleStrengthPx;  // max pixel offset at ring
+    uniform float uRippleBandWidthPx; // thickness of active band (pixels)
+
     // soft knee to keep near-black detail
     float softKnee(float x) {
       // x in [0,1]; gentle S-curve
       return smoothstep(0.0, 1.0, x);
     }
 
-    void main() {
+   void main() {
       // vUV is bottom-left origin; we want top-left pixel coords for lights:
       vec2 fragPxGL = vUV * uResolution;
       vec2 fragPx   = vec2(fragPxGL.x, uResolution.y - fragPxGL.y);
+
+      // Base UV, possibly warped by stomp ripple
+      vec2 sampleUV = vUV;
+
+      if (uRippleActive == 1) {
+        float radius   = uRippleMaxRadius * clamp(uRippleProgress, 0.0, 1.0);
+        float dist     = distance(fragPx, uRippleCenter);
+
+        if (radius > 0.0 && uRippleBandWidthPx > 0.0) {
+          float delta = dist - radius;
+          float m = 1.0 - clamp(abs(delta) / uRippleBandWidthPx, 0.0, 1.0);
+
+          if (m > 0.0 && uRippleStrengthPx != 0.0 && dist > 0.0001) {
+            // subtle sinusoidal wobble for “liquid” look
+            float wobble = sin(dist * 0.08 - uRippleProgress * 10.0);
+            float offsetMagPx = uRippleStrengthPx * m * wobble;
+
+            if (abs(offsetMagPx) > 0.1) {
+              vec2 dir = (fragPx - uRippleCenter) / dist; // normalized
+              vec2 offsetUV = (dir * offsetMagPx) / uResolution;
+              sampleUV += offsetUV;
+            }
+          }
+        }
+      }
 
       vec3 base = texture2D(uScene, vUV).rgb;
 
@@ -157,10 +190,19 @@ export function initLighting(glCanvas, W, H) {
   const uLCntLoc    = gl.getUniformLocation(prog, 'uLightCount');
   const uLPosLoc    = gl.getUniformLocation(prog, 'uLightPos[0]');
   const uLColLoc    = gl.getUniformLocation(prog, 'uLightCol[0]');
+  // Ripple
+  const uRippleActiveLoc      = gl.getUniformLocation(prog, 'uRippleActive');
+  const uRippleCenterLoc      = gl.getUniformLocation(prog, 'uRippleCenter');
+  const uRippleProgressLoc    = gl.getUniformLocation(prog, 'uRippleProgress');
+  const uRippleMaxRadiusLoc   = gl.getUniformLocation(prog, 'uRippleMaxRadius');
+  const uRippleStrengthPxLoc  = gl.getUniformLocation(prog, 'uRippleStrengthPx');
+  const uRippleBandWidthPxLoc = gl.getUniformLocation(prog, 'uRippleBandWidthPx');
 
   gl.uniform1i(uSceneLoc, 0);
   gl.uniform2f(uResLoc, W, H);
   gl.uniform1f(uFalloffLoc, 2.0); // default look; tweakable via setFalloff()
+  gl.uniform1i(uRippleActiveLoc, 0);
+
 
   // Pre-allocated arrays
   const lpos = new Float32Array(MAX_LIGHTS * 3);
@@ -206,11 +248,34 @@ export function initLighting(glCanvas, W, H) {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
+    function setRipple(desc) {
+    gl.useProgram(prog);
+
+    if (!desc || !desc.active) {
+      gl.uniform1i(uRippleActiveLoc, 0);
+      return;
+    }
+
+    const x = desc.x || 0;
+    const y = desc.y || 0;
+    const p = Math.max(0, Math.min(1, desc.progress ?? 0));
+    const maxR = Math.max(0, desc.maxRadius || 0);
+    const strength = desc.strengthPx ?? 0;
+    const band = Math.max(0.0001, desc.bandWidthPx || 1);
+
+    gl.uniform1i(uRippleActiveLoc, 1);
+    gl.uniform2f(uRippleCenterLoc, x, y);
+    gl.uniform1f(uRippleProgressLoc, p);
+    gl.uniform1f(uRippleMaxRadiusLoc, maxR);
+    gl.uniform1f(uRippleStrengthPxLoc, strength);
+    gl.uniform1f(uRippleBandWidthPxLoc, band);
+  }
+
   // Optional knobs you can call from main if you want:
   function setFalloff(exp = 2.0) {
     gl.useProgram(prog);
     gl.uniform1f(uFalloffLoc, Math.max(0.5, exp));
   }
 
-  return { render, resize, setFalloff, MAX_LIGHTS };
+  return { render, resize, setRipple, setFalloff, MAX_LIGHTS };
 }
