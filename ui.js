@@ -43,7 +43,7 @@ const SPEAKER_LABELS = {
 };
 
 let dlgRoot = null;
-let dlgBox, dlgSpeaker, dlgText, dlgHint;
+let dlgBox, dlgContent, dlgSpeaker, dlgText, dlgHint;
 let dlgActive = false;
 let dlgLines = [];
 let dlgIndex = 0;
@@ -69,7 +69,7 @@ function ensureDialogueLayer() {
   dlgRoot.style.padding = '12px';
   dlgRoot.style.boxSizing = 'border-box';
 
-  dlgBox = document.createElement('div');
+    dlgBox = document.createElement('div');
   dlgBox.style.background = 'rgba(6,10,24,0.94)';
   dlgBox.style.border = '1px solid #445';
   dlgBox.style.borderRadius = '10px';
@@ -77,22 +77,27 @@ function ensureDialogueLayer() {
   dlgBox.style.minWidth = '320px';
   dlgBox.style.maxWidth = '720px';
   dlgBox.style.color = '#f5f7ff';
-  dlgBox.style.fontFamily = 'system-ui, sans-serif';
+  dlgBox.style.fontFamily = 'system-ui, sans-serif'; // leave font + size as-is
   dlgBox.style.fontSize = '14px';
   dlgBox.style.boxShadow = '0 0 18px rgba(0,0,0,0.65)';
   dlgBox.style.cursor = 'pointer';
 
-  // Fixed size box + text wrapping
-  dlgBox.style.width = '420px';        // pick a fixed width you like
-  dlgBox.style.height = '140px';       // fixed height so it stops growing
+  // Fixed-size box + vertical layout
+  dlgBox.style.width = '420px';        // fixed width
+  dlgBox.style.height = '140px';       // fixed height
   dlgBox.style.display = 'flex';
-  dlgBox.style.alignItems = 'flex-start';
-  dlgBox.style.justifyContent = 'flex-start';
+  dlgBox.style.flexDirection = 'column';
   dlgBox.style.boxSizing = 'border-box';
-  dlgBox.style.overflow = 'hidden';    // or 'auto' if you’d prefer a scrollbar
+  dlgBox.style.overflow = 'hidden';
   dlgBox.style.wordWrap = 'break-word';
   dlgBox.style.lineHeight = '1.3';
-  
+
+  // Inner content area (speaker + text) takes the middle
+  dlgContent = document.createElement('div');
+  dlgContent.style.flex = '1 1 auto';
+  dlgContent.style.display = 'flex';
+  dlgContent.style.flexDirection = 'column';
+
   dlgSpeaker = document.createElement('div');
   dlgSpeaker.style.fontWeight = '600';
   dlgSpeaker.style.marginBottom = '4px';
@@ -101,16 +106,21 @@ function ensureDialogueLayer() {
   dlgText = document.createElement('div');
   dlgText.style.minHeight = '32px';
   dlgText.style.lineHeight = '1.4';
+  dlgText.style.whiteSpace = 'pre-wrap'; // preserve line breaks in story text
 
   dlgHint = document.createElement('div');
-  dlgHint.style.marginTop = '4px';
+  dlgHint.style.marginTop = '4px';   // small gap above hint
   dlgHint.style.fontSize = '11px';
   dlgHint.style.opacity = '0.7';
   dlgHint.textContent = 'Click or press Space/Enter to continue…';
 
-  dlgBox.appendChild(dlgSpeaker);
-  dlgBox.appendChild(dlgText);
+  dlgContent.appendChild(dlgSpeaker);
+  dlgContent.appendChild(dlgText);
+
+  // content fills the box; hint sits at the bottom edge
+  dlgBox.appendChild(dlgContent);
   dlgBox.appendChild(dlgHint);
+
   dlgRoot.appendChild(dlgBox);
   document.body.appendChild(dlgRoot);
 
