@@ -12,7 +12,7 @@ import { updateAgent } from './pathing/index.js';
 // ----- Combat (robust namespace import; tolerant of export name variants) -----
 import * as combat from './combat.js';
 import './story.js'; // load narrative hooks (boss dialogue events)
-
+import { isBossLevel, getBossId } from './story.js';
 
 
 window.state = state;             // exposes state.GameState for console tools
