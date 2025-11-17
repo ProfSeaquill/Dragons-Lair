@@ -10,6 +10,22 @@ function _markHit(e, amount = 0) {
 
 /** Centralized per-frame contact attacks. */
 export function updateAttacks(gs, dt) {
+  // --- DT PROBE: log once after ~60 frames ---
+  if (!gs._dtProbe) {
+    gs._dtProbe = { sum: 0, n: 0, logged: false };
+  }
+  const p = gs._dtProbe;
+  if (!p.logged) {
+    p.sum += dt;
+    p.n++;
+    if (p.n >= 60) {
+      const avg = p.sum / p.n;
+      console.log('[dt PROBE]', { sample: dt, avgDt: avg });
+      p.logged = true;
+    }
+  }
+  // --- end DT PROBE ---
+
   const enemies = gs.enemies || [];
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
