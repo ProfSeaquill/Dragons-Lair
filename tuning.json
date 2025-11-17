@@ -28,10 +28,10 @@
       "kBurnDps": 0.05,
       "kBurnDuration": 0.10,
 
-      "costBasePower": 10,
-      "costBaseRate": 10,
-      "costBaseRange": 10,
-      "costBaseBurn": 10,
+      "costBasePower": 15,
+      "costBaseRate": 15,
+      "costBaseRange": 20,
+      "costBaseBurn": 20,
       "costP": 1.5,
       "costBumpPerLevel": 0.15
     },
