@@ -699,30 +699,47 @@ function update(dt) {
   if (!Array.isArray(gs.effects)) gs.effects = [];
 
   // --- Game Over guard ---
-  if ((gs.dragonHP | 0) <= 0) {
-    if (!gs.gameOver) {
-      gs.gameOver = true;
-      globalThis.Telemetry?.log('dragon:death', { wave: gs.wave | 0 });
-      gs.autoStart = false;
+if ((gs.dragonHP | 0) <= 0) {
+  if (!gs.gameOver) {
+    gs.gameOver = true;
 
-      // stop any current action
-      gs.enemies.length = 0;
-      gs.effects.length = 0;
+    const wave = gs.wave | 0;           
 
-      // disable Start button
-      const startBtn = document.getElementById('startBtn');
-      if (startBtn) startBtn.disabled = true;
-
-      // on-screen notice
-      if (UI && typeof UI.tell === 'function') {
-        UI.tell('💀 Game Over! Your lair was overrun. Load a save or refresh to try again.', '#ff6b6b');
-      }
+    // if this happened on a boss level, emit boss victory for story.js
+    if (isBossLevel && isBossLevel(wave)) {
+      const id = getBossId ? getBossId(wave) : null;
+      try {
+        window.dispatchEvent?.(
+          new CustomEvent('dl-boss-victory', {
+            detail: { wave, id, type: 'boss' },
+          })
+        );
+      } catch (_) {}
     }
-    // Keep HUD responsive but freeze gameplay updates
-    if (UI && typeof UI.refreshHUD === 'function') UI.refreshHUD();
-    return;
+    // END
+
+    globalThis.Telemetry?.log('dragon:death', { wave });
+    gs.autoStart = false;
+
+    // stop any current action
+    gs.enemies.length = 0;
+    gs.effects.length = 0;
+
+    // disable Start button
+    const startBtn = document.getElementById('startBtn');
+    if (startBtn) startBtn.disabled = true;
+
+    // on-screen notice
+    if (UI && typeof UI.tell === 'function') {
+      UI.tell('💀 Game Over! Your lair was overrun. Load a save or refresh to try again.', '#ff6b6b');
+    }
   }
-  // --- end Game Over guard ---
+  // Keep HUD responsive but freeze gameplay updates
+  if (UI && typeof UI.refreshHUD === 'function') UI.refreshHUD();
+  return;
+}
+// --- end Game Over guard ---
+
 
   // 1) Let Combat drive game logic if available
   if (typeof combatUpdate === 'function') {
