@@ -90,9 +90,9 @@ const MOOD = {
 
 // Optional SFX/typing speed hints for your typewriter effect
 const TYPE = {
-  short: { sfx: 'blip', speed: 28 },
-  normal: { sfx: 'blip', speed: 30 },
-  slow: { sfx: 'blip', speed: 25 },
+  short: { sfx: 'blip', speed: 35 },
+  normal: { sfx: 'blip', speed: 35 },
+  slow: { sfx: 'blip', speed: 35 },
 };
 
 // =========================
@@ -173,19 +173,18 @@ function composeDialogue(id, wave, event, T) {
 // Lv.5 — Mordred: first recognition (short, cryptic)
 function mordred(wave, event, talk, convo, T) {
   if (event === 'entry') {
-    return [ K('mordred', '…You.', 'k_stern', 'short') ];
+    return [ K('mordred', 'Oh! …It’s you.', 'k_stern', 'short') ];
   }
   // defeat
   return [
-    K('mordred', 'I thought you a beast. Now I remember the fear you carried ahead of Camelot’s banners.', 'k_stern', 'normal'),
-    talk ? D('I carry it still.', 'd_terse', 'short') : null,
+    K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
   ].filter(Boolean);
 }
 
 // Lv.10 — Kay: titles revealed, sarcastic edge
 function kay(wave, event, talk, convo, T) {
   if (event === 'entry') {
-    return [ K('kay', `Look at you—{DRAGON_TITLES} skulking in a cave. Seneschal says hello.`, 'k_neutral', 'normal') ];
+    return [ K('kay', `Look at you--The Last Ember, skulking in a cave. How ignoble.`, 'k_neutral', 'normal') ];
   }
   return [
     K('kay', 'Arthur fed a kingdom on your fire. Now we choke on smoke without it.', 'k_stern', 'normal'),
