@@ -106,6 +106,7 @@ const WORLD = {
   phaseIdx: 0,
   offscreenNotes: [PHASES[0].msg],
   // You can hang additional flags as needed.
+  seenEntryWaves: new Set(),
 };
 
 // Advance phase notes as waves pass
@@ -414,6 +415,9 @@ function emitBossDialogue(wave, event) {
 // When the first boss actually spawns on the map
 window.addEventListener('dl-boss-appeared', (ev) => {
   const wave = ev?.detail?.wave | 0;
+  try {
+    WORLD.seenEntryWaves?.add?.(wave);
+  } catch (_) {}
   emitBossDialogue(wave, 'entry');
 });
 
@@ -426,6 +430,10 @@ window.addEventListener('dl-boss-defeated', (ev) => {
 // When that boss wins
 window.addEventListener('dl-boss-victory', (ev) => {
   const wave = ev?.detail?.wave | 0;
+  // 👇 NEW: only show victory dialogue if the entry happened for this wave
+  if (!WORLD.seenEntryWaves || !WORLD.seenEntryWaves.has?.(wave)) {
+    return; // dragon died before boss spawn → no boss victory dialogue
+  }
   emitBossDialogue(wave, 'victory');
 });
 
