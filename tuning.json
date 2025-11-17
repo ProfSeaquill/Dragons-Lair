@@ -33,7 +33,7 @@
       "costBaseRange": 10,
       "costBaseBurn": 10,
       "costP": 1.5,
-      "costBumpPerLevel": 0.05
+      "costBumpPerLevel": 0.15
     },
 
     "claw":  { "baseCooldownSec": 5,  "minCooldownSec": 2,  "capDamage": 500,  "kCooldown": 0.25, "kDamage": 0.25 },
