@@ -1567,6 +1567,17 @@ function makePlanDerived(gs) {
   const now  = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   const wave = (gs.wave | 0) || 1;
 
+    // Deterministic RNG for grouping (preview == live for a given wave & config)
+  function makeRng(seed) {
+    let s = (seed >>> 0) || 1;
+    return function rand() {
+      s = (s * 1664525 + 1013904223) >>> 0;  // simple LCG
+      return s / 0xFFFFFFFF;
+    };
+  }
+  const rand = makeRng(0x9E3779B9 ^ (wave | 0));
+
+
   // --- DEBUG: what does the config shape look like?
 const __cfg = state.getCfg?.(gs);
 const __tw  = __cfg?.tuning?.waves;
@@ -1697,23 +1708,46 @@ while (true) {
   // 2) Ensure the leader is included (if chosen), but don't decide its position yet
   if (leaderType) tryTake(leaderType, taken) && buffer.push(leaderType);
 
-  // 3) Fill remaining slots cycling types with caps
+    // 3) Fill remaining slots using a weighted pick:
+  //    - ignore late types while non-late enemies remain
+  //    - weight by remaining pool count for variety but fair share
   while (buffer.length < want) {
-    let progressed = false;
+    const candidates = [];
+    let weightSum = 0;
+
     for (const t of scanOrder) {
-      if (buffer.length >= want) break;
+      const left = (pool.get(t) || 0);
+      if (left <= 0) continue;
 
       // While we still have any non-late types left in the pool,
-      // do NOT fill this group with boss/miniboss types.
+      // do NOT fill this group with late types (boss / miniboss).
       if (lateTypes.has(t) && nonLateRemaining > 0) continue;
 
-      if (tryTake(t, taken)) {
-        buffer.push(t);
-        progressed = true;
-      }
+      const used = taken.get(t) || 0;
+      if (used >= capOf(t)) continue;
+
+      candidates.push([t, left]);
+      weightSum += left;
     }
-    if (!progressed) break;
+
+    if (!candidates.length || weightSum <= 0) break;
+
+    // Weighted random pick: more remaining of a type => higher chance
+    let r = rand() * weightSum;
+    let picked = null;
+    for (const [t, w] of candidates) {
+      if (r <= w) { picked = t; break; }
+      r -= w;
+    }
+    if (!picked) picked = candidates[candidates.length - 1][0];
+
+    if (!tryTake(picked, taken)) {
+      // Should be rare; just break to avoid infinite loops
+      break;
+    }
+    buffer.push(picked);
   }
+
   if (buffer.length === 0) break;
 
   // 4) Sort by numeric priority (leader isn’t pinned yet)
