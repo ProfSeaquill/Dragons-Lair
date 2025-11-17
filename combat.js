@@ -1572,7 +1572,7 @@ function makePlanDerived(gs) {
     let s = (seed >>> 0) || 1;
     return function rand() {
       s = (s * 1664525 + 1013904223) >>> 0;  // simple LCG
-      return s / 0xFFFFFFFF;
+      return s / 0x100000000; // 2^32
     };
   }
   const rand = makeRng(0x9E3779B9 ^ (wave | 0));
