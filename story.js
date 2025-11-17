@@ -185,9 +185,9 @@ function mordred(wave, event, talk, convo, T) {
 function kay(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ 
-      K('kay', `Look at you--The Last Ember, skulking in a cave. How ignoble.`, 'k_neutral', 'normal')
-      D('...', 'd_bitter', 'short')
-      K('kay', 'Have you no words for me, turncloak? Very well, then--Let’s be quick about it.', 'k_stern', 'normal')
+      K('kay', `Look at you--The Last Ember, skulking in a cave. How ignoble.`, 'k_neutral', 'normal'),
+      D('...', 'd_bitter', 'short'),
+      K('kay', 'Have you no words for me, turncloak? Very well, then--Let’s be quick about it.', 'k_stern', 'normal'),
     ].filter(Boolean);
   }
   return [
