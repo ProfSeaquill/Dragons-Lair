@@ -192,7 +192,7 @@ function kay(wave, event, talk, convo, T) {
   }
   return [
     K('kay', 'Arthur fed a kingdom on your fire. Now we choke on smoke without it.', 'k_stern', 'normal'),
-    D('I won’t be your hearth again.', 'd_bitter', 'short') : null,
+    D('I won’t be your hearth again.', 'd_bitter', 'short'),
   ].filter(Boolean);
 }
 
