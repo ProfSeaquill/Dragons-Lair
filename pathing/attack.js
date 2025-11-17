@@ -76,7 +76,7 @@ e._suppressSep = false;
       }
 
       gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - dmg);
-      e._atkCD = 1 / rate;
+      e._atkCD = 1000 / rate;   // cooldown in ms because dt is in ms
       _markHit(e, dmg);
     }
   }
