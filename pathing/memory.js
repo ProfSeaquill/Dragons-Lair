@@ -123,14 +123,18 @@ export function isEdgeExplored(mem, ax, ay, bx, by) {
  *  - backDir: direction we arrived from (exclude it from options).
  *  - exits:   array of candidate dirs (e.g., ["N","E","S","W"] filtered by passability).
  *  - posX,posY: current tile; used to filter edges already explored (A->B).
+ *  - forcedDir (optional): the direction we actually decided to take.
  *
- *  This will randomly choose one *unexplored* exit (if any), store it as `chosen`,
- *  and leave the rest in `remainingMask`. If all exits are explored, `chosen` can be null.
+ *  If forcedDir is provided, we record that as `chosen` and ensure it is
+ *  not included in `remainingMask`. This keeps memory aligned with the
+ *  FSM’s real movement, so backtracking never treats the taken edge as
+ *  “untried”.
  *
  *  Returns { chosenDir, hasRemaining }.
  */
-export function pushBreadcrumb(mem, jx, jy, backDir, exits, posX, posY) {
+export function pushBreadcrumb(mem, jx, jy, backDir, exits, posX, posY, forcedDir) {
   mem = ensureMem(mem);
+
   // 1) Build candidate mask: exits minus backDir and minus edges already explored
   let mask = 0;
   for (const d of exits) {
@@ -141,13 +145,26 @@ export function pushBreadcrumb(mem, jx, jy, backDir, exits, posX, posY) {
     }
   }
 
-  // 2) Choose uniformly among remaining (sticky randomness)
   let chosen = null;
-  if (mask !== 0) {
+
+  // 2a) Preferred path: if the caller tells us which way it actually went,
+  //     record that as chosen and make sure it is not in the remainingMask.
+  if (forcedDir) {
+    chosen = forcedDir;
+
+    // If that direction is considered "untried" here, remove it from the mask
+    if (maskHas(mask, forcedDir)) {
+      mask = maskRemove(mask, forcedDir);
+    }
+    // If it's not in mask (already-explored or equal to backDir), that's fine:
+    // remainingMask simply won't include it, and we still remember `chosen`.
+  }
+  // 2b) Legacy/random path: if no forcedDir is given, fall back to the old
+  //     "sticky RNG among untried exits" behavior.
+  else if (mask !== 0) {
     const dirs = Array.from(dirsFromMask(mask));
     const idx = Math.floor(mem.rng.nextFloat() * dirs.length);
     chosen = dirs[idx];
-    // remaining excludes chosen
     mask = maskRemove(mask, chosen);
   }
 
@@ -155,6 +172,7 @@ export function pushBreadcrumb(mem, jx, jy, backDir, exits, posX, posY) {
   mem.stack.push(crumb);
   return { chosenDir: chosen, hasRemaining: mask !== 0 };
 }
+
 
 /** Return the top breadcrumb (or null). */
 export function peekBreadcrumb(mem) {
