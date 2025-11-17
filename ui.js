@@ -2,6 +2,7 @@
 import * as state from './state.js';
 import * as walls from './grid/walls.js';
 import * as upgrades from './upgrades.js';
+import { getBossId } from './story.js';
 
 // ---------- DOM helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -235,6 +236,21 @@ const ENEMY_META = {
   engineer:   { name: 'Engineer',  color: '#c084fc', blurb: 'Tunnels to the lair and plants a timed bomb.' },
   kingsguard: { name: 'King\'s Guard', color: '#ffa8a8', blurb: 'Miniboss: heavier Knight, moves a bit slower.' },
   boss:       { name: 'Knight of the Round Table', color: '#f4a261', blurb: 'Boss: massive HP; a real push.' },
+};
+
+// Boss display names for the Next Wave preview, keyed by story.js boss id
+const BOSS_PREVIEW_NAME = {
+  mordred:   'Sir Mordred',
+  kay:       'Sir Kay',
+  palamedes: 'Sir Palamedes',
+  gawain:    'Sir Gawain',
+  percival:  'Sir Percival',
+  bors:      'Sir Bors',
+  tristan:   'Sir Tristan',
+  galahad:   'Sir Galahad',
+  bedivere:  'Sir Bedivere',
+  lancelot:  'Sir Lancelot',
+  arthur:    'King Arthur',
 };
 
 // ---------- Config helpers (economy) ----------
@@ -729,7 +745,17 @@ async function renderNextWavePreview() {
     const n = counts[type] | 0;
     if (n <= 0) return;
 
-    const meta = ENEMY_META[type] || { name: type, color: '#ccc', blurb: '' };
+      let meta = ENEMY_META[type] || { name: type, color: '#ccc', blurb: '' };
+
+  // If this is a boss, specialize the name based on the scheduled boss for this wave.
+  if (type === 'boss') {
+    const bossId = getBossId(wave);                 // e.g. 'mordred', 'kay', ...
+    const displayName = bossId && BOSS_PREVIEW_NAME[bossId];
+    if (displayName) {
+      meta = { ...meta, name: displayName };        // keep color/blurb, override name
+    }
+  }
+
 
     const row = document.createElement('div');
     row.style.display = 'grid';
