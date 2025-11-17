@@ -639,11 +639,11 @@ function tickDecision(agent) {
   // Otherwise, fall back to all forward exits (and eventually open exits).
   const junctionOpts = unexploredForwardOpts.length ? unexploredForwardOpts : forwardOptsOnly;
 
-  // Score exits (gentle band bias), highest first
+    // Score exits (gentle band bias), highest first
   const scoredBase = atJunction ? junctionOpts : openOpts;
   const scored = scoredBase
     .map(o => scoreDir(agent, GameState, agent.x, agent.y, o.side, agent.prevDir))
-    .sort((a,b) => b.score - a.score);
+    .sort((a, b) => b.score - a.score);
 
   // Default pick is best; ε-pick is any non-best
   let chosenDir = null;
@@ -656,22 +656,25 @@ function tickDecision(agent) {
     }
   }
 
-  // Push breadcrumb so backtracking works; then (if ε) force the chosen on the crumb
+  // Build the exit list we want the breadcrumb to know about
+  const exitsForCrumb = scored.map(s => s.dir);
+
+  // Push breadcrumb so backtracking works, but explicitly tell memory
+  // which direction we *actually* took. This keeps chosen/remaining aligned
+  // with reality and prevents "go back down a fully exhausted branch".
   const { chosenDir: sticky } = pushBreadcrumb(
     agent.mem,
     agent.x, agent.y,
     oppositeDir(agent.prevDir),
-    scored.map(s => s.dir),
-    agent.x, agent.y
+    exitsForCrumb,
+    agent.x, agent.y,
+    chosenDir            // ← forcedDir: the real move
   );
 
-  // If memory chose something else but ε picked a different dir, override the crumb's chosen
-  if (epsilonActive && chosenDir && sticky && sticky !== chosenDir) {
-    const top = peekBreadcrumb(agent.mem);
-    if (top) top.chosen = chosenDir; // surgical override of sticky randomness at this junction
-  }
-
+  // In normal cases, chosenDir is non-null and equals sticky.
+  // If for any reason chosenDir is null (no exits), sticky might still be null.
   const dir = chosenDir || sticky;
+
   if (dir) {
     // Only the *leader* records the group’s junction decision.
     // Followers read via lookupGroupJunctionChoice but never write.
