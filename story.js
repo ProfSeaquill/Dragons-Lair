@@ -1,7 +1,11 @@
 // story.js
 // Dragon’s Lair — narrative scaffolding + dialogue
-// Import into main flow and call getDialogueFor(wave, "entry"|"defeat")
-// to retrieve an ordered list of { speaker, text, mood?, portrait?, sfx?, speed? }.
+// Import into main flow and call getDialogueFor(wave, event), where:
+//   - "entry"   → boss appears
+//   - "defeat"  → boss is slain (dragon/player wins this fight)
+//   - "victory" → dragon is slain (Camelot wins / game over)
+// Returns an ordered list of { speaker, text, mood?, portrait?, sfx?, speed? }.
+
 
 // =========================
 // Public API
@@ -351,6 +355,12 @@ window.addEventListener('dl-boss-appeared', (ev) => {
 window.addEventListener('dl-boss-defeated', (ev) => {
   const wave = ev?.detail?.wave | 0;
   emitBossDialogue(wave, 'defeat');
+});
+
+// When that boss wins
+window.addEventListener('dl-boss-victory', (ev) => {
+  const wave = ev?.detail?.wave | 0;
+  emitBossDialogue(wave, 'victory');
 });
 
 // =========================
