@@ -176,12 +176,16 @@ function composeDialogue(id, wave, event, T) {
 
 // Lv.5 — Mordred: first recognition (short, cryptic)
 function mordred(wave, event, talk, convo, T) {
-  if (event === 'entry') {
-    return [ K('mordred', 'Oh! …It’s you.', 'k_stern', 'short') ];
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
+  
   // defeat
   return [
-    K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    K('mordred', 'Oh! …It’s you.', 'k_stern', 'normal'),
   ].filter(Boolean);
 }
 
@@ -194,6 +198,14 @@ function kay(wave, event, talk, convo, T) {
       K('kay', 'Have you no words for me, turncloak? Very well, then--Let’s be quick about it.', 'k_stern', 'normal'),
     ].filter(Boolean);
   }
+
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
+  }
+  
   return [
     K('kay', 'Arthur fed a kingdom on your fire. Now we choke on smoke without it.', 'k_stern', 'normal'),
     D('I won’t be your hearth again.', 'd_bitter', 'short'),
@@ -208,6 +220,12 @@ function palamedes(wave, event, talk, convo, T) {
       talk ? D('And how many villages did that wall cast into shadow?', 'd_bitter', 'short') : null,
     ].filter(Boolean);
   }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
+  }
   return [
     K('palamedes', 'Like me, you were always apart. Unlike me, you fled.', 'k_stern', 'normal'),
     talk ? D('I chose to stop burning what I swore to protect.', 'd_terse', 'normal') : null,
@@ -218,6 +236,12 @@ function palamedes(wave, event, talk, convo, T) {
 function gawain(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('gawain', `Name yourself… No. I remember. {DRAGON_NAME}.`, 'k_stern', 'slow') ];
+  }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
   return [
     K('gawain', `You carried our standard to Rome and back. And then dropped it here.`, 'k_stern', 'normal'),
@@ -230,6 +254,12 @@ function percival(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('percival', 'You saved me once. I was small. You were… vast.', 'k_neutral', 'normal') ];
   }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
+  }
   return [
     K('percival', 'I thought heroes never tired. I was wrong.', 'k_sorrow', 'normal'),
     talk ? D('I am not a hero. Only a fire that learned what it burns.', 'd_weary', 'normal') : null,
@@ -240,6 +270,12 @@ function percival(wave, event, talk, convo, T) {
 function bors(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('bors', 'Kingdom before creature. Return, or be ended.', 'k_stern', 'normal') ];
+  }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
   return [
     K('bors', 'Camelot weakens while you hide.', 'k_stern', 'normal'),
@@ -252,6 +288,12 @@ function tristan(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('tristan', 'Even love cannot argue with ruin. Come back with me.', 'k_sorrow', 'slow') ];
   }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
+  }
   return [
     K('tristan', 'Once your shadow meant hope. Now it is a tombstone across the hills.', 'k_sorrow', 'normal'),
     talk ? D('Then let the hills rest at last.', 'd_weary', 'normal') : null,
@@ -262,6 +304,12 @@ function tristan(wave, event, talk, convo, T) {
 function galahad(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('galahad', 'Purity does not flee its purpose. Repent or be purged.', 'k_holy', 'normal') ];
+  }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
   return [
     K('galahad', 'You turned your back not on Arthur, but on grace.', 'k_holy', 'normal'),
@@ -278,6 +326,12 @@ function bedivere(wave, event, talk, convo, T) {
     if (convo) lines.push(D('I grieve him too. But grief cannot leash me again.', 'd_weary', 'normal'));
     return lines;
   }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
+  }
   return [
     K('bedivere', 'I returned a sword to still waters once. I cannot return you.', 'k_sorrow', 'normal'),
     D('Then return your king to peace. Tell him: I will not burn for Camelot again.', 'd_solemn', 'normal'),
@@ -293,6 +347,12 @@ function lancelot(wave, event, talk, convo, T) {
       K('lancelot', 'Then meet me at that line. If I fall, let it be knowing I tried to carry you home.', 'k_sorrow', 'normal'),
     ];
     return lines;
+  }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
   // defeat
   return [
@@ -311,6 +371,12 @@ function arthur(wave, event, talk, convo, T) {
       D('No, Arthur. I choose the world over Camelot.', 'd_solemn', 'slow'),
     ];
     return lines;
+  }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
   // defeat
   return [
