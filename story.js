@@ -296,7 +296,7 @@ function lancelot(wave, event, talk, convo, T) {
   ];
 }
 
-// Lv.101 — Arthur: existential plea; tragic philosophy clash
+// Lv.51 — Arthur: existential plea; tragic philosophy clash
 function arthur(wave, event, talk, convo, T) {
   if (event === 'entry') {
     const lines = [
