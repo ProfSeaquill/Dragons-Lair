@@ -554,8 +554,10 @@ function tickDecision(agent) {
         agent.x, agent.y,
         oppositeDir(agent.prevDir),
         [groupDir],
-        agent.x, agent.y
+        agent.x, agent.y,
+        groupDir           // ← forcedDir: follower actually goes this way
       );
+
 
       const [nx, ny] = stepFrom(agent.x, agent.y, groupDir);
       moveOne(agent, nx, ny);
