@@ -3,6 +3,8 @@ import * as state from './state.js';
 import * as walls from './grid/walls.js';
 import * as upgrades from './upgrades.js';
 import { getBossId } from './story.js';
+import { drawEnemyGlyph } from './render.js';
+
 
 // ---------- DOM helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -837,15 +839,30 @@ async function renderNextWavePreview() {
     row.style.gap = '8px';
     row.style.margin = '6px 0';
 
-    const ico = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    ico.setAttribute('width', '24');
-    ico.setAttribute('height', '24');
-    const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circ.setAttribute('cx', '12'); circ.setAttribute('cy', '12'); circ.setAttribute('r', '9');
-    circ.setAttribute('fill', meta.color);
-    circ.setAttribute('stroke', '#111');
-    circ.setAttribute('stroke-width', '2');
-    ico.appendChild(circ);
+        const ICON_SIZE = 24;
+    const ico = document.createElement('canvas');
+    ico.width = ICON_SIZE;
+    ico.height = ICON_SIZE;
+    ico.style.width = ICON_SIZE + 'px';
+    ico.style.height = ICON_SIZE + 'px';
+
+    const ctx = ico.getContext('2d');
+    if (ctx) {
+      ctx.imageSmoothingEnabled = false;
+
+      // Base radius tuned so the ring fits inside 24×24 nicely
+      const radius = ICON_SIZE * 0.34;
+
+      // Use the shared renderer so rings & colors match the battlefield
+      drawEnemyGlyph(ctx, ICON_SIZE / 2, ICON_SIZE / 2, type, {
+        radius,
+        // No per-enemy flags here; the helper will:
+        // - Give heroes a shield ring
+        // - Give kingsguard a miniboss ring
+        // - Give bosses a boss ring
+      });
+    }
+
 
     const txt = document.createElement('div');
     const title = document.createElement('div');
