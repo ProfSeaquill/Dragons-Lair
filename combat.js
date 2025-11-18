@@ -1542,9 +1542,6 @@ function _cadenceSpecials(wave, cadence, FLAGS) {
   return out;
 }
 
-  return out;
-}
-
 
 
 // Main builder: reads getCfg(gs).waves { count, mixCurves, mixOptions, cadence }
