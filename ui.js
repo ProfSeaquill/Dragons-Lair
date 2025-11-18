@@ -43,6 +43,15 @@ const SPEAKER_LABELS = {
   arthur:   'King Arthur',
 };
 
+// 🔧 Portrait assets (update paths to match your actual filenames)
+const DRAGON_PORTRAIT_SRC = './assets/cargarax_portrait.png';
+const KNIGHT1_PORTRAIT_SRC = './assets/knight1_portrait.png';
+
+const SPEAKER_PORTRAITS = {
+  dragon: { src: DRAGON_PORTRAIT_SRC, side: 'right' }, // faces left, on the right side
+  defaultKnight: { src: KNIGHT_PORTRAIT_SRC, side: 'left' },
+};
+
 let dlgRoot = null;
 let dlgBox, dlgContent, dlgSpeaker, dlgText, dlgHint;
 let dlgActive = false;
@@ -70,7 +79,7 @@ function ensureDialogueLayer() {
   dlgRoot.style.padding = '12px';
   dlgRoot.style.boxSizing = 'border-box';
 
-    dlgBox = document.createElement('div');
+  dlgBox = document.createElement('div');
   dlgBox.style.background = 'rgba(6,10,24,0.94)';
   dlgBox.style.border = '1px solid #445';
   dlgBox.style.borderRadius = '10px';
@@ -93,7 +102,34 @@ function ensureDialogueLayer() {
   dlgBox.style.wordWrap = 'break-word';
   dlgBox.style.lineHeight = '1.3';
 
-  // Inner content area (speaker + text) takes the middle
+  // ── NEW: main row = [portrait] [speaker + text] ─────────────────────────
+  dlgMainRow = document.createElement('div');
+  dlgMainRow.style.flex = '1 1 auto';
+  dlgMainRow.style.display = 'flex';
+  dlgMainRow.style.flexDirection = 'row'; // we may flip this per speaker
+  dlgMainRow.style.gap = '10px';
+
+  dlgPortraitWrap = document.createElement('div');
+  dlgPortraitWrap.style.flex = '0 0 auto';
+  dlgPortraitWrap.style.width = '96px';
+  dlgPortraitWrap.style.height = '96px';
+  dlgPortraitWrap.style.background = '#101625';
+  dlgPortraitWrap.style.borderRadius = '6px';
+  dlgPortraitWrap.style.overflow = 'hidden';
+  dlgPortraitWrap.style.display = 'flex';
+  dlgPortraitWrap.style.alignItems = 'center';
+  dlgPortraitWrap.style.justifyContent = 'center';
+  dlgPortraitWrap.style.border = '1px solid #222b3d';
+
+  dlgPortraitImg = document.createElement('img');
+  dlgPortraitImg.style.maxWidth = '100%';
+  dlgPortraitImg.style.maxHeight = '100%';
+  dlgPortraitImg.style.display = 'block';
+  dlgPortraitImg.style.imageRendering = 'pixelated';
+
+  dlgPortraitWrap.appendChild(dlgPortraitImg);
+
+  // Inner content area (speaker + text)
   dlgContent = document.createElement('div');
   dlgContent.style.flex = '1 1 auto';
   dlgContent.style.display = 'flex';
@@ -109,17 +145,19 @@ function ensureDialogueLayer() {
   dlgText.style.lineHeight = '1.4';
   dlgText.style.whiteSpace = 'pre-wrap'; // preserve line breaks in story text
 
+  dlgContent.appendChild(dlgSpeaker);
+  dlgContent.appendChild(dlgText);
+
+  dlgMainRow.appendChild(dlgPortraitWrap);
+  dlgMainRow.appendChild(dlgContent);
+
   dlgHint = document.createElement('div');
   dlgHint.style.marginTop = '4px';   // small gap above hint
   dlgHint.style.fontSize = '11px';
   dlgHint.style.opacity = '0.7';
   dlgHint.textContent = 'Click or press Space/Enter to continue…';
 
-  dlgContent.appendChild(dlgSpeaker);
-  dlgContent.appendChild(dlgText);
-
-  // content fills the box; hint sits at the bottom edge
-  dlgBox.appendChild(dlgContent);
+  dlgBox.appendChild(dlgMainRow);
   dlgBox.appendChild(dlgHint);
 
   dlgRoot.appendChild(dlgBox);
@@ -139,6 +177,7 @@ function ensureDialogueLayer() {
     }
   });
 }
+
 
 function dialogueStartTyping(text, speed) {
   if (dlgTypingTimer) {
@@ -195,8 +234,22 @@ function dialogueShowNext() {
   dlgSpeaker.textContent = label || '';
   dlgSpeaker.dataset.speaker = id || '';
 
+  // 🔧 NEW: portrait selection
+  const cfg = getPortraitConfigForLine(line);
+  if (cfg && dlgPortraitImg && dlgPortraitWrap && dlgMainRow) {
+    dlgPortraitImg.src = cfg.src;
+    dlgPortraitImg.alt = label || '';
+    dlgPortraitWrap.style.display = 'flex';
+
+    // Knights on the left facing right, dragon on the right facing left
+    dlgMainRow.style.flexDirection = (cfg.side === 'right') ? 'row-reverse' : 'row';
+  } else if (dlgPortraitWrap) {
+    dlgPortraitWrap.style.display = 'none';
+  }
+
   dialogueStartTyping(line.text, line.speed);
 }
+
 
 function dialogueAdvance() {
   if (!dlgActive) return;
@@ -224,6 +277,17 @@ function dialogueEnd() {
   dlgIndex = 0;
 
   if (resolve) resolve();
+}
+
+function getPortraitConfigForLine(line) {
+  if (!line) return null;
+  // Allow explicit portrait override later: line.portrait = 'dragon' | 'knightFoo' etc.
+  const key = line.portrait || line.speaker;
+  if (key === 'dragon') {
+    return SPEAKER_PORTRAITS.dragon;
+  }
+  // All the Round Table folks use the generic knight portrait for now.
+  return SPEAKER_PORTRAITS.defaultKnight;
 }
 
 
