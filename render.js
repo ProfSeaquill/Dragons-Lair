@@ -412,26 +412,69 @@ function enemyRenderOffset(e, tsize) {
 }
 
 /* ===================== enemies, dragon, fire, shimmer ===================== */
+// Shared enemy glyph helper: used by main renderer *and* HUD preview
+export function drawEnemyGlyph(ctx, cx, cy, type, opts = {}) {
+  const radius = opts.radius ?? Math.max(3, (opts.tsize ?? state.GRID.tile) * 0.18);
+
+  // Body color by type, with a shield fallback
+  const bodyColor =
+    opts.bodyColor
+    || TYPE_COLOR[type]
+    || (opts.shield ? '#5cf' : '#fc3');
+
+  // Core body
+  circle(ctx, cx, cy, radius, bodyColor, true);
+
+  const ringWidth = opts.ringWidth ?? 2;
+
+  // Shield ring (heroes always get one)
+  const hasShieldRing =
+    opts.forceShieldRing
+    || type === 'hero'
+    || !!opts.shield;
+  if (hasShieldRing) {
+    ring(ctx, cx, cy, radius + ringWidth, '#9df');
+  }
+
+  // Miniboss ring (kingsguard are minibosses by definition)
+  const isMiniboss =
+    opts.forceMiniboss
+    || !!opts.miniboss
+    || type === 'kingsguard';
+  if (isMiniboss) {
+    ring(ctx, cx, cy, radius + ringWidth, '#f7a');
+  }
+
+  // Boss ring
+  const isBoss =
+    opts.forceBoss
+    || !!opts.boss
+    || type === 'boss';
+  if (isBoss) {
+    ring(ctx, cx, cy, radius + ringWidth, '#f7a');
+  }
+
+  return radius;
+}
 
 function drawEnemies(ctx, gs) {
   if (!Array.isArray(gs.enemies)) return;
   const t = state.GRID.tile;
-  const r = Math.max(3, t * 0.18);
+  const baseR = Math.max(3, t * 0.18);
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
   // Shallow copy + Y-sort for nicer overlap (closest is drawn last)
   const list = gs.enemies.slice().sort((a, b) => {
-  const ay = Number.isFinite(a.drawY) ? a.drawY
-           : Number.isFinite(a.y)     ? a.y
-           : (a.cy + 0.5) * t;
-  const by = Number.isFinite(b.drawY) ? b.drawY
-           : Number.isFinite(b.y)     ? b.y
-           : (b.cy + 0.5) * t;
-  return ay - by;
-});
+    const ay = Number.isFinite(a.drawY) ? a.drawY
+             : Number.isFinite(a.y)     ? a.y
+             : (a.cy + 0.5) * t;
+    const by = Number.isFinite(b.drawY) ? b.drawY
+             : Number.isFinite(b.y)     ? b.y
+             : (b.cy + 0.5) * t;
+    return ay - by;
+  });
 
-
-    for (const e of list) {
+  for (const e of list) {
     if (e.type === 'engineer' && e.tunneling) continue; // drawn by tunnel ring
 
     // Resolve a pixel position (prefer smooth interpolants if present)
@@ -454,7 +497,7 @@ function drawEnemies(ctx, gs) {
     }
 
     // ---- per-type radius tweaks ----
-    let radius = Math.max(3, t * 0.18);
+    let radius = baseR;
 
     // 1) Shrink villagers, squires, and heroes by 5%
     if (e.type === 'villager' || e.type === 'squire' || e.type === 'hero') {
@@ -479,30 +522,13 @@ function drawEnemies(ctx, gs) {
     const px = ex + off.dx;
     const py = ey + off.dy;
 
-    // Body color by type, with a shield fallback
-    const bodyColor = TYPE_COLOR[e.type] || (e?.shield ? '#5cf' : '#fc3');
-
-    // Core body
-    circle(ctx, px, py, radius, bodyColor, true);
-
-    // 2) Make sure heroes have a ring around them for being shielded.
-    //    (Always give heroes the shield ring, even if e.shield isn't set.)
-    const hasShieldRing = e.type === 'hero' || e?.shield;
-    if (hasShieldRing) {
-      ring(ctx, px, py, radius + 2, '#9df');
-    }
-     
-    // Miniboss ring (Kingsguard are minibosses by definition)
-const isMiniboss = e?.miniboss || e.type === 'kingsguard';
-if (isMiniboss) {
-  ring(ctx, px, py, radius + 2, '#f7a');
-}
-
-    // Boss ring
-const isBoss = e?.boss || e.type === 'boss';
-if (isBoss) {
-  ring(ctx, px, py, radius + 2, '#f7a');
-}
+    // Draw enemy body + rings via shared helper
+    drawEnemyGlyph(ctx, px, py, e.type, {
+      radius,
+      shield: e.shield,
+      miniboss: e.miniboss,
+      boss: e.boss,
+    });
 
     // Optional HP bar (uses e.showHpUntil / e.maxHp)
     if (e.showHpUntil && now < e.showHpUntil && e.maxHp > 0) {
@@ -523,6 +549,7 @@ if (isBoss) {
     }
   }
 }
+
 
 
 function drawDragonAndMouthFire(ctx, gs) {
