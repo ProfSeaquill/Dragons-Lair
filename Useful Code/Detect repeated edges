@@ -1,0 +1,48 @@
+// Probe 2: detect when an agent reuses the same edge
+window.__edgeLoopProbe = (function () {
+  const edgeCounts = new Map();   // "id:ax,ay->bx,by" -> count
+  const lastPos = new Map();      // id -> { x, y }
+  
+  const interval = setInterval(() => {
+    const gs = window.GameState;
+    if (!gs || !Array.isArray(gs.enemies)) return;
+
+    for (const e of gs.enemies) {
+      if (!e || e.dead || !e._fsm) continue;
+      const id = e.id ?? e._id;
+      if (id == null) continue;
+
+      const x = (e.cx ?? Math.floor(e.x / (gs.grid?.tile || 32))) | 0;
+      const y = (e.cy ?? Math.floor(e.y / (gs.grid?.tile || 32))) | 0;
+
+      const prev = lastPos.get(id);
+      if (prev && (prev.x !== x || prev.y !== y)) {
+        // Enemy moved one tile; record edge
+        const edgeKey = `${id}:${prev.x},${prev.y}->${x},${y}`;
+        const n = (edgeCounts.get(edgeKey) || 0) + 1;
+        edgeCounts.set(edgeKey, n);
+
+        if (n === 2) {
+          // First time we see this agent reuse this edge
+          console.debug('[EDGE LOOP]', {
+            id,
+            from: { x: prev.x, y: prev.y },
+            to: { x, y },
+            state: e._fsm.state,
+            pos: { cx: x, cy: y },
+            stackDepth: e._fsm.mem?.stack?.length ?? 0,
+          });
+        }
+      }
+
+      lastPos.set(id, { x, y });
+    }
+  }, 100); // 10 times per second
+
+  console.log('[EDGE LOOP PROBE] running; call __edgeLoopProbe.stop() to stop.');
+
+  return {
+    stop() { clearInterval(interval); },
+    edgeCounts,
+  };
+})();

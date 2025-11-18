@@ -94,10 +94,10 @@ function statCostFor(gs, key, level) {
 function abilityCostFor(gs, key, level) {
   const T = getCfg(gs)?.tuning || {};
   const baseMap = {
-    claw:  T.abilities?.costBaseClaw  ?? 50,
-    gust:  T.abilities?.costBaseGust  ?? 100,
-    roar:  T.abilities?.costBaseRoar  ?? 125,
-    stomp: T.abilities?.costBaseStomp ?? 150,
+    claw:  T.abilities?.costBaseClaw  ?? 30,
+    gust:  T.abilities?.costBaseGust  ?? 50,
+    roar:  T.abilities?.costBaseRoar  ?? 70,
+    stomp: T.abilities?.costBaseStomp ?? 90,
   };
   const baseCost = baseMap[key];
   if (typeof baseCost !== 'number') return 999999;
@@ -108,10 +108,13 @@ function abilityCostFor(gs, key, level) {
 
 /** Safe getters for current levels in both stores */
 function statLvl(gs, key) {
-  return Math.max(0, (gs.upgrades?.[key] | 0));
+  const raw = (gs.upgrades?.[key] | 0);
+  return Math.min(CAP_LEVEL, Math.max(0, raw));
 }
+
 function abilityLvl(gs, key) {
-  return Math.max(0, (gs.upgrades?.[key] | 0));
+  const raw = (gs.upgrades?.[key] | 0);
+  return Math.min(ABILITY_MAX_LEVEL, Math.max(0, raw));
 }
 
 // ---- helper to build the live rows the UI expects
@@ -135,7 +138,7 @@ function buildUpgradeRows(gs) {
 });
 
 
-  const abilityRows = ABILITY_UPGRADES.map(def => {
+ const abilityRows = ABILITY_UPGRADES.map(def => {
   const level = abilityLvl(gs, def.key);
   const isMax = level >= ABILITY_MAX_LEVEL;
   return {
@@ -144,13 +147,12 @@ function buildUpgradeRows(gs) {
     level,
     cost: isMax ? 0 : abilityCostFor(gs, def.key, level),
     desc: abilityLive[def.key] || '',
-    max: undefined,
-    isMax: false,
     max: ABILITY_MAX_LEVEL,
     isMax,
     type: def.type,
   };
 });
+
 
   return [...statRows, ...abilityRows];
 }
@@ -194,8 +196,8 @@ export const STAT_UPGRADES = [
   { key: 'burn',  title: 'Burn DoT',    base: 22, mult: 1.5, type: 'stat' },
 ];
 
-const ABILITY_MAX_LEVEL = 30;
-const CAP_LEVEL = 30;
+const ABILITY_MAX_LEVEL = 10;
+const CAP_LEVEL = 10;
 
 /** Build live description strings for the stat upgrades using current dragon stats */
 function buildFireDesc(gs) {
@@ -262,9 +264,9 @@ export function buyUpgrade(gs = GameState, key) {
   let def = STAT_UPGRADES.find(d => d.key === key) || ABILITY_UPGRADES.find(d => d.key === key);
   if (!def) return false;
 
-  const level = (def.type === 'stat') ? statLvl(gs, key) : abilityLvl(gs, key);
-  if (level >= CAP_LEVEL) return false; // hard cap for upgrades
-  if (def.type === 'ability' && level >= ABILITY_MAX_LEVEL) return false; // hard cap for abilities
+ const level = (def.type === 'stat') ? statLvl(gs, key) : abilityLvl(gs, key);
+if (def.type === 'stat'     && level >= CAP_LEVEL)          return false; // hard cap for stats
+if (def.type === 'ability'  && level >= ABILITY_MAX_LEVEL)  return false; // hard cap for abilities
         
   const price = (def.type === 'stat')
     ? statCostFor(gs, key, level)

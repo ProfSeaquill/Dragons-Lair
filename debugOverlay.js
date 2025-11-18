@@ -15,7 +15,8 @@ let fps = 0;
 let injected = {
   enemyCount: undefined,
   pathOK: undefined,
-  cooldowns: undefined, // {gust, roar, stomp}
+  cooldowns: undefined, // {claw, gust, roar, stomp}
+  story: undefined,     // optional story debug payload
 };
 
 // DOM readers (safe fallbacks if elements are missing)
@@ -83,6 +84,7 @@ export function tick(extras) {
     if ('enemyCount' in extras) injected.enemyCount = extras.enemyCount;
     if ('pathOK'     in extras) injected.pathOK     = extras.pathOK;
     if ('cooldowns'  in extras) injected.cooldowns  = extras.cooldowns;
+    if ('story'      in extras) injected.story      = extras.story;
   }
 
   // Pull from existing HUD (cheap & decoupled)
@@ -93,8 +95,9 @@ export function tick(extras) {
   const timeS = readTextFloat('timer');
   const auto  = readChecked('autoStart');
 
-  const cd = injected.cooldowns || {};
-  const cdStr = (['gust','roar','stomp']
+    const cd = injected.cooldowns || {};
+  // include claw as well now
+  const cdStr = (['claw','gust','roar','stomp']
     .map(k => (k in cd) ? `${k}:${(cd[k] ?? 0).toFixed(1)}s` : null)
     .filter(Boolean)
     .join('  ')) || '—';
@@ -105,12 +108,39 @@ export function tick(extras) {
     `Gold: ${gold ?? '—'}   Bones: ${bones ?? '—'}   Auto: ${auto ? 'on' : 'off'}`,
     `Enemies: ${injected.enemyCount ?? '—'}   PathOK: ${fmtBool(injected.pathOK)}`,
     `CD: ${cdStr}`,
-    ``,
-    `Toggle: F2 or \`    (persisted)`,
   ];
+
+  // Optional Story block (only shows if you inject something)
+  const st = injected.story;
+  if (st) {
+    // allow either a simple string or an object
+    if (typeof st === 'string') {
+      lines.push(
+        ``,
+        `Story: ${st}`,
+      );
+    } else if (typeof st === 'object') {
+      const mode   = st.mode   ?? st.state   ?? st.phase;
+      const last   = st.last   ?? st.lastKey ?? st.lastEvent;
+      const next   = st.next   ?? st.nextKey ?? st.nextEvent;
+      const bossId = st.bossId ?? st.bossKey;
+
+      lines.push(``);
+      lines.push(`Story: ${mode ?? '—'}`);
+      if (bossId != null) lines.push(`  Boss: ${bossId}`);
+      if (last   != null) lines.push(`  Last: ${last}`);
+      if (next   != null) lines.push(`  Next: ${next}`);
+    }
+  }
+
+  lines.push(
+    ``,
+    `Toggle: F2 or \`    (persisted)`
+  );
 
   ensureNode().textContent = lines.join('\n');
 }
+
 
 function fmtBool(v) {
   if (v === true) return '✔';

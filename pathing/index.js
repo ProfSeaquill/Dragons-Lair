@@ -1,0 +1,210 @@
+// pathing/index.js
+// Thin façade that matches your existing imports, backed by our FSM.
+
+import { createAgent, tick as tickFSM, getState as getFSMState, setTarget as setFSMTarget } from './fsm.js';
+import { planSegmentToFirstJunction } from './directpath.js';
+import { buildTileRosters, renderOffsetNoOcc } from './separation.js';
+import { EXIT, GRID, GameState, dragonCells } from '../state.js';
+
+// Optional context bag (kept for parity with your old initPathing signature)
+export function initPathing(/*gridApi, exit, opts*/) {
+  return { ok: true };
+}
+
+// --- Stage 1b: choose a goal in the attack band (west of dragon) ---
+function __attackBandGoal(gs) {
+  // Make sure you've imported dragonCells:  import { EXIT, GRID, GameState, dragonCells } from '../state.js';
+  const cells = dragonCells(gs) || [];
+
+  if (!cells.length) {
+    // Fallback to EXIT-1 when footprint isn’t ready yet
+    return { gx: Math.max(0, EXIT.x - 1), gy: Math.max(0, Math.min(GRID.rows - 1, EXIT.y)) };
+  }
+
+  // Find west face (min x) and the vertical span
+  let minX = Infinity, minY = Infinity, maxY = -Infinity;
+  for (const c of cells) {
+    if (c.x < minX) minX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.y > maxY) maxY = c.y;
+  }
+
+  const bandX = Math.max(0, (minX | 0) - 1);                 // 1 tile west of the footprint
+  const midY  = (minY + maxY) >> 1;                          // center of the 3-tile vertical band
+  const gy    = Math.max(0, Math.min(GRID.rows - 1, midY));  // clamp to grid
+
+  return { gx: bandX, gy };
+}
+
+
+// NOTE: pooled enemies carry FSM smoother fields (_fromPX/_toPX/_stepAcc).
+// Always re-seed them here, or they will render at last wave's death pixel for a frame.
+// Spawn/Despawn simply attach/detach an FSM agent on your enemy object.
+export function spawnAgent(enemy /*, ctx */) {
+  // Prefer tile coords; derive from pixels only if needed.
+  const tile = GRID.tile || 32;
+  const sx = Number.isInteger(enemy.cx)
+    ? enemy.cx
+    : Number.isFinite(enemy.x) ? Math.floor(enemy.x / tile) : EXIT.x;
+  const sy = Number.isInteger(enemy.cy)
+    ? enemy.cy
+    : Number.isFinite(enemy.y) ? Math.floor(enemy.y / tile) : EXIT.y;
+
+    const seed = (enemy.seed ?? enemy.id ?? (Math.random() * 0xFFFFFFFF)) | 0;
+
+  enemy._fsm = createAgent({
+    x: sx,
+    y: sy,
+    targetX: EXIT.x,
+    targetY: EXIT.y,
+    seed,
+    nav: enemy.nav,
+    // NEW: group-follow metadata
+    ownerId:        enemy.id,
+    groupId:        enemy.groupId,
+    followLeaderId: enemy.followLeaderId,
+    independentNav: !!enemy.independentNav,
+  });
+
+  // remember current topology revision to detect mid-wave edits
+  enemy._topoSeen = (GameState.topologyVersion | 0);
+
+
+  // Keep enemy.cx/cy authoritative; snap pixels to tile center for render
+  enemy.cx = sx; enemy.cy = sy;
+  enemy.x  = (sx + 0.5) * tile;
+  enemy.y  = (sy + 0.5) * tile;
+
+  // ⛳ Choose a goal in the west band (attack zone) and set it on the FSM
+  const { gx, gy } = __attackBandGoal(GameState);
+  setFSMTarget(enemy._fsm, gx, gy);
+  if (globalThis.DL_NAV && globalThis.DL_NAV.logTargets) {
+    console.debug('[NAV] attack-goal chosen', { gx, gy });
+  }
+
+
+  // ⛳ Reset the pathing smoother so pooled objects don’t carry stale draw state
+  enemy._fromPX = enemy.x;
+  enemy._fromPY = enemy.y;
+  enemy._toPX   = enemy.x;
+  enemy._toPY   = enemy.y;
+  enemy._stepAcc = 0;
+  enemy.drawX   = enemy.x;
+  enemy.drawY   = enemy.y;
+
+  return enemy._fsm;
+}
+
+
+export function despawnAgent(enemy /*, ctx */) {
+  enemy._fsm = null;
+}
+
+// One grid step when enough time has accumulated
+export function updateAgent(enemy, dtSec = ((GameState && GameState.dtSec) || 1/60), ctx) {
+  if (!enemy || enemy.dead) return null;
+  if (!enemy._fsm) spawnAgent(enemy, ctx);
+
+    // — Stage 5: replan when walls/topology change —
+  const curRev = (GameState.topologyVersion | 0);
+  if (enemy._topoSeen !== curRev) {
+    enemy._topoSeen = curRev;
+    const fsm = enemy._fsm;
+    if (fsm && fsm.state !== 'REACHED' && fsm.state !== 'STOPPED') {
+      // drop any stale plan; force a fresh choice
+      fsm.plan = null;
+      fsm.planIdx = 0;
+      fsm.planFlags = { clippedAtJunction:false, reachedGoal:false };
+      fsm.state = 'DECISION';
+      if (globalThis.DL_NAV?.logReplan) {
+        console.debug('[REPLAN] topo change → DECISION', {
+          id: enemy.id, at: { x: enemy.cx|0, y: enemy.cy|0 }, rev: curRev
+        });
+      }
+    }
+  }
+
+    // --- pacing with status effects (stomp slow, etc.) ---
+  const baseTilesPerSec =
+    (enemy.speedTilesPerSec ?? enemy.speedTiles ?? enemy.tilesPerSec ?? 1.0);
+
+  // Slow from stomp: while slowLeft > 0, apply slowMult (<= 1).
+  const slowMult =
+    (enemy.slowLeft > 0 && typeof enemy.slowMult === 'number')
+      ? Math.max(0, enemy.slowMult)
+      : 1.0;
+
+  const tilesPerSec = baseTilesPerSec * slowMult;
+  const stepPeriod  = 1 / Math.max(0.001, tilesPerSec);
+
+
+  const tile = GRID.tile || 32;
+
+  // Initialize interpolation endpoints once
+  if (enemy._fromPX == null) {
+    const px = ((enemy.cx ?? 0) + 0.5) * tile;
+    const py = ((enemy.cy ?? 0) + 0.5) * tile;
+    enemy._fromPX = px; enemy._fromPY = py;
+    enemy._toPX   = px; enemy._toPY   = py;
+    enemy.drawX   = px; enemy.drawY   = py;
+  }
+
+  // Accumulate time since last grid step
+  enemy._stepAcc = (enemy._stepAcc ?? 0) + dtSec;
+
+  if (enemy._stepAcc >= stepPeriod) {
+    // We owe exactly ONE grid step; preserve remainder for smoothness
+    enemy._stepAcc -= stepPeriod;
+
+    // Keep previous "to" as new "from"
+    enemy._fromPX = enemy._toPX;
+    enemy._fromPY = enemy._toPY;
+
+    // Advance FSM exactly one tile
+    const prevCx = enemy.cx | 0;
+    const prevCy = enemy.cy | 0;
+    tickFSM(enemy._fsm);
+    const nx = enemy._fsm.x | 0;
+    const ny = enemy._fsm.y | 0;
+
+    // Authoritative grid coords and logic-center pixels
+    enemy.cx = nx; enemy.cy = ny;
+    enemy.x  = (nx + 0.5) * tile;
+    enemy.y  = (ny + 0.5) * tile;
+
+    // New interpolation target
+    enemy._toPX = enemy.x;
+    enemy._toPY = enemy.y;
+  }
+
+  // Interpolate draw position based on time since last step
+  const t = Math.max(0, Math.min(1, enemy._stepAcc / stepPeriod)); // 0..1
+  enemy.drawX = enemy._fromPX + (enemy._toPX - enemy._fromPX) * t;
+  enemy.drawY = enemy._fromPY + (enemy._toPY - enemy._fromPY) * t;
+
+  // (Renderer: draw at drawX/drawY; logic continues to use x/y, cx/cy)
+  return { moved: true, x: enemy.cx | 0, y: enemy.cy | 0, state: getFSMState(enemy._fsm) };
+}
+
+
+
+// Visual-only sub-tile offset (separation.js, no occupancy)
+let __rosters = null;
+export function beginRenderBatch(units) {
+  __rosters = buildTileRosters(units || []);
+}
+export function endRenderBatch() { __rosters = null; }
+
+export function renderOffset(agentOrEnemy, /* ctx, */ tileSize = GRID.tile) {
+  const unit = {
+    id: agentOrEnemy.id ?? agentOrEnemy._id ?? agentOrEnemy,
+    x: ('cx' in agentOrEnemy ? agentOrEnemy.cx : agentOrEnemy.x) | 0,
+    y: ('cy' in agentOrEnemy ? agentOrEnemy.cy : agentOrEnemy.y) | 0,
+  };
+  // If caller didn’t call beginRenderBatch, fall back to no offset
+  if (!__rosters) return [0, 0];
+  return renderOffsetNoOcc(unit, __rosters, tileSize, { maxOffsetRatio: 0.22 });
+}
+
+// Optional: expose a segment planner if you want to draw debug paths
+export { planSegmentToFirstJunction };

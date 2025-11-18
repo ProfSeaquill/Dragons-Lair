@@ -1,5 +1,12 @@
 // state.js — per-edge wall model + core game state + helpers
 
+// === New pathing imports ===
+import { initPathing, spawnAgent as _pathSpawn, despawnAgent as _pathDespawn, updateAgent as _pathUpdate, renderOffset as _pathRenderOffset } from './pathing/index.js';
+import * as walls from './grid/walls.js';
+import * as topo  from './grid/topology.js';
+import { edgeOpen } from './grid/edges.js';
+
+
 // ===== Grid & Entry/Exit =====
 export const GRID = { cols: 24, rows: 16, tile: 32 };
 
@@ -52,6 +59,8 @@ export function bumpTopology(gs, reason = '') {
   gs._allowTopoBump = true;
   try {
     gs.topologyVersion = (gs.topologyVersion | 0) + 1;
+    // Invalidate cached pathing so ensureFreshPathing() rebuilds next time
+    gs._pathTopoVersion = -1;
   } finally {
     gs._allowTopoBump = false;
   }
@@ -132,6 +141,59 @@ export function isDragonCell(x, y, gs) {
   return false;
 }
 
+// Return nearest dragon cell (tile coords) to a given tile (ox, oy)
+export function nearestDragonCell(gs, ox, oy) {
+  const cells = dragonCells(gs);
+  let best = cells[0], bestD2 = Infinity;
+  for (const c of cells) {
+    const dx = c.x - ox, dy = c.y - oy;
+    const d2 = dx*dx + dy*dy;
+    if (d2 < bestD2) { bestD2 = d2; best = c; }
+  }
+  return best;
+}
+
+// Quick helper: any tile adjacent to any dragon cell?
+export function isAdjacentToDragon(gs, cx, cy) {
+  if (!Number.isInteger(cx) || !Number.isInteger(cy)) return false;
+  // Manhattan distance 1 to any dragon cell
+  for (const c of dragonCells(gs)) {
+    if (Math.abs(c.x - cx) + Math.abs(c.y - cy) === 1) return true;
+  }
+  return false;
+}
+
+// Helper: west-most dragon tile = mouth (dragon faces west toward ENTRY)
+export function dragonAnchor(gs) {
+  const cells = dragonCells(gs);
+  // simple centroid of dragon tiles
+  let sx = 0, sy = 0;
+  for (const c of cells) { sx += c.x; sy += c.y; }
+  const cx = Math.round(sx / Math.max(1, cells.length));
+  const cy = Math.round(sy / Math.max(1, cells.length));
+  return { cx, cy };
+}
+
+// state.js — dragon mouth should be on the west-most interior tile (minX, same row)
+export function dragonMouthCell(gs = GameState) {
+  // EXIT is the dragon’s center tile by design.
+  const cx = EXIT.x, cy = EXIT.y;
+
+  const hb = (typeof DRAGON_HITBOX !== 'undefined' && DRAGON_HITBOX) ? DRAGON_HITBOX : { w: 3, h: 3 };
+  const gridW = GRID?.cols ?? 24;
+
+  // West-most interior x of the footprint (== minX)
+  const westInsideX = cx - Math.floor(hb.w / 2);
+
+  // ✅ Place mouth exactly on the west face (interior edge), not outside and not center.
+  const mouthX = Math.min(Math.max(0, westInsideX), gridW - 1);
+  const mouthY = cy | 0;
+
+  return { x: mouthX, y: mouthY };
+}
+
+
+
 
 // ===== Ability Upgrade Levels =====
 // (0 = base; you can unlock/level these however you like)
@@ -174,7 +236,7 @@ function approachMin(base, min, level, k = 0.07) {
 }
 
 // ==== Finite-horizon (finish exactly at L = 30) ====
-const MAX_UPGRADE_LVL = 30;
+const MAX_UPGRADE_LVL = 10;
 
 function levelProgress(level, max = MAX_UPGRADE_LVL) {
   const L = Math.max(0, level|0);
@@ -221,8 +283,11 @@ function _lvl(gs, keyPrefix) {
   return n | 0;
 }
 
+
 export function enemyBase(type, gs = GameState) {
-  return (getCfg(gs)?.enemies?.[type]) || null; // {hp,speed,rate,damage,range,...}
+  const cfg = getCfg?.(gs);
+  const rec = cfg && cfg.enemies && cfg.enemies[type];
+  return rec || null;
 }
 
 // keep your base helper (or add if you don't have it yet)
@@ -382,6 +447,106 @@ export function inBounds(x, y) {
     : _inBoundsImpl(x, y);
 }
 
+// ===== Pathing adapter & lifecycle =====
+
+// Build a grid API *from current state* that respects edge walls + virtual gates.
+// This is what the pathing/index.js orchestrator uses.
+export function makeGridApiForState(gs) {
+  const cols = GRID.cols, rows = GRID.rows;
+
+  const inBounds = (x, y) => (x >= 0 && x < cols && y >= 0 && y < rows);
+
+  // Tiles themselves are free unless out of bounds.
+  // (Do NOT block dragon cells here; enforce dragon gating in neighbors4.)
+  const isFree = (x, y) => inBounds(x, y);
+
+  const neighbors4 = (x, y) => {
+    const out = [];
+
+    const inDragon = (cx, cy) => {
+      const cs = dragonCells(gs);
+      for (let i = 0; i < cs.length; i++) if (cs[i].x === cx && cs[i].y === cy) return true;
+      return false;
+    };
+
+    // candidates with side from the *source* cell’s perspective
+    const cand = [
+      ['E', x + 1, y],
+      ['W', x - 1, y],
+      ['S', x, y + 1],
+      ['N', x, y - 1],
+    ];
+
+    const hereIsDragon = inDragon(x, y);
+
+    for (const [side, nx, ny] of cand) {
+      if (!inBounds(nx, ny)) continue;
+      if (!isFree(nx, ny)) continue;
+
+     // --- Dragon virtual gates (hard block) ---
+    const nextIsDragon = inDragon(nx, ny);
+
+    // Never allow entering the dragon footprint at all
+    if (nextIsDragon) continue;
+
+    // (Defensive) If something ever ended up inside, don't let it move further
+    if (hereIsDragon) continue;
+
+    // Single source of truth (virtual gates + walls):
+    if (!edgeOpen(gs, x, y, side)) continue;
+
+
+      out.push({ x: nx, y: ny });
+    }
+    return out;
+  };
+  // Expose the grid API to any pathing orchestrator
+  return { inBounds, isFree, neighbors4 };
+}
+
+/**
+ * Create/rebuild the pathing context when topology changes (walls, EXIT moves, etc).
+ * We rebuild lazily the next time someone asks for it.
+ */
+export function ensureFreshPathing(gs = GameState) {
+  // Rebuild whenever topology changes
+  if (!gs._pathCtx || gs._pathTopoVersion !== (gs.topologyVersion | 0)) {
+    const gridApi = makeGridApiForState(gs);
+    // let topology.js use our state-aware grid
+    topo.setGridApi?.(gridApi);
+    gs._pathCtx = initPathing(gridApi, EXIT, {
+      enableDetourOnCrowd: true,
+      softCap: 3,
+      useTiming: false,
+      // debugDetours: true,
+    });
+    gs._pathTopoVersion = gs.topologyVersion | 0;
+  }
+  return gs._pathCtx;
+}
+
+
+
+// Convenience wrappers so the rest of your game can call pathing without importing pathing/*
+export function pathSpawnAgent(agent, gs = GameState) {
+  const ctx = ensureFreshPathing(gs);
+  _pathSpawn(agent, ctx);
+}
+export function pathDespawnAgent(agent, gs = GameState) {
+  const ctx = ensureFreshPathing(gs);
+  _pathDespawn(agent, ctx);
+}
+/** Advance one grid step (or time-gated step if timing enabled). Returns null or { moved, nx, ny }. */
+export function pathUpdateAgent(agent, dtSec, gs = GameState) {
+  const ctx = ensureFreshPathing(gs);
+  return _pathUpdate(agent, dtSec, ctx);
+}
+/** Visual-only sub-tile offset for stacked units. */
+export function pathRenderOffset(agent, tileSize = GRID.tile, gs = GameState) {
+  const ctx = ensureFreshPathing(gs);
+  return _pathRenderOffset(agent, ctx, tileSize);
+}
+
 
 // ===== Game State (single mutable object) =====
 export const GameState = {
@@ -391,6 +556,7 @@ export const GameState = {
   bones: 0,
   dragonHP: DRAGON_BASE.maxHP,
   autoStart: false,
+  timeScale: 1,
   topologyVersion: 0,   // bumped whenever walls/topology change
 
   // tracks when we're in a wave
@@ -433,50 +599,28 @@ export const GameState = {
 function __useGS(g) { return g || GameState; }
 
 export function isOpen(gs, x, y, side) {
-  // ---- VIRTUAL GATES (logic-only; no visuals) ----
-const DIR = { N:[0,-1], E:[1,0], S:[0,1], W:[-1,0] };
-
-// Entry: only allow leaving to the East
-if (x === ENTRY.x && y === ENTRY.y) {
-  return side === 'E';
-}
-
-// Figure out destination to test dragon footprint entry
-const dxy = DIR[side] || [0,0];
-const nx1 = x + dxy[0];
-const ny1 = y + dxy[1];
-
-const inDragon = (cx, cy) => {
-  const cs = dragonCells(gs);
-  for (let i = 0; i < cs.length; i++) if (cs[i].x === cx && cs[i].y === cy) return true;
-  return false;
-};
-
-// Only ENTER the dragon footprint from the West (i.e., crossing side === 'E')
-if (inDragon(nx1, ny1) && side !== 'E') return false;
-
-// Inside dragon cells: only West is open (attackers always face from the left)
-if (inDragon(x, y)) return side === 'W';
-
-// ---- fall through to the normal edge-wall logic below ----
-
-  gs = __useGS(gs);
+  gs = gs || GameState;
   if (!inBounds(x, y)) return false;
-  const here = ensureCell(gs, x, y);
-  if (here[side] === true) return false;
 
-  let nx = x, ny = y, opp;
-  switch (side) {
-    case 'N': ny = y - 1; opp = 'S'; break;
-    case 'S': ny = y + 1; opp = 'N'; break;
-    case 'E': nx = x + 1; opp = 'W'; break;
-    case 'W': nx = x - 1; opp = 'E'; break;
-    default: return false;
-  }
+  // Physical edge must be open (bounds + no wall)
+  if (!edgeOpen(gs, x, y, side)) return false;
+
+  // Compute destination tile
+  let nx = x, ny = y;
+  if (side === 'E') nx = x + 1;
+  else if (side === 'W') nx = x - 1;
+  else if (side === 'S') ny = y + 1;
+  else if (side === 'N') ny = y - 1;
+  else return false;
+
   if (!inBounds(nx, ny)) return false;
-  const there = ensureCell(gs, nx, ny);
-  return there[opp] === false;
+
+  // Virtual gate: do NOT allow moving *into* the dragon footprint.
+  if (isDragonCell(nx, ny, gs)) return false;
+
+  return true;
 }
+
 
 // --- Physical edges only (ignores ENTRY/DRAGON virtual gates) ---
 export function isOpenPhysical(gs, x, y, side) {
@@ -496,20 +640,21 @@ export function isOpenPhysical(gs, x, y, side) {
   }
   if (!inBounds(nx, ny)) return false;
   const there = ensureCell(gs, nx, ny);
-  return there[opp] === true;            // open if opposite isn’t walled
+  return there[opp] === false;           // open only if opposite isn’t walled
 }
 
-function ensureCell(gs, x, y) {
+export function ensureCell(gs, x, y) {
   const key = `${x},${y}`;
-  let c = gs.grid.get(key);
+  let c = gs.cellWalls.get(key);
   if (!c) {
     c = { N:false, S:false, E:false, W:false };
-    gs.grid.set(key, c);
+    gs.cellWalls.set(key, c);
   } else {
     c.N ??= false; c.S ??= false; c.E ??= false; c.W ??= false;
   }
   return c;
 }
+
 
 
 export function neighborsByEdges(gs, cx, cy) {
@@ -523,25 +668,13 @@ export function neighborsByEdges(gs, cx, cy) {
 }
 
 export function setEdgeWall(gs, x, y, side, hasWall) {
-  gs = __useGS(gs);
-  if (!inBounds(x, y)) return false;
-  const here = ensureCell(gs, x, y);
-  let nx = x, ny = y, opp;
-  switch (side) {
-    case 'N': ny = y - 1; opp = 'S'; break;
-    case 'S': ny = y + 1; opp = 'N'; break;
-    case 'E': nx = x + 1; opp = 'W'; break;
-    case 'W': nx = x - 1; opp = 'E'; break;
-    default: return false;
-  }
-  if (!inBounds(nx, ny)) return false;
-
-  const there = ensureCell(gs, nx, ny);
-  here[side] = !!hasWall;
-there[opp] = !!hasWall;
-return true; // no bump here; caller (toggleEdge/applyMaze) decides
-
+    const want = !!hasWall;
+  const cur  = walls.edgeHasWall(gs, x, y, side);
+  if (cur === want) return cur;                     // already desired state
+  const final = walls.toggleEdge(gs, x, y, side);   // toggle once; guard prevents full blocks
+  return final;                                     // true if wall now present, false if absent
 }
+
 
 // --- Maze presets: serialize/apply just the walls (no gold/wave changes) ---
 export function serializeMaze(gs) {
@@ -579,23 +712,29 @@ export function applyMaze(gs, edges) {
 
 
 // ===== Phase 7: Robust saves (versioned + migration) =====
-export const SAVE_SCHEMA_VERSION = 2;
+export const SAVE_SCHEMA_VERSION = 3;
 
-// Tiny migrate: fills defaults when older saves are loaded
 export function migrateSave(save) {
   if (!save || typeof save !== 'object') return null;
   const v = (save.schemaVersion | 0) || 1;
-  // v1 -> v2: add schemaVersion, createdAt if missing; keep payload as-is
+
   if (v <= 1) {
     save.schemaVersion = 2;
     if (!save.createdAt) save.createdAt = Date.now();
-    // Future migrations can fill new top-level fields here.
   }
-  // Always ensure these exist post-migration
+  if (v <= 2) {
+    const s = save.state || {};
+    if (s && s.cellWalls && !Array.isArray(s.cellWalls)) {
+      s.cellWalls = []; // old saves had {} — normalize to empty
+    }
+    save.schemaVersion = 3;
+  }
+
   if (!save.schemaVersion) save.schemaVersion = SAVE_SCHEMA_VERSION;
   if (!save.createdAt) save.createdAt = Date.now();
   return save;
 }
+
 
 // Best-effort clear (keeps compatibility if key ever changed)
 export function clearSave() {
@@ -620,29 +759,37 @@ export function clearSave() {
 // ===== Saving / Loading =====
 const LS_KEY = 'dragons-lair-save';
 
+
 export function saveState(gs) {
   try {
-    const snap = structuredClone(gs);
-    // Derived: rebuilds quickly; don’t persist
-    delete snap.topology;
-    // Optional: also strip transient fields if you like:
-    // delete snap.distFromEntry; delete snap.distToExit;
-    
+    const snap = {
+      version: gs.version,
+      wave: gs.wave,
+      gold: gs.gold,
+      bones: gs.bones,
+      dragonHP: gs.dragonHP,
+      autoStart: !!gs.autoStart,
+      phase: gs.phase,
+      upgrades: gs.upgrades || {},
+      seed: gs.seed | 0,
+      cfg: gs.cfg || null,
+      // Persist walls as entries: [ "x,y", {N,E,S,W} ]
+      cellWalls: Array.from(gs.cellWalls.entries()),
+    };
+
     const payload = {
       schemaVersion: SAVE_SCHEMA_VERSION,
       createdAt: Date.now(),
-      // Store just what you already stored; if you saved the whole gs, keep doing that:
-      state: gs
+      state: snap,
     };
-    const txt = JSON.stringify(payload);
-    // write with your existing key
-    localStorage.setItem('dl.save', txt);
+    localStorage.setItem('dl.save', JSON.stringify(payload));
     return true;
   } catch (err) {
     console.warn('Save failed:', err);
     return false;
   }
 }
+
 
 
 export function loadState() {
@@ -667,16 +814,23 @@ export function loadState() {
     // 3) Install into live GameState
     Object.assign(GameState, loaded);
 
+    // Ensure a valid timeScale for old saves
+if (typeof GameState.timeScale !== 'number' || GameState.timeScale <= 0) {
+  GameState.timeScale = 1;
+}
+
     // 4) Rehydrate Maps and bump topology (your existing pattern)
-    if (Array.isArray(GameState.cellWalls)) {
-      GameState.cellWalls = new Map(GameState.cellWalls);
-      bumpTopology(GameState, 'loadState:rehydrate-array');
-    } else if (!(GameState.cellWalls instanceof Map)) {
-      GameState.cellWalls = new Map();
-      bumpTopology(GameState, 'loadState:rehydrate-empty');
-    } else {
-      bumpTopology(GameState, 'loadState'); // safe single bump
-    }
+if (Array.isArray(loaded.cellWalls)) {
+  GameState.cellWalls = new Map(loaded.cellWalls);
+} else {
+  GameState.cellWalls = new Map();
+}
+bumpTopology(GameState, 'loadState:v3');
+
+// reset derived/transient
+GameState._pathCtx = null;
+GameState._pathTopoVersion = -1;
+
 
     // 5) Make sure a fresh graph exists now (will rebuild if jxns isn’t a Map)
     //    If you already call ensureFreshTopology() immediately after load in main.js,
@@ -701,6 +855,7 @@ export function resetState(gs = GameState) {
   gs.bones = 0;
   gs.dragonHP = DRAGON_BASE.maxHP;
   gs.autoStart = false;
+  gs.timeScale = 1;
   gs.enemies = [];
   gs.projectiles = [];
   gs.effects = [];
@@ -710,6 +865,9 @@ export function resetState(gs = GameState) {
   gs.distToExit    = makeScalarField(GRID.cols, GRID.rows, Infinity);
   gs.successTrail  = makeScalarField(GRID.cols, GRID.rows, 0);
   gs.seed = 0;
+  gs._pathCtx = null;
+  gs._pathTopoVersion = -1;
+
 }
 
 // ===== Econ helpers =====

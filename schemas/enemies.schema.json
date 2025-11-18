@@ -15,6 +15,17 @@
       "armor":    { "type": "integer", "minimum": 0, "default": 0 },
       "shielded": { "type": "boolean", "default": false },
       "tags":     { "type": "array", "items": { "type": "string" }, "default": [] }
+       // OPTIONAL preset that expands to defaults (overridden by .nav below)
+    "navPreset": "wanderer",   // "hunter" | "wanderer" | "beeLine" | "cautious"
+    // OPTIONAL fine-grained overrides
+    "nav": {
+      "pathHeur": "manhattan", // "manhattan" or "astar"
+      "epsilonWorse": 0.35,    // 0..1 exploration prob at true forks
+      "bias": {
+        "bandGain": 1.0,       // pull toward the band (higher = stronger)
+        "keepHeading": 0.10,   // prefer not to turn
+        "deltaH": 0.00,        // downhill on distFromEntry
+        "eastNudge": 0.00      // tiny tie-breaker
     },
     "additionalProperties": false
   }

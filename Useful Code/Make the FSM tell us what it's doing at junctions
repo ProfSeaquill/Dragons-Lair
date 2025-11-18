@@ -1,0 +1,17 @@
+// Probe 1: enable nav logging
+globalThis.DL_NAV = {
+  ...(globalThis.DL_NAV || {}),
+  logChoices: true,
+  // keep your epsilon unless you’ve changed it elsewhere
+  // epsilonWorse: 0.33,
+};
+
+if (window.GameState) {
+  GameState.navDebug = {
+    ...(GameState.navDebug || {}),
+    logChoices: true,
+  };
+  console.log('[NAV DEBUG] logChoices enabled');
+} else {
+  console.warn('GameState is not on window; if you see this, tell ChatGPT.');
+}

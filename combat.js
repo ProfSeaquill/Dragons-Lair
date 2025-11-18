@@ -1,8 +1,16 @@
 // combat.js (top)
 import * as state from './state.js';
-import { updateEnemyDistance } from './ai/metrics.js';
-import { buildJunctionGraph } from './ai/topology.js';
-import { computeShortestPath } from './ai/topology.js';
+// New pathing wrappers (added in state.js patch)
+import { pathSpawnAgent, pathUpdateAgent, pathRenderOffset, GRID, ENTRY, EXIT, ensureFreshPathing, pathDespawnAgent } from './state.js';
+import { isInAttackZone } from './grid/attackzone.js';
+import { updateAttacks } from './pathing/attack.js';
+import { spawnClawSlashEffect } from './combat/upgrades/abilities/claw.js';
+import { spawnWingGustCorridorFX } from './combat/upgrades/abilities/wing_gust.js';
+import { applyRoar } from './combat/upgrades/abilities/roar.js';
+import { applyStomp } from './combat/upgrades/abilities/stomp.js';
+import { BOSS_SCHEDULE } from './story.js';
+
+
 
 
 // === Ability cooldown timers (module-local) ===
@@ -15,6 +23,9 @@ let clawCooldown  = 0;
 
 // Unique enemy IDs (module-local counter)
 let __ENEMY_ID = 0;
+
+let effectsLoopLoggedOnce = false;
+
 
 // ===== Phase 9: object pools (prevent GC churn) =====
 const ENEMY_POOL = new Map();   // type -> array of recycled enemies
@@ -49,7 +60,6 @@ function __resolveMixedType(gs, t) {
   return weights[0][0];
 }
 
-
 function acquireEnemy(type, wave, initFn) {
   const pool = ENEMY_POOL.get(type);
   let e = (pool && pool.length) ? pool.pop() : makeEnemy(type, wave);
@@ -57,11 +67,25 @@ function acquireEnemy(type, wave, initFn) {
   e.id = 0; e.groupId = 0; e.followLeaderId = null; e.leader = false; e.torchBearer = false;
   e.burnLeft = 0; e.burnDps = 0; e.stunLeft = 0; e.slowLeft = 0; e.roarBuffLeft = 0;
   e.pausedForAttack = false; e.isAttacking = false;
-  e.hp = e.maxHp; e.lastHitAt = 0; e.showHpUntil = 0;
+  e.hp = e.maxHp; e.lastHitAt = 0; e.showHpUntil = 0; e.slowMult = 1;
 
-  // --- reset positional / steering state (important for pooled enemies) ---
-e.x = undefined;
-e.y = undefined;
+    // --- reset positional / steering state (important for pooled enemies) ---
+  e.x = undefined;
+  e.y = undefined;
+
+  // 💥 kill any stale render-smoothing carried by the pool
+    // Leave undefined so spawners MUST seed these; renderer should not assume defaults
+  e.drawX = e.drawY = e.prevX = e.prevY = undefined;
+
+  e.ox = 0;
+  e.oy = 0;
+  e.tBorn = 0;        // set on spawn
+
+    e.sepX = 0; e.sepY = 0;
+  e.sepOffsetX = 0; e.sepOffsetY = 0;
+  e._suppressSep = false;
+
+
 e.cx = 0;
 e.cy = 0;
 e.tileX = undefined;
@@ -89,15 +113,14 @@ e.commitTilesLeft = 0;
 e.isAttacking = false;
 e.pausedForAttack = false;
 e.speedMul = 1;
-  // Make sure behavior is present even on pooled objects
-  if (!e.behavior || typeof e.behavior !== 'object') {
-    const B = BEHAVIOR[type] || { sense: 0.25, herding: 1.0, curiosity: 0.15 };
-    e.behavior = {
-      sense:     Number(B.sense)     || 0,
-      herding:   Number(B.herding)   || 0,
-      curiosity: Number(B.curiosity) || 0,
-    };
-  }
+// wipe any nav/lerp scratch that a pooled enemy could carry over
+e.fromXY = null;        // some pathers keep a [x,y] start of segment
+delete e._fromX; delete e._fromY;
+delete e._seg; delete e._acc; delete e._lerp; delete e._t;
+// Also wipe the FSM smoother’s pixel fields so updateAgent will re-seed them
+delete e._fromPX; delete e._fromPY;
+delete e._toPX;   delete e._toPY;
+delete e._stepAcc;
 
   if (initFn) initFn(e);
   return e;
@@ -105,10 +128,51 @@ e.speedMul = 1;
 
 function releaseEnemy(e) {
   if (!e || !e.type) return;
+  // 🧹 kill any navigator state tied to this object reference
+  try { pathDespawnAgent?.(e); } catch (_) {}
+
+  // (optional, but nice) remove per-enemy visuals bookkeeping if you keep Maps in main.js
+  try {
+    globalThis.TorchLights?.delete?.(e.id);
+    globalThis.__firstSeen?.delete?.(e.id);
+  } catch (_) {}
   let pool = ENEMY_POOL.get(e.type);
   if (!pool) { pool = []; ENEMY_POOL.set(e.type, pool); }
   pool.push(e);
 }
+
+// --- Nav presets + merge (combat.js) -----------------------------------------
+const NAV_PRESETS = {
+  hunter:   { pathHeur: 'astar',     epsilonWorse: 0.10, bias: { bandGain: 1.6, keepHeading: 0.08, deltaH: 0.00, eastNudge: 0.00 } },
+  beeLine:  { pathHeur: 'astar',     epsilonWorse: 0.00, bias: { bandGain: 0.0, keepHeading: 0.05, deltaH: 0.00, eastNudge: 0.00 } },
+  wanderer: { pathHeur: 'manhattan', epsilonWorse: 0.40, bias: { bandGain: 0.9, keepHeading: 0.05, deltaH: 0.00, eastNudge: 0.00 } },
+  cautious: { pathHeur: 'manhattan', epsilonWorse: 0.20, bias: { bandGain: 1.2, keepHeading: 0.12, deltaH: 0.02, eastNudge: 0.00 } },
+};
+
+function __mergeBias(a={}, b={}) {
+  return {
+    bandGain:   (b.bandGain   ?? a.bandGain   ?? 1.0),
+    keepHeading:(b.keepHeading?? a.keepHeading?? 0.10),
+    deltaH:     (b.deltaH     ?? a.deltaH     ?? 0.00),
+    eastNudge:  (b.eastNudge  ?? a.eastNudge  ?? 0.00),
+  };
+}
+
+function buildEnemyNav(type, gs) {
+  const base = (state.enemyBase?.(type, gs)) || {};
+  const presetName = base.navPreset && String(base.navPreset);
+  const preset = (presetName && NAV_PRESETS[presetName]) || {};
+  const ov = base.nav || {};
+  return {
+    pathHeur:     ov.pathHeur     ?? preset.pathHeur     ?? 'manhattan',
+    epsilonWorse: (typeof ov.epsilonWorse === 'number') ? ov.epsilonWorse
+                   : (typeof preset.epsilonWorse === 'number') ? preset.epsilonWorse
+                   : 0.30,
+    bias: __mergeBias(preset.bias, ov.bias),
+  };
+}
+
+
 
 function acquireEffect(kind, seedObj) {
   const pool = EFFECT_POOL.get(kind);
@@ -155,6 +219,41 @@ function ensureSuccessTrail(gs) {
   }
 }
 
+// --- Wave-end hard wipe (actors + per-wave scratch) -------------------------
+function hardWipeActors(gs) {
+  // 1) Enemies → release to pool, then empty array
+  if (Array.isArray(gs.enemies)) {
+    for (let i = gs.enemies.length - 1; i >= 0; i--) {
+      const e = gs.enemies[i];
+      if (e) releaseEnemy(e);
+    }
+    gs.enemies.length = 0;
+  } else {
+    gs.enemies = [];
+  }
+
+  // 2) Nuke transient effects (visuals, tunnels, bombs, splashes, etc.)
+  if (Array.isArray(gs.effects)) {
+    gs.effects.length = 0;
+  } else {
+    gs.effects = [];
+  }
+
+  // 3) Pathing/nav registry cleanup if your state exposes it
+  try {
+    if (typeof state.pathReset === 'function')       state.pathReset(gs);
+    else if (typeof state.pathForgetAll === 'function') state.pathForgetAll(gs);
+  } catch (_) { /* optional */ }
+
+  // 4) Per-wave systems reset
+  ensureSuccessTrail(gs);        // fresh herding/scent map
+  gs._straysActive = 0;          // curiosity limiter
+  gs.__firstTorchGiven = false;  // force re-pick next wave
+  gs.__torchWaveId = (gs.__torchWaveId | 0) + 1; // de-sync any stale light ties
+
+  // 5) Let main.js clear its light pools / firstSeen cache
+  try { window.dispatchEvent?.(new CustomEvent('dl-wave-hardened-wipe')); } catch(_) {}
+}
 
 // expose cooldowns for UI
 export function getCooldowns() {
@@ -166,16 +265,6 @@ export function getCooldowns() {
   };
 }
 
-
-// Quick helper: any tile adjacent to any dragon cell?
-function isAdjacentToDragon(gs, cx, cy) {
-  if (!Number.isInteger(cx) || !Number.isInteger(cy)) return false;
-  // Manhattan distance 1 to any dragon cell
-  for (const c of state.dragonCells(gs)) {
-    if (Math.abs(c.x - cx) + Math.abs(c.y - cy) === 1) return true;
-  }
-  return false;
-}
 
 
 function dragonPerimeterTiles(gs) {
@@ -191,6 +280,7 @@ function dragonPerimeterTiles(gs) {
   }
   return out;
 }
+
 
 // Push one step along grid if the edge is open (no walls). Returns new (x,y).
 function stepIfOpen(gs, x, y, dir) {
@@ -218,72 +308,89 @@ function tickKnockback(e, dt) {
     kb.acc -= kb.durPerTile;
     kb.seg++;
     const node = kb.path[kb.seg];
-    e.cx = node.x; e.cy = node.y;
-    e.tileX = node.x; e.tileY = node.y;
+    e.cx = node.x;
+    e.cy = node.y;
+    e.tileX = node.x;
+    e.tileY = node.y;
   }
+
+  const t = kb.tsize || (state.GRID.tile || 32);
 
   // finished?
   if (kb.seg >= kb.path.length - 1) {
     const last = kb.path[kb.path.length - 1];
-    const prev = kb.path[Math.max(0, kb.path.length - 2)];
-    const t = kb.tsize;
 
     // snap to last tile center
     e.x = (last.x + 0.5) * t;
     e.y = (last.y + 0.5) * t;
+    e.drawX = e.x;
+    e.drawY = e.y;
 
     // face generally toward EXIT so FSM resumes sensibly
-    const dx = state.EXIT.x - last.x, dy = state.EXIT.y - last.y;
-    e.dir = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'E' : 'W') : (dy >= 0 ? 'S' : 'N');
-    e.commitDir = null; e.commitSteps = 0; e.commitTilesLeft = 0;
-    e.isAttacking = false; e.pausedForAttack = false;
+    const dx = state.EXIT.x - last.x;
+    const dy = state.EXIT.y - last.y;
+    e.dir = Math.abs(dx) >= Math.abs(dy)
+      ? (dx >= 0 ? 'E' : 'W')
+      : (dy >= 0 ? 'S' : 'N');
+    e.commitDir = null;
+    e.commitSteps = 0;
+    e.commitTilesLeft = 0;
+    e.isAttacking = false;
+    e.pausedForAttack = false;
 
+    // Clear knockback and re-seed the navigator at this new tile
     e.kb = null;
+    try {
+      pathSpawnAgent?.(e); // restart FSM from e.cx/e.cy
+    } catch (_) {}
     return;
   }
 
-  // interpolate within current segment
+  // mid-flight: interpolate within current segment and drive drawX/drawY
   const a = kb.path[kb.seg];
   const b = kb.path[kb.seg + 1];
   const u = Math.max(0, Math.min(1, kb.acc / kb.durPerTile));
-  const t = kb.tsize;
 
   const ax = (a.x + 0.5) * t, ay = (a.y + 0.5) * t;
   const bx = (b.x + 0.5) * t, by = (b.y + 0.5) * t;
 
-  e.x = ax + (bx - ax) * u;
-  e.y = ay + (by - ay) * u;
+  const px = ax + (bx - ax) * u;
+  const py = ay + (by - ay) * u;
+
+  e.x = px;
+  e.y = py;
+  e.drawX = px;
+  e.drawY = py;
 
   // keep facing coherent with motion
-  e.dir = (bx > ax) ? 'E' : (bx < ax) ? 'W' : (by > ay) ? 'S' : 'N';
+  e.dir = (bx > ax) ? 'E'
+       : (bx < ax) ? 'W'
+       : (by > ay) ? 'S'
+       : 'N';
 }
 
-// Push enemies that are within `tiles` of the dragon anchor.
-// Displacement falls off linearly with Manhattan distance:
-//   pushSteps = max(0, tiles - distMan)
-// Adjacent (dist=1) → tiles-1 steps; two tiles away (dist=2) → tiles-2 steps; etc.
-function wingGustPush(gs, tiles) {
+export function wingGustPush(gs, tiles) {
   const t = state.GRID.tile || 32;
 
   // Dragon anchor (centroid of dragon footprint)
   const cells = state.dragonCells(gs);
+  if (!cells || !cells.length) return;
+
   let sx = 0, sy = 0;
   for (const c of cells) { sx += c.x; sy += c.y; }
   const ax = Math.round(sx / Math.max(1, cells.length));
   const ay = Math.round(sy / Math.max(1, cells.length));
 
   // ---- Enemies ----
-  for (const e of gs.enemies) {
+  for (const e of gs.enemies || []) {
     if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    if (e.type === 'engineer' && e.tunneling) continue; // ← don't shove burrowers
-
+    if (e.type === 'engineer' && e.tunneling) continue; // don’t shove burrowers
 
     const dx0 = e.cx - ax, dy0 = e.cy - ay;
     const distMan = Math.abs(dx0) + Math.abs(dy0);
     if (distMan <= 0) continue;                 // sitting inside dragon; ignore
     if (distMan > tiles) continue;              // out of gust radius
 
-    // How many tiles to push this unit (linearly decays with distance)
     const pushSteps = Math.max(0, tiles - distMan);
     if (pushSteps === 0) continue;
 
@@ -301,46 +408,51 @@ function wingGustPush(gs, tiles) {
       nx = step.x; ny = step.y;
     }
 
-    if (nx !== e.cx || ny !== e.cy) {
-  // Build the per-tile path we just traced
-  const path = [{ x: e.cx, y: e.cy }];
-  // Recreate the step sequence to fill the path:
-  {
-    const dx0 = e.cx - ax, dy0 = e.cy - ay;
-    const dir = (Math.abs(dx0) >= Math.abs(dy0)) ? (dx0 >= 0 ? 'E' : 'W')
-                                                 : (dy0 >= 0 ? 'S' : 'N');
-    let px = e.cx, py = e.cy;
-    const steps = Math.max(1, Math.abs(nx - e.cx) + Math.abs(ny - e.cy));
-    for (let k = 0; k < steps; k++) {
-      const step = stepIfOpen(gs, px, py, dir);
-      if (step.x === px && step.y === py) break;
-      if (state.isDragonCell(step.x, step.y, gs)) break;
-      px = step.x; py = step.y;
-      path.push({ x: px, y: py });
-      if (px === nx && py === ny) break;
+    if (nx === e.cx && ny === e.cy) continue;
+
+    // Build the per-tile path we just traced
+    const path = [{ x: e.cx, y: e.cy }];
+    {
+      const dx0b = e.cx - ax, dy0b = e.cy - ay;
+      const dir2 = (Math.abs(dx0b) >= Math.abs(dy0b))
+        ? (dx0b >= 0 ? 'E' : 'W')
+        : (dy0b >= 0 ? 'S' : 'N');
+      let px = e.cx, py = e.cy;
+      const steps = Math.max(1, Math.abs(nx - e.cx) + Math.abs(ny - e.cy));
+      for (let k = 0; k < steps; k++) {
+        const step = stepIfOpen(gs, px, py, dir2);
+        if (step.x === px && step.y === py) break;
+        if (state.isDragonCell(step.x, step.y, gs)) break;
+        px = step.x; py = step.y;
+        path.push({ x: px, y: py });
+        if (px === nx && py === ny) break;
+      }
+    }
+
+    if (path.length >= 2) {
+      e.kb = {
+        path,
+        seg: 0,
+        acc: 0,
+        durPerTile: 0.08,            // tune: 0.06 snappier, 0.12 chunkier
+        tsize: state.GRID.tile || 32
+      };
+      e.isAttacking     = false;
+      e.pausedForAttack = false;
+      e.commitDir       = null;
+      e.commitSteps     = 0;
+      e.commitTilesLeft = 0;
+
+      // tiny tick just to show HP bar flash
+      markHit(e, 0.0001);
     }
   }
-
-  if (path.length >= 2) {
-    e.kb = {
-      path,
-      seg: 0,
-      acc: 0,
-      durPerTile: 0.08,            // ← tune: 0.06 snappier, 0.12 chunkier
-      tsize: state.GRID.tile || 32
-    };
-    e.isAttacking = false;
-    e.pausedForAttack = false;
-    e.commitDir = null; e.commitSteps = 0; e.commitTilesLeft = 0;
-
-    markHit(e, 0.0001); // tiny tick just to show the HP bar flash
-  }
-}
 
   // ---- Bombs (optional, same falloff & walls) ----
   for (const fx of (gs.effects || [])) {
     if (fx.type !== 'bomb') continue;
-    let cx = Math.floor(fx.x / t), cy = Math.floor(fx.y / t);
+    let cx = Math.floor(fx.x / t);
+    let cy = Math.floor(fx.y / t);
 
     const dx0 = cx - ax, dy0 = cy - ay;
     const distMan = Math.abs(dx0) + Math.abs(dy0);
@@ -356,46 +468,12 @@ function wingGustPush(gs, tiles) {
       if (step.x === cx && step.y === cy) break;
       cx = step.x; cy = step.y;
     }
+
     fx.x = (cx + 0.5) * t;
     fx.y = (cy + 0.5) * t;
   }
 }
-}
 
-
-// Roar: stun + temporary behavior buff within range
-function roarAffect(gs, rs) {
-  const a = dragonAnchor(gs);
-    for (const e of gs.enemies) {
-    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    if (e.type === 'engineer' && e.tunneling) continue; // ← roar doesn’t affect burrowers
-    const distMan = Math.abs(e.cx - a.cx) + Math.abs(e.cy - a.cy);
-    if (distMan <= rs.rangeTiles) {
-      e.stunLeft     = Math.max(e.stunLeft || 0, rs.stunSec);
-      e.roarBuffLeft = Math.max(e.roarBuffLeft || 0, rs.buffDur);
-      e.senseBuff    = rs.senseMult;
-      e.herdingBuff  = rs.herdingMult;
-      markHit(e, 0.0001);
-    }
-  }
-  // TODO (FX): roar shockwave ring / screen shake
-}
-
-// Stomp: low dmg + slow in a big radius
-function stompAffect(gs, ss) {
-  const a = dragonAnchor(gs);
-  for (const e of gs.enemies) {
-    if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-    const distMan = Math.abs(e.cx - a.cx) + Math.abs(e.cy - a.cy);
-    if (distMan <= ss.rangeTiles) {
-      e.hp -= ss.dmg;
-      markHit(e, ss.dmg);
-      e.slowLeft = Math.max(e.slowLeft || 0, ss.slowSec);
-      e.slowMult = Math.min(e.slowMult || 1, ss.slowMult); // strongest slow wins
-    }
-  }
-  // TODO (FX): cracks/dust ring
-}
 
 
 // --- Spawn helper: give freshly-spawned enemies a "previous cell" (if available)
@@ -425,52 +503,12 @@ function initializeSpawnPrevAndCommit(e) {
 
 }
 
-// Return nearest dragon cell (tile coords) to a given tile (ox, oy)
-function nearestDragonCell(gs, ox, oy) {
-  const cells = state.dragonCells(gs); // assumes you exported this from state.js
-  let best = cells[0], bestD2 = Infinity;
-  for (const c of cells) {
-    const dx = c.x - ox, dy = c.y - oy;
-    const d2 = dx*dx + dy*dy;
-    if (d2 < bestD2) { bestD2 = d2; best = c; }
-  }
-  return best;
-}
-
 
 /* =========================
  * Enemy templates & scaling
  * ========================= */
-// --- Wave progress in [0,1] where wave 1 -> 0, wave 101 -> 1
-const MAX_WAVE_CAP = 101;
-function waveProgress(wave, maxWave = MAX_WAVE_CAP) {
-  const w = Math.max(1, wave | 0);
-  return Math.min(1, (w - 1) / Math.max(1, (maxWave - 1)));
-}
-
-// Linear: early slow, exactly cap at p=1
-function linCap(base, cap, p) {
-  const t = Math.max(0, Math.min(1, p));
-  return base + (cap - base) * t;
-}
-
-// Power curve: p^a (a>1 = slow early, a<1 = fast early), hits cap at p=1
-function powCap(base, cap, p, a = 1.0) {
-  const t = Math.max(0, Math.min(1, p));
-  const s = Math.pow(t, Math.max(0.0001, a));
-  return base + (cap - base) * s;
-}
-
-// Exponential-like (tempered) growth, normalized to reach exactly 1 at p=1
 // k controls “tempo” (higher = faster early growth). Always reaches cap at p=1.
-function expCap(base, cap, p, k = 3.0) {
-  const t = Math.max(0, Math.min(1, p));
-  const denom = 1 - Math.exp(-k);
-  const s = denom > 0 ? (1 - Math.exp(-k * t)) / denom : t; // normalized
-  return base + (cap - base) * s;
-}
-
-const ENEMY_MAX_WAVE = 101;
+const ENEMY_MAX_WAVE = 51;
 function waveP(w, max = ENEMY_MAX_WAVE) { return Math.min(1, Math.max(0, (Math.max(1, w|0)-1) / (max-1))); }
 function exp01(p, k=3){ 
   const d=1-Math.exp(-k); 
@@ -482,37 +520,22 @@ function lerpCap(base, cap, p, {shape='exp', k=3, a=1}={}) {
 }
 
 
-// How each unit tends to decide at junctions
-const BEHAVIOR = {
-  villager:  { sense: 0.02, herding: 2.00, curiosity: 0.55 },
-  squire:    { sense: 0.3, herding: 1.40, curiosity: 0.15 },
-  knight:    { sense: 0.45, herding: 0.50, curiosity: 0.10 },
-  hero:      { sense: 0.80, herding: 0.20, curiosity: 0.05 },
-  engineer:  { sense: 0.90, herding: 0.50, curiosity: 0.07 },
-  kingsguard:{ sense: 1.50, herding: 0.10, curiosity: 0.01 },
-  boss:      { sense: 2.00, herding: 0.00, curiosity: 0.00 },
-};
-
 const FLAGS = {
-  kingsguardEvery: 5,        // miniboss cadence
-  bossEvery: 10,             // Knight of the Round Table cadence
-  engineerBombTimer: 5,     // seconds until detonation
-  engineerTravelTime: 4.0,   // seconds "digging" underground before popping up
-  engineerBombDmg: 35,       // damage to the dragon on bomb detonation
-  spawnGap: 0.45,          // time between members in a group
-  groupGap: 2.0,           // extra pause between groups
-  groupMin: 6,
+  bossEvery: 5,             // Knight of the Round Table cadence
+  kingsguardEvery: 1,       // truthy → enable "one wave before each boss"
+  engineerBombTimer: 5,
+  engineerTravelTime: 4.0,
+  engineerBombDmg: 25,
+  spawnGap: 0.45,
+  groupGap: 2.0,
+  groupMin: 4,
   groupMax: 10,
 };
 
-// -------- Wave helpers --------
-function normalizedWaveProgress(wave, maxWave = MAX_WAVE_CAP) {
-  const w = Math.max(1, wave | 0);
-  return Math.min(1, (w - 1) / Math.max(1, (maxWave - 1)));
-}
 
+// -------- Wave helpers --------
 // Progress gated by unlock (minWave): 0 before unlock; 1 at maxWave
-function unlockedProgress(wave, minWave = 1, maxWave = MAX_WAVE_CAP) {
+function unlockedProgress(wave, minWave = 1, maxWave = ENEMY_MAX_WAVE) {
   if (wave < (minWave | 0)) return 0;
   const span = Math.max(1, (maxWave - (minWave | 0)));
   const p = (wave - (minWave | 0)) / span;
@@ -557,17 +580,6 @@ function waveCountFor(wave, gs = state.GameState) {
  return Math.max(0, Math.round(approachCap(c.base, c.cap, wave, c.k)));
 }
 
-function cadenceFor(wave, gs = state.GameState) {
-  const c = TW(gs)?.cadence || {};
-  return {
-    bossEvery:       _val(c.bossEvery,        FLAGS.bossEvery),
-    kingsguardEvery: _val(c.kingsguardEvery,  FLAGS.kingsguardEvery),
-    heroFromWave:    _val(c.heroFromWave,     10),
-    heroEvery:       _val(c.heroEvery,         4),
-    engineerFromWave:_val(c.engineerFromWave, 20),
-    engineerEvery:   _val(c.engineerEvery,     3),
-  };
-}
 
 // choose a core mix for the wave from tuning.mix (deterministic)
 function selectWeightsForWave(wave, gs = state.GameState) {
@@ -621,7 +633,6 @@ function approachCap(base, cap, wave, k) {
   return cap - (cap - base) * Math.exp(-k * w);
 }
 
-// combat.js
 function makeEnemy(type, wave) {
   const base = state.enemyBase(type) || {};           // ← from enemies.json
   const es   = state.getCfg(state.GameState)?.tuning?.enemyScaling || {};
@@ -630,7 +641,8 @@ function makeEnemy(type, wave) {
 
   // Bases (with safe fallbacks)
   const hp0   = Number(base.hp)    || 10;
-  const spd0  = Number(base.speed) || 1.0;           // tiles/sec
+  const spd0  = Number(base.speed ?? base.speedTilesPerSec ?? base.moveSpeed) || 1.0; // tiles/sec
+
   const rate0 = Number(base.rate)  || 0.5;           // attacks/sec
   const dps0  = (Number(base.damage)||1) * rate0;    // treat damage scaling in DPS
 
@@ -664,67 +676,107 @@ function makeEnemy(type, wave) {
   if (typeof base.bones === 'number') out.bones = base.bones|0;
   if (typeof base.armor === 'number') out.armor = base.armor|0;
   if (typeof base.shielded === 'boolean') out.shield = !!base.shielded;
-  if (Array.isArray(base.tags)) out.tags = [...base.tags];
+  if (Array.isArray(base.tags)) {
+  out.tags = [...base.tags];
 
-  // Ensure default behavior per type
-  const B = BEHAVIOR[type] || { sense: 0.25, herding: 1.0, curiosity: 0.15 };
-  out.behavior = {
-    sense:     Number(B.sense)     || 0,
-    herding:   Number(B.herding)   || 0,
-    curiosity: Number(B.curiosity) || 0,
-  };
-  
-    // Engineer special: start underground, travel toward the lair, immune during this phase.
-  if (type === 'engineer') {
-    out.tunneling = false;             // ← start above ground
-  out.surfaceGraceT = 1.5;           // ← seconds before going underground
-  out.tunnelT = FLAGS.engineerTravelTime;
-  out.updateByCombat = false;        // ← FSM runs until they burrow
+  // Derive convenience flags from tags
+  if (base.tags.includes('miniboss')) {
+    out.miniboss = true;
   }
+  if (base.tags.includes('boss')) {
+    out.boss = true;  // handy if you ever want special boss visuals
+  }
+}
+
+
   
  // (keep your special-name switch and engineer tunneling bits as you have now)
   return out;
 }
-
 
 /* =========================
  * Spawning
  * ========================= */
 
 function spawnOne(gs, type) {
+  console.debug('[spawn base]', type, state.enemyBase?.(type, gs));
   const e = acquireEnemy(type, gs.wave | 0);
 e.id = (++__ENEMY_ID);
+e.nav = buildEnemyNav(type, gs); // <- attach per-enemy nav from config
 
 if (type === 'engineer') {
   e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
 e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
-
-
-  const perim = dragonPerimeterTiles(gs);
-  shuffle(perim);
-  const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
-  e._tunnelDestCell = { x: spot.x, y: spot.y };
-
-
 }
 
   e.cx = state.ENTRY.x;
   e.cy = state.ENTRY.y;
   e.dir = 'E';
 
+ // tile/pixel assignment
   {
-  const t = state.GRID.tile;
-  e.x = (e.cx + 0.5) * t;
-  e.y = (e.cy + 0.5) * t;
-  e.tileX = e.cx;
-  e.tileY = e.cy;
+  const t = state.GRID.tile || 32;
+e.x = (e.cx + 0.5) * t;
+e.y = (e.cy + 0.5) * t;
+e.tileX = e.cx | 0;
+e.tileY = e.cy | 0;
 }
+
+    // --- SPAWN RENDER RESET (prevents “zoom from death spot”) ---
+  e.drawX = e.x;
+  e.drawY = e.y;
+  e.prevX = e.x;
+  e.prevY = e.y;
+
+  console.debug('[spawn reset]', e.id, {
+  x: e.x, y: e.y,
+  drawX: e.drawX, drawY: e.drawY,
+  prevX: e.prevX, prevY: e.prevY,
+  ox: e.ox, oy: e.oy,
+  sepX: e.sepX, sepY: e.sepY,
+  sup: e._suppressSep
+});
+
+
+  // Clear any sub-tile visual offsets / separation residue
+  e.ox = 0; e.oy = 0;
+  e.sepX = 0; e.sepY = 0;         // if your separation uses these
+  e.sepOffsetX = 0; e.sepOffsetY = 0; // if using alt names in separation module
+  e._suppressSep = false;         // allow separation unless the zone locks it
+
+  // Fresh spawn timestamp so update() can clamp pathRenderOffset for ~120ms
+  e._spawnAt = (typeof performance !== 'undefined' && performance.now)
+    ? performance.now()
+    : Date.now();
+
+
+  // seed a stable 'from' for the very first render lerp
+e.fromXY = [e.cx, e.cy];
+  
+  // speed in pixels/sec (navigator reads this)
+{
+  const tsize = state.GRID.tile || 32;
+  // tiles/sec (from makeEnemy scaling) → px/sec
+  e.pxPerSec = (typeof e.speed === 'number') ? e.speed * tsize : 80;
+  e.speedBase = e.speed;
+  e.speedTilesPerSec = (typeof e.speed === 'number') ? e.speed : (e.pxPerSec / tsize);
+
+  // heading unit vector consistent with e.dir
+  const dirMap = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
+  const v = dirMap[e.dir] || [1,0];
+  e.dirX = v[0];
+  e.dirY = v[1];
+}
+
 
   // initialize prev/commit so freshly-spawned enemies head straight initially
   initializeSpawnPrevAndCommit(e);
-
-    // Ensure FSM is initialized for this enemy
-  import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
+  try { pathDespawnAgent?.(e); } catch (_) {} // if object was pooled, erase any stale agent
+  
+  // Register with new pathing
+  pathSpawnAgent(e, gs);
+  // seed navigator once so its internal chain is fresh
+try { pathUpdateAgent(e, 0, gs); } catch (_) {}
 
 
   gs.enemies.push(e);
@@ -735,49 +787,14 @@ if (typeof e.trailStrength === 'number') {
 }
 
 function spawnOneIntoGroup(gs, type, groupId, currentLeaderId) {
+  console.debug('[spawn base]', type, state.enemyBase?.(type, gs));
   const e = acquireEnemy(type, gs.wave | 0);
-
-  // --- spawn snap & init (prevents non-adjacent first heads) ---
-{
-  const t = state.GRID.tile || 32;
-  // If you already compute spawn tile as integers, keep them; otherwise derive:
-  let scx = Number.isInteger(e.tileX) ? e.tileX : Math.floor((e.x ?? ((state.ENTRY.x + 0.5) * t)) / t);
-  let scy = Number.isInteger(e.tileY) ? e.tileY : Math.floor((e.y ?? ((state.ENTRY.y + 0.5) * t)) / t);
-
-  e.tileX = scx | 0;
-  e.tileY = scy | 0;
-
-  // Snap pixel position to tile center to avoid fractional drift at birth
-  e.x = (e.tileX + 0.5) * t;
-  e.y = (e.tileY + 0.5) * t;
-
-  // Clear any stale navigation intent
-  e.path = null;
-  e.commitTilesLeft = 0;
-  e._blockedForward = false;
-
-  // Coherent initial facing (toward exit by default)
-  if (typeof e.dirX !== 'number' || typeof e.dirY !== 'number') {
-    const dx = Math.sign(state.EXIT.x - e.tileX);
-    e.dirX = dx !== 0 ? dx : 1;
-    e.dirY = dx !== 0 ? 0 : Math.sign(state.EXIT.y - e.tileY);
-    e.dir  = e.dirX > 0 ? 'E' : e.dirX < 0 ? 'W' : (e.dirY > 0 ? 'S' : 'N');
-  }
-}
-
-e.id = (++__ENEMY_ID);
-
+  e.id = (++__ENEMY_ID);
+  e.nav = buildEnemyNav(type, gs);
+  
 if (type === 'engineer') {
  e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
  e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
-
-
-  // pick and store a perimeter destination NOW (so we can animate toward it)
-  const perim = dragonPerimeterTiles(gs);
-  shuffle(perim);
-  const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
-  e._tunnelDestCell = { x: spot.x, y: spot.y };
-
 }
 
   e.groupId = groupId | 0;
@@ -787,39 +804,103 @@ if (type === 'engineer') {
   e.dir = 'E';
 
   {
-  const t = state.GRID.tile;
-  e.x = (e.cx + 0.5) * t;
-  e.y = (e.cy + 0.5) * t;
-  e.tileX = e.cx;
-  e.tileY = e.cy;
+  const t = state.GRID.tile || 32;
+e.x = (e.cx + 0.5) * t;
+e.y = (e.cy + 0.5) * t;
+e.tileX = e.cx | 0;
+e.tileY = e.cy | 0;
 }
 
-  // Each member follows the current group leader (set after the first spawn)
+    // --- SPAWN RENDER RESET ---
+  e.drawX = e.x;
+  e.drawY = e.y;
+  e.prevX = e.x;
+  e.prevY = e.y;
+
+   console.debug('[spawn reset]', e.id, {
+  x: e.x, y: e.y,
+  drawX: e.drawX, drawY: e.drawY,
+  prevX: e.prevX, prevY: e.prevY,
+  ox: e.ox, oy: e.oy,
+  sepX: e.sepX, sepY: e.sepY,
+  sup: e._suppressSep
+});
+
+  e.ox = 0; e.oy = 0;
+  e.sepX = 0; e.sepY = 0;
+  e.sepOffsetX = 0; e.sepOffsetY = 0;
+  e._suppressSep = false;
+
+ // mark spawn time so we can suppress offsets for a heartbeat
+e._spawnAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+  // seed a stable 'from' for the very first render lerp
+e.fromXY = [e.cx, e.cy];
+
+
+  {
+  const tsize = state.GRID.tile || 32;
+  e.pxPerSec = (typeof e.speed === 'number') ? e.speed * tsize : 80;
+  e.speedBase = e.speed;
+  e.speedTilesPerSec = (typeof e.speed === 'number') ? e.speed : (e.pxPerSec / tsize);
+
+  const dirMap = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
+  const v = dirMap[e.dir] || [1,0];
+  e.dirX = v[0];
+  e.dirY = v[1];
+}
+
+    // Each member follows the current group leader (set after the first spawn)
   e.followLeaderId = currentLeaderId ?? null;
-  // Independent types roam on their own (don’t tail the leader)
-try {
-  const { independentSet } = getGroupPolicy(gs, FLAGS);
-  if (independentSet && independentSet.has(e.type)) {
-    e.followLeaderId = null;
+  e.independentNav = false;
+
+  // Independent types (scouts / bosses / minibosses, etc.) roam on their own
+  // and do NOT participate in group-follow behavior.
+  try {
+    const { independentSet } = getGroupPolicy(gs, FLAGS);
+    if (independentSet && independentSet.has(e.type)) {
+      e.followLeaderId = null;
+      e.independentNav = true;
+    }
+  } catch (_) {
+    // safe if helper not yet loaded
   }
-} catch (_) { /* safe if helper not yet loaded */ }
 
   
   initializeSpawnPrevAndCommit(e);
-  import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
-  (gs.enemies || (gs.enemies = [])).push(e);
+  try { pathDespawnAgent?.(e); } catch (_) {} // if object was pooled, erase any stale agent
+  pathSpawnAgent(e, gs);
+  // seed navigator once so its internal chain is fresh
+try { pathUpdateAgent(e, 0, gs); } catch (_) {}
 
-if (typeof e.trailStrength === 'number') {
-  bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
-}
+    (gs.enemies || (gs.enemies = [])).push(e);
+
+  if (typeof e.trailStrength === 'number') {
+    bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
+  }
+
+  // --- Boss story hook: first time we spawn a boss this wave ---
+  if (isBossEnemy(e) && !gs.__bossSpawnedThisWave) {
+    gs.__bossSpawnedThisWave = true;
+    gs.__bossIdThisWave      = e.id;
+    try {
+      window.dispatchEvent?.(
+        new CustomEvent('dl-boss-appeared', {
+          detail: { wave: gs.wave | 0, id: e.id, type: e.type }
+        })
+      );
+    } catch (_) {}
+  }
+
   return e;
 }
+
 
 
 /* --- Dev / Playtest helpers --- */
 export function devSpawnEnemy(gs = state.GameState, type = 'villager', n = 1) {
   n = Math.max(1, n | 0);
-  const t = state.GRID.tile;
+  const t = state.GRID.tile || 32;
 
   for (let i = 0; i < n; i++) {
     const e = acquireEnemy(type, gs.wave | 0);
@@ -828,13 +909,6 @@ e.id = (++__ENEMY_ID);
 if (type === 'engineer') {
   e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
   e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
-
-
-  const perim = dragonPerimeterTiles(gs);
-  shuffle(perim);
-  const spot = perim[0] || { x: state.EXIT.x, y: state.EXIT.y };
-  e._tunnelDestCell = { x: spot.x, y: spot.y };
-
 }
 
     // spawn at entry, facing east
@@ -848,36 +922,69 @@ if (type === 'engineer') {
     e.tileX = e.cx;
     e.tileY = e.cy;
 
-    // ✅ make speed be *pixels per second*
-    // your makeEnemy() puts e.speed in tiles/sec → convert:
-    if (typeof e.pxPerSec !== 'number') {
-      if (typeof e.speed === 'number') {
-        e.pxPerSec = e.speed * t;      // tiles/sec → px/sec
-      } else {
-        e.pxPerSec = 80;               // safe fallback (~2.5 tiles/s at 32px)
-      }
-    }
-    e.speedBase = e.speed;
+        // --- SPAWN RENDER RESET ---
+    e.drawX = e.x;
+    e.drawY = e.y;
+    e.prevX = e.x;
+    e.prevY = e.y;
 
-    // ✅ give direction vectors expected by stepAlongDirection()
-    const dirMap = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
-    const v = dirMap[e.dir] || [1,0];
-    e.dirX = v[0];
-    e.dirY = v[1];
+    console.debug('[spawn reset]', e.id, {
+  x: e.x, y: e.y,
+  drawX: e.drawX, drawY: e.drawY,
+  prevX: e.prevX, prevY: e.prevY,
+  ox: e.ox, oy: e.oy,
+  sepX: e.sepX, sepY: e.sepY,
+  sup: e._suppressSep
+});
+
+    e.ox = 0; e.oy = 0;
+    e.sepX = 0; e.sepY = 0;
+    e.sepOffsetX = 0; e.sepOffsetY = 0;
+    e._suppressSep = false;
+
+    e._spawnAt = (typeof performance !== 'undefined' && performance.now)
+      ? performance.now()
+      : Date.now();
+
+    
+ // speed in pixels/sec (navigator reads this)
+{
+  const tsize = state.GRID.tile || 32;
+  // tiles/sec (from makeEnemy scaling) → px/sec
+  e.pxPerSec = (typeof e.speed === 'number') ? e.speed * tsize : 80;
+  e.speedBase = e.speed;
+  e.speedTilesPerSec = (typeof e.speed === 'number') ? e.speed : (e.pxPerSec / tsize);
+
+  // heading unit vector consistent with e.dir
+  const dirMap = { E:[1,0], W:[-1,0], S:[0,1], N:[0,-1] };
+  const v = dirMap[e.dir] || [1,0];
+  e.dirX = v[0];
+  e.dirY = v[1];
+}
+
+        // seed a stable 'from' for the very first render lerp
+    e.fromXY = [e.cx, e.cy];
+    // mark spawn time so we can suppress offsets for a heartbeat
+    e._spawnAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
     // normal spawn helpers
     initializeSpawnPrevAndCommit(e);
 
-    // ✅ initialize FSM bits (same as your normal spawner)
-    import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(() => {});
+    // give dev spawns a routeSeed too so steering randomness matches waves
+    e.routeSeed = e.routeSeed ?? ((Math.random() * 1e9) | 0);
+
+    // register with new pathing and seed once (this is the missing piece)
+    pathSpawnAgent(e, gs);
+    try { pathUpdateAgent(e, 0, gs); } catch (_) {}
 
     (gs.enemies || (gs.enemies = [])).push(e);
 
     if (typeof e.trailStrength === 'number') {
       bumpSuccess(gs, e.cx, e.cy, e.trailStrength);
     }
+
+    }
   }
-}
 
 
 export function devClearEnemies(gs = state.GameState) {
@@ -933,32 +1040,70 @@ let bombAccum = 0;
  * - applies damage on a cadence (fireCooldown)
  */
 
-// Helper: west-most dragon tile = mouth (dragon faces west toward ENTRY)
-
-function dragonAnchor(gs) {
-  const cells = state.dragonCells(gs);
-  // simple centroid of dragon tiles
-  let sx = 0, sy = 0;
-  for (const c of cells) { sx += c.x; sy += c.y; }
-  const cx = Math.round(sx / Math.max(1, cells.length));
-  const cy = Math.round(sy / Math.max(1, cells.length));
-  return { cx, cy };
-}
-
-function dragonMouthCell(gs) {
-  const cells = state.dragonCells(gs);
-  if (!cells || !cells.length) return { x: state.EXIT.x, y: state.EXIT.y };
-  let best = cells[0];
-  for (const c of cells) if (c.x < best.x) best = c;
-  return best;
-}
 
 // One place to read an enemy's current tile (keeps combat/AI in sync)
 function enemyTile(e) {
-  if (Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) return { x: e.tileX, y: e.tileY };
-  if (Number.isInteger(e.cx)    && Number.isInteger(e.cy))    return { x: e.cx,    y: e.cy    };
+  // Prefer the navigator's authoritative grid coords:
+  if (Number.isInteger(e.cx) && Number.isInteger(e.cy)) {
+    return { x: e.cx, y: e.cy };
+  }
+  // Fallback to the cached tile coords if present:
+  if (Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
+    return { x: e.tileX, y: e.tileY };
+  }
+  // Last resort: derive from pixels:
   const t = state.GRID.tile || 32;
-  return { x: Math.floor((e.x||0)/t), y: Math.floor((e.y||0)/t) };
+  return { x: Math.floor((e.x || 0) / t), y: Math.floor((e.y || 0) / t) };
+}
+
+// BFS from start (sx,sy) up to maxTiles; respects edge walls via state.isOpen(...)
+function bfsFrom(gs, sx, sy, maxTiles) {
+  const W = GRID.cols, H = GRID.rows;
+  const dist = Array.from({ length: H }, () => new Array(W).fill(Infinity));
+  const prev = Array.from({ length: H }, () => new Array(W).fill(null));
+  const q = [];
+  dist[sy][sx] = 0;
+  q.push([sx, sy]);
+
+  const dirs = [['E',1,0], ['W',-1,0], ['S',0,1], ['N',0,-1]];
+
+  while (q.length) {
+    const [x, y] = q.shift();
+    const d = dist[y][x];
+    if (d >= maxTiles) continue; // don’t explore beyond range
+
+    for (let i = 0; i < 4; i++) {
+      const [side, dx, dy] = dirs[i];
+      if (!state.isOpen(gs, x, y, side)) continue;
+      const nx = x + dx, ny = y + dy;
+      if (!state.inBounds(nx, ny)) continue;
+      if (dist[ny][nx] <= d + 1) continue;
+      dist[ny][nx] = d + 1;
+      prev[ny][nx] = [x, y];  // parent pointer
+      q.push([nx, ny]);
+    }
+  }
+  return { dist, prev };
+}
+
+// Reconstruct a path (array of {x,y}) from BFS prev pointers
+function reconstructPath(prev, sx, sy, tx, ty) {
+  if (!prev[ty] || prev[ty][tx] == null) {
+    // If target is start itself
+    if (sx === tx && sy === ty) return [{ x: sx, y: sy }];
+    return null;
+  }
+  const out = [];
+  let x = tx, y = ty;
+  while (!(x === sx && y === sy)) {
+    out.push({ x, y });
+    const p = prev[y][x];
+    if (!p) return null;
+    x = p[0]; y = p[1];
+  }
+  out.push({ x: sx, y: sy });
+  out.reverse();
+  return out;
 }
 
 function dragonBreathTick(gs, dt, ds) {
@@ -968,20 +1113,25 @@ function dragonBreathTick(gs, dt, ds) {
 
   const tileSize = state.GRID.tile || 32;
   const maxTiles = Math.max(1, Math.round(ds.breathRange / tileSize));
-  const mouth = dragonMouthCell(gs);
+  const mouth = state.dragonMouthCell(gs);
 
-  // Build shortest paths to every reachable enemy within range
+
+    // One BFS from mouth → reconstruct per-enemy corridors (cheap on 24×16)
+  const { dist, prev } = bfsFrom(gs, mouth.x, mouth.y, maxTiles);
+
   const paths = [];
   for (const e of (gs.enemies || [])) {
     if (e.type === 'engineer' && e.tunneling) continue;
     const et = enemyTile(e);
-    const p = computeShortestPath(gs, mouth.x, mouth.y, [{ x: et.x, y: et.y }]);
-    if (!Array.isArray(p) || p.length === 0) continue;
-    const L = p.length;              // tiles including mouth + enemy tile
-    if (L > 0 && L <= maxTiles) {
-      paths.push({ e, et, pathObjs: p, L, isHero: (e.type === 'hero') });
-    }
+    const d = (dist[et.y] && dist[et.y][et.x]) ?? Infinity;
+    if (!Number.isFinite(d) || d <= 0 || d > maxTiles) continue;
+
+    const p = reconstructPath(prev, mouth.x, mouth.y, et.x, et.y);
+    if (!Array.isArray(p) || p.length < 2) continue;
+
+    paths.push({ e, et, pathObjs: p, L: p.length, isHero: (e.type === 'hero') });
   }
+
 
   // No reachable target in range → small cooldown so we re-check soon
   if (paths.length === 0) { fireCooldown = firePeriod * 0.5; return; }
@@ -1033,14 +1183,15 @@ if (fullPath.length >= 2) {
   const heroIdxOnPath = fullPath.findIndex(p => heroTiles.has(tkey(p.x, p.y)));
 
   // Determine how far the breath travels this shot:
-  //  - cannot exceed range
-  //  - if a hero is closer, stop at the hero tile (no direct past it)
-  const farthestIdxInRange = Math.min(fullPath.length - 1, maxTiles - 1);
-  const stopIdx = Math.min(
-    farthestIdxInRange,
-    (heroIdxOnPath >= 0 ? heroIdxOnPath : Infinity)
-  );
-  const travelPath = fullPath.slice(0, stopIdx + 1);
+//  - cannot exceed range (in tiles from the mouth)
+//  - if a hero is closer, stop at the hero tile (no direct past it)
+const maxIdxFromRange = Math.min(fullPath.length - 1, maxTiles);
+const stopIdx = Math.min(
+  maxIdxFromRange,
+  (heroIdxOnPath >= 0 ? heroIdxOnPath : Infinity)
+);
+const travelPath = fullPath.slice(0, stopIdx + 1);
+
 
   // If we truncated, make sure the head still has a dir
 if (travelPath.length >= 2 && !travelPath[travelPath.length - 1].dir) {
@@ -1137,6 +1288,10 @@ function markHit(e, amount = 0) {
 
 
 export function startWave(gs = state.GameState) {
+if (!gs.cfgLoaded || !state.getCfg?.(gs)?.enemies) {
+  console.warn('[waves] config not loaded yet; aborting startWave');
+  return false;
+}
 
   _warnedTypesThisWave = new Set();
 
@@ -1174,10 +1329,13 @@ if (!_jsonPlan || !Array.isArray(_jsonPlan.groups) || _jsonPlan.groups.length ==
   R.groupLeaderId = null;
   R.spawning = true;
   R.waveActive = true;
+    // Boss tracking for story system
+  gs.__bossSpawnedThisWave  = false;
+  gs.__bossDefeatedThisWave = false;
+  gs.__bossIdThisWave       = null;
+
 
   // --- NEW: reset wave-scoped systems (junction graph, herding trail, strays) ---
-  // Rebuild (or build) the junction graph for this wave; also bumps gs.topologyVersion.
-  buildJunctionGraph(gs);
   // Fresh success-trail so herding consolidates on current wave’s choices.
   ensureSuccessTrail(gs);
   // Reset the global stray counter used by the curiosity limiter.
@@ -1238,6 +1396,17 @@ return {
 }
 
 
+// Helper: is this enemy a boss/miniboss?
+function isBossEnemy(e) {
+  if (!e) return false;
+  if (e.boss || e.miniboss) return true;
+  if (e.type === 'boss' || e.type === 'kingsguard') return true;
+  if (Array.isArray(e.tags)) {
+    if (e.tags.includes('boss') || e.tags.includes('miniboss')) return true;
+  }
+  return false;
+}
+
 // ===== Wave mix (asymptotic shares) =========================================
 
 // Normalized share: base -> cap by wave 101, honoring minWave unlock.
@@ -1249,7 +1418,7 @@ function _curveShare(wave, cfg = {}) {
 
   if (wave < minW) return 0; 
 
-  const p = unlockedProgress(wave, minW, MAX_WAVE_CAP); // 0..1
+  const p = unlockedProgress(wave, minW, ENEMY_MAX_WAVE); // 0..1
   let s;
   if (cfg.shape === 'pow') {
     s = pow01(p, cfg.a ?? 1);
@@ -1334,12 +1503,37 @@ function _apportion(total, sharesMap) {
 // Optional sparse specials (kept out of shares)
 function _cadenceSpecials(wave, cadence, FLAGS) {
   const out = [];
-  const kgEvery = cadence?.kingsguardEvery ?? FLAGS.kingsguardEvery;
-  const bossEvery = cadence?.bossEvery ?? FLAGS.bossEvery;
-  if (kgEvery && wave % kgEvery === 0) out.push('kingsguard');
-  if (bossEvery && wave % bossEvery === 0) out.push('boss');
+
+  // Boss cadence is still “every N waves”
+  const bossEvery    = cadence?.bossEvery      ?? FLAGS.bossEvery;
+
+  // If truthy, we spawn a kingsguard exactly *one wave before* each boss wave
+  const kgBeforeBoss = cadence?.kingsguardEvery ?? FLAGS.kingsguardEvery;
+
+  // Story script: any wave in BOSS_SCHEDULE is a boss wave (Arthur, named knights, etc.)
+  const scriptedBoss = !!(BOSS_SCHEDULE && BOSS_SCHEDULE[wave]);
+
+  // Is the *next* wave a boss (either by cadence or by story)?
+  const nextWaveIsBoss =
+    !!(BOSS_SCHEDULE && BOSS_SCHEDULE[wave + 1]) ||
+    (bossEvery && (wave + 1) % bossEvery === 0);
+
+  // Boss if either:
+  // - the story explicitly schedules one (Arthur, etc.), OR
+  // - cadence says "every N waves"
+  if (scriptedBoss || (bossEvery && wave % bossEvery === 0)) {
+    out.push('boss');
+  }
+
+  // Kingsguard exactly one wave before *any* boss wave
+  if (kgBeforeBoss && nextWaveIsBoss) {
+    out.push('kingsguard');
+  }
+
   return out;
 }
+
+
 
 // Main builder: reads getCfg(gs).waves { count, mixCurves, mixOptions, cadence }
 function buildWaveListFromCurves(gs, wave, W, FLAGS) {
@@ -1386,6 +1580,17 @@ function makePlanDerived(gs) {
  }
   const now  = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   const wave = (gs.wave | 0) || 1;
+
+    // Deterministic RNG for grouping (preview == live for a given wave & config)
+  function makeRng(seed) {
+    let s = (seed >>> 0) || 1;
+    return function rand() {
+      s = (s * 1664525 + 1013904223) >>> 0;  // simple LCG
+      return s / 0x100000000; // 2^32
+    };
+  }
+  const rand = makeRng(0x9E3779B9 ^ (wave | 0));
+
 
   // --- DEBUG: what does the config shape look like?
 const __cfg = state.getCfg?.(gs);
@@ -1451,11 +1656,33 @@ const { prioOf, capOf, forceLeaderFrom, leaderPlaceOf } = getGroupPolicy(gs, FLA
 const pool = new Map();
 for (const t of list) pool.set(t, (pool.get(t) || 0) + 1);
 
+// Determine which types are "late" (boss / miniboss) for this wave
+const lateTypes = new Set();
+for (const type of pool.keys()) {
+  // Always treat explicit boss/kingsguard types as late
+  if (type === 'boss' || type === 'kingsguard') {
+    lateTypes.add(type);
+    continue;
+  }
+  // Also treat any enemyBase tagged as boss/miniboss as late
+  try {
+    const base = state.enemyBase?.(type, gs);
+    if (base && Array.isArray(base.tags)) {
+      if (base.tags.includes('boss') || base.tags.includes('miniboss')) {
+        lateTypes.add(type);
+      }
+    }
+  } catch (_) {
+    // fail-safe: ignore errors, just don't classify as late
+  }
+}
+
 // Deterministic scan order
 const scanOrder = Array.from(pool.keys()).sort((a,b)=>a.localeCompare(b));
 
 const groups = [];
 let cursor = now;
+
 
 function tryTake(type, takenMap) {
   const left = (pool.get(type) || 0);
@@ -1468,8 +1695,13 @@ function tryTake(type, takenMap) {
 }
 
 while (true) {
-  // stop when pool empty
-  let totalLeft = 0; for (const v of pool.values()) totalLeft += v;
+  // stop when pool empty, and track how many non-late enemies remain
+  let totalLeft = 0;
+  let nonLateRemaining = 0;
+  for (const [type, left] of pool.entries()) {
+    totalLeft += left;
+    if (!lateTypes.has(type)) nonLateRemaining += left;
+  }
   if (totalLeft <= 0) break;
 
   const want = Math.min(totalLeft, (groups.length % 2 === 0 ? gMax : gMin));
@@ -1477,23 +1709,59 @@ while (true) {
   const buffer = [];
 
   // 1) Choose a leader TYPE for this group (if any is available in the pool)
+  //    BUT: don't use late types as leader while any non-late enemies remain.
   let leaderType = null;
   for (const lt of forceLeaderFrom) {
-    if ((pool.get(lt) || 0) > 0) { leaderType = lt; break; }
+    const left = (pool.get(lt) || 0);
+    if (left <= 0) continue;
+    if (lateTypes.has(lt) && nonLateRemaining > 0) continue; // hold bosses/minibosses
+    leaderType = lt;
+    break;
   }
 
   // 2) Ensure the leader is included (if chosen), but don't decide its position yet
   if (leaderType) tryTake(leaderType, taken) && buffer.push(leaderType);
 
-  // 3) Fill remaining slots cycling types with caps
+    // 3) Fill remaining slots using a weighted pick:
+  //    - ignore late types while non-late enemies remain
+  //    - weight by remaining pool count for variety but fair share
   while (buffer.length < want) {
-    let progressed = false;
+    const candidates = [];
+    let weightSum = 0;
+
     for (const t of scanOrder) {
-      if (buffer.length >= want) break;
-      if (tryTake(t, taken)) { buffer.push(t); progressed = true; }
+      const left = (pool.get(t) || 0);
+      if (left <= 0) continue;
+
+      // While we still have any non-late types left in the pool,
+      // do NOT fill this group with late types (boss / miniboss).
+      if (lateTypes.has(t) && nonLateRemaining > 0) continue;
+
+      const used = taken.get(t) || 0;
+      if (used >= capOf(t)) continue;
+
+      candidates.push([t, left]);
+      weightSum += left;
     }
-    if (!progressed) break;
+
+    if (!candidates.length || weightSum <= 0) break;
+
+    // Weighted random pick: more remaining of a type => higher chance
+    let r = rand() * weightSum;
+    let picked = null;
+    for (const [t, w] of candidates) {
+      if (r <= w) { picked = t; break; }
+      r -= w;
+    }
+    if (!picked) picked = candidates[candidates.length - 1][0];
+
+    if (!tryTake(picked, taken)) {
+      // Should be rare; just break to avoid infinite loops
+      break;
+    }
+    buffer.push(picked);
   }
+
   if (buffer.length === 0) break;
 
   // 4) Sort by numeric priority (leader isn’t pinned yet)
@@ -1503,16 +1771,14 @@ while (true) {
   if (leaderType) {
     const where = leaderPlaceOf(leaderType); // 'front' | 'back' | 'priority'
     if (where === 'front') {
-      // move first occurrence of leaderType to index 0
       const i = buffer.indexOf(leaderType);
       if (i > 0) { buffer.splice(i, 1); buffer.unshift(leaderType); }
     } else if (where === 'back') {
-      // move first occurrence of leaderType to end
       const i = buffer.indexOf(leaderType);
       if (i >= 0 && i !== buffer.length - 1) {
         buffer.splice(i, 1); buffer.push(leaderType);
       }
-    } // 'priority' leaves ordering alone
+    }
   }
 
   const slice = buffer.slice();
@@ -1524,7 +1790,7 @@ while (true) {
     nextAt: cursor,
     groupId: 0,
     __types: slice,
-    leaderType: leaderType || null    // <— carry leader type to the spawn loop
+    leaderType: leaderType || null
   });
 
   const groupDurMs = Math.max(0, (slice.length - 1)) * intervalMs;
@@ -1568,7 +1834,8 @@ export function previewWaveList(arg) {
   }
 
   // Otherwise, derive the *full* plan from tuning.waves and flatten ALL groups.
-  const plan = makePlanDerived(gsArg);
+  const fakeGs = { ...gsArg, wave };
+  const plan = makePlanDerived(fakeGs);
   const out = [];
   for (const G of (plan?.groups || [])) {
     if (Array.isArray(G.__types) && G.__types.length) {
@@ -1609,6 +1876,88 @@ export const spawnWave = startWave;
 for (const e of enemies) {
   if (e && e.kb) tickKnockback(e, dt);
 }
+   
+// Step surface enemies with the new navigator (skip stunned & burrowed)
+{
+  const tsize = state.GRID.tile || 32;
+  for (const e of enemies) {
+    if (!e) continue;
+    if (e.type === 'engineer' && e.tunneling) continue;
+    if (e.stunLeft > 0 || e.kb) continue;  // frozen OR mid-knockback
+
+
+// -- Attack-zone lock: freeze & face the lair if inside the 3×1 west column --
+if (isInAttackZone(gs, e.cx|0, e.cy|0)) {
+  e.pausedForAttack = true;
+  e.isAttacking     = true;
+  e.commitDir = null;
+  e.commitTilesLeft = 0;
+  e.dir = 'W'; // cosmetic
+  const t = state.GRID.tile || 32;
+  e.x = (e.cx + 0.5) * t;
+  e.y = (e.cy + 0.5) * t;
+   // HARD SNAP: kill any smoothing/offset path the renderer might use
+  e.drawX = e.x;           // if renderer reads drawX/drawY
+  e.drawY = e.y;
+  e.prevX = e.x;           // if renderer lerps from prev→draw
+  e.prevY = e.y;
+  e.ox = 0; e.oy = 0;      // our own per-frame offsets
+  e.sepOffsetX = 0;        // sub-tile separation module (if present)
+  e.sepOffsetY = 0;
+  e._suppressSep = true;   // tell separation to skip this unit
+  e.fromXY = [e.cx, e.cy]; // reset any nav lerp seed to current tile
+  continue; // do NOT call pathUpdateAgent while in the zone
+}
+
+
+   // Let the navigator advance e.cx/e.cy (most implementations mutate the agent directly).
+    const res = pathUpdateAgent(e, dt, gs);
+
+    // Prefer whatever the navigator wrote; otherwise accept res.nx/ny if it returns them.
+    const nx = Number.isInteger(e.cx) ? e.cx : (res && Number.isInteger(res.nx) ? res.nx : undefined);
+    const ny = Number.isInteger(e.cy) ? e.cy : (res && Number.isInteger(res.ny) ? res.ny : undefined);
+
+    if (Number.isInteger(nx) && Number.isInteger(ny)) {
+      // Keep all grids in sync every frame (authoritative).
+      e.cx = nx; e.cy = ny;
+      e.tileX = nx; e.tileY = ny;
+
+      // Smooth pixel placement using the pathing's render offset.
+let ox = 0, oy = 0;
+if (typeof pathRenderOffset === 'function') {
+  try {
+    const off = pathRenderOffset(e, tsize, gs); // extra args are fine if ignored
+    if (Array.isArray(off) && off.length >= 2) {
+      ox = Number(off[0]) || 0;
+      oy = Number(off[1]) || 0;
+    }
+  } catch (_) { /* ignore offset errors */ }
+}
+
+// For the first ~120ms of an enemy's life, clamp offsets to zero
+const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+if (e._spawnAt && (nowMs - e._spawnAt) < 120) { ox = 0; oy = 0; }
+
+// If locked/attacking, force zero visual offsets so we draw at tile center
+if (e.isAttacking || e.pausedForAttack || e._suppressSep) {
+  ox = 0; oy = 0;
+}
+e.x = (e.cx + 0.5) * tsize + ox;
+e.y = (e.cy + 0.5) * tsize + oy;
+
+
+      // one-time probe (optional)
+      if (!e.__navProbeOnce) {
+        e.__navProbeOnce = true;
+        console.log('[nav PROBE] synced', {
+          id: e.id, type: e.type, cx: e.cx, cy: e.cy,
+          tile: [e.tileX, e.tileY], pxps: e.pxPerSec
+        });
+      }
+    }
+  }
+}
+
 
      // ---- FSM time shim ----
   const __now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -1686,14 +2035,10 @@ if (T) {
         if (G.leaderType && e.type === G.leaderType) {
           R.groupLeaderId = e.id;
           e.leader = true;
-          e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
-          e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
           e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
         } else if (!G.leaderType) {
           R.groupLeaderId = e.id;
           e.leader = true;
-          e.behavior = e.behavior && typeof e.behavior === 'object' ? e.behavior : {};
-          e.behavior.sense = (Number(e.behavior.sense) || 0.5) * 1.15;
           e.trailStrength = Math.max(Number(e.trailStrength) || 0.5, 1.5);
         }
       }
@@ -1731,7 +2076,7 @@ if (bombAccum >= 1.0) {
       const tsize = state.GRID.tile || 32;
       const bx = Math.floor((fx.x || 0) / tsize);
       const by = Math.floor((fx.y || 0) / tsize);
-      const R = 2;                       // radius in tiles (Manhattan)
+      const R = 1;                       // radius in tiles (Manhattan)
 
       // 1) Damage enemies in radius
       for (let j = gs.enemies.length - 1; j >= 0; j--) {
@@ -1762,11 +2107,21 @@ if (bombAccum >= 1.0) {
         const dMan = Math.abs(c.x - bx) + Math.abs(c.y - by);
         if (dMan <= R) { hitDragon = true; break; }
       }
+
       if (hitDragon) {
         gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - (fx.dmg | 0));
       }
 
       // (optional) add a blast FX here if you’ve got one in render
+      (gs.effects || (gs.effects = [])).push(
+        acquireEffect('bombBlast', {
+          // center the blast where the bomb was
+          x: fx.x || ((bx + 0.5) * tsize),
+          y: fx.y || ((by + 0.5) * tsize),
+          dur: 1.5,          // ~⅓ second flash
+          rTiles: R           // reuse your logical radius (2 tiles)
+        })
+      );
 
       // Remove the bomb effect after detonation
       gs.effects.splice(i, 1);
@@ -1774,58 +2129,125 @@ if (bombAccum >= 1.0) {
   }
 }
 
+// 2) Effects array
+if (!effectsLoopLoggedOnce) {
+  effectsLoopLoggedOnce = true;
+  console.log('[combat] effects loop running');
+}
 
-  // 2) Effects array
-  for (let i = gs.effects.length - 1; i >= 0; i--) {
-    const efx = gs.effects[i];
-    efx.t = (efx.t || 0) + dt;
+for (let i = gs.effects.length - 1; i >= 0; i--) {
+  const efx = gs.effects[i];
+  if (!efx) continue;
 
-    if (efx.type === 'flameWave') {
-      const p = efx.path || [];
-      const tsize = state.GRID.tile;
+  // Advance lifetime
+  efx.t = (efx.t || 0) + dt;
 
-      // Advance head along path by tilesPerSec
-      const tilesPerSec = Math.max(1, efx.tilesPerSec || 10);
-      const advance = tilesPerSec * dt;
-      // accumulate fractional progress in efx._acc
-      efx._acc = (efx._acc || 0) + advance;
-      while (efx._acc >= 1 && efx.headIdx < p.length - 1) {
-        efx.headIdx++;
-        efx._acc -= 1;
+  // --- Traveling flame wave along corridor ---
+  if (efx.type === 'flameWave') {
+    const p = efx.path || [];
+    const tsize = state.GRID.tile;
 
-        // Optional: annotate segment orientation for draw fallback
-        const prev = p[efx.headIdx - 1], cur = p[efx.headIdx];
-        efx._dir = (cur.x !== prev.x) ? 'h' : 'v';
-        if (prev) prev.dir = efx._dir; // so renderer can read seg.dir
-      }
-      if (efx.headIdx >= p.length - 1 || efx.t >= (efx.dur || 0.8)) {
-        gs.effects.splice(i, 1); // done
+    // Advance head along path by tilesPerSec
+    const tilesPerSec = Math.max(1, efx.tilesPerSec || 10);
+    const advance = tilesPerSec * dt;
+    // accumulate fractional progress in efx._acc
+    efx._acc = (efx._acc || 0) + advance;
+    while (efx._acc >= 1 && efx.headIdx < p.length - 1) {
+      efx.headIdx++;
+      efx._acc -= 1;
+
+      // Optional: annotate segment orientation for draw fallback
+      const prev = p[efx.headIdx - 1], cur = p[efx.headIdx];
+      efx._dir = (cur.x !== prev.x) ? 'h' : 'v';
+      if (prev) prev.dir = efx._dir; // so renderer can read seg.dir
+    }
+    if (efx.headIdx >= p.length - 1 || efx.t >= (efx.dur || 0.8)) {
+      gs.effects.splice(i, 1); // done
+      continue;
+    }
+  }
+
+  // --- Fire splash (short-lived impact) ---
+  if (efx.type === 'fireSplash') {
+    if (efx.t >= (efx.dur || 0.35)) {
+      gs.effects.splice(i, 1);
+      continue;
+    }
+  }
+
+  if (efx.type === 'bombBlast') {
+      if (efx.t >= (efx.dur || 0.35)) { gs.effects.splice(i, 1); continue; }
+    }
+  
+  // --- Claw slash sprite ---
+  if (efx.type === 'clawSlash') {
+    const dur = Math.max(0.01, efx.dur || 2.0); // safe floor + longer default
+    if (efx.t >= dur) {
+      gs.effects.splice(i, 1);
+      continue;
+    }
+  }
+
+  // --- Wing gust travelling corridor ---
+  if (efx.type === 'wingGustCorridor') {
+    const path = efx.path || [];
+    if (!path.length) {
+      gs.effects.splice(i, 1);
+      continue;
+    }
+
+    const speed = efx.speedTilesPerSec || 25; // tiles per second
+    const maxIdx = path.length - 1;
+
+    efx.headT = (efx.headT || 0) + dt * speed;
+    const idx = Math.min(maxIdx, Math.floor(efx.headT));
+    efx.headIdx = idx;
+
+    if (idx >= maxIdx) {
+      efx.life = (efx.life || 0) + dt;
+      if (efx.life > 0.25) {        // hang around for a short moment, then vanish
+        gs.effects.splice(i, 1);
         continue;
       }
     }
+  }
 
-    if (efx.type === 'fireSplash') {
-      if (efx.t >= (efx.dur || 0.35)) { gs.effects.splice(i, 1); continue; }
+  // --- Roar wave effect lifetime ---
+  if (efx.type === 'roarWave') {
+    if (efx.t >= (efx.dur || 0.40)) {
+      gs.effects.splice(i, 1);
+      continue;
     }
+  }
 
+  // --- Tunnel effect follows burrowed engineer ---
+  if (efx.type === 'tunnel') {
+    // efx follows the burrowed engineer by id
+    const carrier = (gs.enemies || []).find(x => x.id === efx.targetId);
+    if (carrier && carrier.tunneling) {
+      efx.x = carrier.x;
+      efx.y = carrier.y;
+    } else {
+      // Engineer surfaced or no longer exists → kill the effect
+      efx.dead = true;
+    }
+  }
 
-if (efx.type === 'tunnel') {
-  // efx follows the burrowed engineer by id
-  const carrier = (gs.enemies || []).find(x => x.id === efx.targetId);
-  if (carrier && carrier.tunneling) {
-    efx.x = carrier.x;
-    efx.y = carrier.y;
-  } else {
-    // Engineer surfaced or no longer exists → kill the effect
-    efx.dead = true;
+  // Stomp ripple: simple lifetime based on t/dur (managed here; shader just reads)
+    if (efx.type === 'stompRipple') {
+      if (efx.dur == null) efx.dur = 0.7;
+      if (efx.t >= efx.dur) {
+        gs.effects.splice(i, 1);
+        continue;
+      }
+    }
+  
+  // After all type-specific updates, cull dead effects:
+  if (efx.dead) {
+    gs.effects.splice(i, 1);
+    continue;
   }
 }
-
-// After all type-specific updates, cull dead effects:
-if (efx.dead) { gs.effects.splice(i, 1); continue; }
-
-
-  }
 
   // 2) Enemy status (engineer tunneling, burn DoT, deaths, contact/attack)
   const exitCx = state.EXIT.x, exitCy = state.EXIT.y;
@@ -1833,7 +2255,6 @@ if (efx.dead) { gs.effects.splice(i, 1); continue; }
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
 
-    updateEnemyDistance(e, gs);
 
     // Engineers: above-ground grace → then start tunneling
 if (e.type === 'engineer' && !e.tunneling) {
@@ -1908,15 +2329,16 @@ if (e.type === 'engineer' && e.tunneling) {
     e.tileX = e.cx;
     e.tileY = e.cy;
 
+    // 🔧 Re-seed the navigator at the new location so it doesn't snap back to pre-tunnel tiles
+    try { pathDespawnAgent?.(e); } catch (_) {}
+    // (On the next update, pathUpdateAgent will spawn a fresh FSM at e.cx/e.cy.)
+    
     // Exit tunneling; hand control back to FSM
     e.tunneling = false;
     e.updateByCombat = false;
 
-    // re-init FSM if needed
-    import('./ai/fsm.js').then(m => m.initEnemyForFSM?.(e)).catch(()=>{});
-
     // Plant bomb at dragon perimeter, leaning toward engineer
-    const dc = nearestDragonCell(gs, e.cx, e.cy);
+    const dc = state.nearestDragonCell(gs, e.cx, e.cy);
     const cx = (dc.x + 0.5) * t;
     const cy = (dc.y + 0.5) * t;
 
@@ -1955,16 +2377,33 @@ if (e.type === 'engineer' && e.tunneling) {
     if (e.slowLeft > 0) e.slowLeft -= dt;
     if (e.roarBuffLeft > 0) e.roarBuffLeft -= dt;
 
-    // Death -> rewards (DoT, projectiles, or other effects may have killed them)
+// --- Contact/zone attacks (centralized) ---
+updateAttacks(gs, dt);
+
+       // Death -> rewards (DoT, projectiles, or other effects may have killed them)
     if (e.hp <= 0) {
-  const eg = (typeof e.gold  === 'number') ? (e.gold  | 0) : 5;
-  const eb = (typeof e.bones === 'number') ? (e.bones | 0) : 1;
-  gs.gold  = (gs.gold  | 0) + eg;
-  gs.bones = (gs.bones | 0) + eb;
-  enemies.splice(i, 1);
-  releaseEnemy(e);
-  continue;
-}
+
+      // --- Boss story hook: first time boss dies this wave ---
+      if (isBossEnemy(e) && !gs.__bossDefeatedThisWave) {
+        gs.__bossDefeatedThisWave = true;
+        try {
+          window.dispatchEvent?.(
+            new CustomEvent('dl-boss-defeated', {
+              detail: { wave: gs.wave | 0, id: e.id, type: e.type }
+            })
+          );
+        } catch (_) {}
+      }
+
+      const eg = (typeof e.gold  === 'number') ? (e.gold  | 0) : 5;
+      const eb = (typeof e.bones === 'number') ? (e.bones | 0) : 1;
+      gs.gold  = (gs.gold  | 0) + eg;
+      gs.bones = (gs.bones | 0) + eb;
+      enemies.splice(i, 1);
+      releaseEnemy(e);
+      continue;
+    }
+
 }
 
     // once per frame (not in any enemy loop)
@@ -1982,11 +2421,33 @@ if (e.type === 'engineer' && e.tunneling) {
       for (let i = gs.enemies.length - 1; i >= 0; i--) {
         const e = gs.enemies[i];
         if (!Number.isInteger(e.cx) || !Number.isInteger(e.cy)) continue;
-        if (isAdjacentToDragon(gs, e.cx, e.cy)) {
+        if (isInAttackZone(gs, e.cx, e.cy)) {
           e.hp -= cs.dmg;
           markHit(e, cs.dmg);
           hitAny = true;
-          // optional: add a slash FX in render using gs.effects
+
+          // --- Claw visual: small slash arc on the hit enemy
+          {
+            const tileSize = state.GRID.tile || 32;
+
+            // Enemy center in pixels
+            const ex = Number.isFinite(e.x)
+              ? e.x
+              : (Number.isInteger(e.cx) ? (e.cx + 0.5) * tileSize : 0);
+
+            const ey = Number.isFinite(e.y)
+              ? e.y
+              : (Number.isInteger(e.cy) ? (e.cy + 0.5) * tileSize : 0);
+
+            // Dragon center in pixels (EXIT footprint center)
+            const dx = (state.EXIT.x + 0.5) * tileSize;
+            const dy = (state.EXIT.y + 0.5) * tileSize;
+
+            const angle = Math.atan2(ey - dy, ex - dx);
+
+            spawnClawSlashEffect(gs, ex, ey, angle);
+          }
+
           if (e.hp <= 0) {
             gs.gold  = (gs.gold  | 0) + 5;
             gs.bones = (gs.bones | 0) + 1;
@@ -1995,36 +2456,98 @@ if (e.type === 'engineer' && e.tunneling) {
           }
         }
       }
-      if (hitAny) clawCooldown = cs.cd;
+      if (hitAny) {
+        clawCooldown = cs.cd;
+      }
     }
   }
-
-  // --- Wing Gust (button request → push away, respect walls)
-  if (gs.reqWingGust && gustCooldown <= 0) {
-    gs.reqWingGust = false;
-    globalThis.Telemetry?.log('ability:use', { key: 'gust' });
-    const ps = state.getGustStatsTuned(gs);
-    wingGustPush(gs, ps.pushTiles);
-    gustCooldown = ps.cd;
+  
+function buildGustPathFromMouthToEntry(gs, maxTiles) {
+  const mouth = state.dragonMouthCell(gs);
+  if (!mouth) {
+    console.warn('[gust] no dragon mouth cell');
+    return null;
   }
 
-  // --- Roar (button request → stun + fear buffs)
+  // How far the *visual* should extend
+  const maxSteps = Math.max(1, maxTiles | 0);
+
+  // IMPORTANT: let BFS explore the whole corridor, not just maxTiles
+  // so ENTRY is always reachable if a path exists.
+  const bfsRange = 999; // large enough for your map
+  const { dist, prev } = bfsFrom(gs, mouth.x, mouth.y, bfsRange);
+
+  // Use ENTRY as the outward target (toward where enemies come from)
+  const entry = state.ENTRY; // or ENTRY, depending on how you expose it
+  if (!entry) {
+    console.warn('[gust] ENTRY tile missing on state');
+    return null;
+  }
+
+  const rawPath = reconstructPath(prev, mouth.x, mouth.y, entry.x, entry.y);
+  if (!Array.isArray(rawPath) || rawPath.length < 2) {
+    console.warn('[gust] no path mouth→ENTRY found');
+    return null;
+  }
+
+  // Now clamp the *visual* path length so it doesn't extend past gust range.
+  const clamped = rawPath.slice(0, maxSteps + 1);
+
+  // Normalize to { x, y } tile coords
+  return clamped.map(seg => ({ x: seg.x, y: seg.y }));
+}
+
+
+  
+// --- Wing Gust (button request → push away, respect walls)
+if (gs.reqWingGust && gustCooldown <= 0) {
+  gs.reqWingGust = false;
+  globalThis.Telemetry?.log('ability:use', { key: 'gust' });
+
+  const ps = state.getGustStatsTuned(gs);
+
+  // Gameplay: shove enemies + bombs
+  wingGustPush(gs, ps.pushTiles);
+
+  // Visual: build a corridor path from dragon mouth → ENTRY, within push radius
+  const gustPath = buildGustPathFromMouthToEntry(gs, ps.pushTiles);
+  if (gustPath && gustPath.length > 1) {
+    spawnWingGustCorridorFX(gs, gustPath, {
+      speedTilesPerSec: 10,  // higher = faster gust
+      tailLen: 4      // how long the trailing wake is
+    });
+  } else {
+    // optional: if no path, still show a center swirl
+    // spawnWingGustAtDragon(gs);
+  }
+
+  gustCooldown = ps.cd;
+}
+
+
+
+    // --- Roar (button request → stun + fear buffs)
   if (gs.reqRoar && roarCooldown <= 0) {
     gs.reqRoar = false;
     globalThis.Telemetry?.log('ability:use', { key: 'roar' });
     const rs = state.getRoarStatsTuned(gs);
-    roarAffect(gs, rs);
+    applyRoar(gs, rs);      // moved to combat/upgrades/abilities/roar.js
     roarCooldown = rs.cd;
   }
 
-  // --- Stomp (button request → AoE slow + chip dmg)
+
+   // --- Stomp (button request → AoE slow + chip dmg)
   if (gs.reqStomp && stompCooldown <= 0) {
     gs.reqStomp = false;
     globalThis.Telemetry?.log('ability:use', { key: 'stomp' });
     const ss = state.getStompStatsTuned(gs);
-    stompAffect(gs, ss);
+
+    // Ability module handles gameplay + ripple spawn
+    applyStomp(gs, ss, acquireEffect, markHit);
+
     stompCooldown = ss.cd;
   }
+
 
 // 4) Dragon breath (with shield rule)
 if (enemies.length > 0) {
@@ -2032,11 +2555,17 @@ if (enemies.length > 0) {
 }
 
 
- // 5) Wave completion
+ // 5) Wave completion (hard wipe at END of wave)
 if (R.waveActive && !_jsonPlan && enemies.length === 0) {
+  // Clean absolutely everything that could leak into the next wave
+  hardWipeActors(gs);
+
   globalThis.Telemetry?.log('wave:end', { wave: gs.wave | 0 });
   R.waveActive = false;
   R.spawning   = false;
-  gs.wave = (gs.wave | 0) + 1;
+
+  // Return to build phase, then advance the wave counter
+  gs.phase = 'build';
+  gs.wave  = (gs.wave | 0) + 1;
 }
 }

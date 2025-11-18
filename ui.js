@@ -1,7 +1,10 @@
-// ui.js — edge-wall build mode + HUD + Next Wave preview
+// ui.js — edge-wall build mode + HUD + Next Wave preview + Dev Panel
 import * as state from './state.js';
-import { toggleEdge, edgeHasWall } from './grid/walls.js';
-import { getUpgradeInfo, listUpgrades } from './upgrades.js';
+import * as walls from './grid/walls.js';
+import * as upgrades from './upgrades.js';
+import { getBossId } from './story.js';
+import { drawEnemyGlyph } from './render.js';
+
 
 // ---------- DOM helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -14,6 +17,7 @@ const hud = {
   healBtn: $('healBtn'),
   start:   $('startBtn'),
   auto:    $('autoStart'),
+  speed:   $('speedBtn'), 
   save:    $('saveBtn'),
   load:    $('loadBtn'),
   canvas:  $('game'),
@@ -25,18 +29,314 @@ const hud = {
 // For render.js hover highlight
 state.GameState.uiHoverEdge = null;
 
+// ---------- Story Dialogue Layer (boss conversations) ----------
+const SPEAKER_LABELS = {
+  dragon:   'Cargarax',
+  mordred:  'Sir Mordred',
+  kay:      'Sir Kay',
+  palamedes:'Sir Palamedes',
+  gawain:   'Sir Gawain',
+  percival: 'Sir Percival',
+  bors:     'Sir Bors',
+  tristan:  'Sir Tristan',
+  galahad:  'Sir Galahad',
+  bedivere: 'Sir Bedivere',
+  lancelot: 'Sir Lancelot',
+  arthur:   'King Arthur',
+};
+
+// 🔧 Portrait assets (update paths to match your actual filenames)
+const DRAGON_PORTRAIT_SRC = './assets/portraits/cargarax_portrait.png';
+const KNIGHT_PORTRAIT_SRC = './assets/portraits/knight1_portrait.png';
+
+const SPEAKER_PORTRAITS = {
+  dragon: { src: DRAGON_PORTRAIT_SRC, side: 'right' }, // faces left, on the right side
+  defaultKnight: { src: KNIGHT_PORTRAIT_SRC, side: 'left' },
+};
+
+let dlgRoot = null;
+let dlgBox, dlgContent, dlgSpeaker, dlgText, dlgHint;
+let dlgActive = false;
+let dlgLines = [];
+let dlgIndex = 0;
+let dlgResolve = null;
+let dlgTypingTimer = null;
+let dlgTypingDone = true;
+let dlgFullText = '';
+
+// Portrait layout elements
+let dlgMainRow = null;
+let dlgPortraitWrap = null;
+let dlgPortraitImg = null;
+
+
+function ensureDialogueLayer() {
+  if (dlgRoot) return;
+
+  dlgRoot = document.createElement('div');
+  dlgRoot.id = 'dlDialogueLayer';
+  dlgRoot.style.position = 'fixed';
+  dlgRoot.style.left = '0';
+  dlgRoot.style.right = '0';
+  dlgRoot.style.top = '0';
+  dlgRoot.style.bottom = '0';
+  dlgRoot.style.zIndex = '999';
+  dlgRoot.style.display = 'none';
+
+  // Center the box horizontally *and* vertically
+  dlgRoot.style.justifyContent = 'center';
+  dlgRoot.style.alignItems = 'center';
+  dlgRoot.style.pointerEvents = 'auto';
+  dlgRoot.style.padding = '12px';
+  dlgRoot.style.boxSizing = 'border-box';
+
+  dlgBox = document.createElement('div');
+  dlgBox.style.background = 'rgba(6,10,24,0.94)';
+  dlgBox.style.border = '1px solid #445';
+  dlgBox.style.borderRadius = '10px';
+  dlgBox.style.padding = '8px 14px 10px';
+  dlgBox.style.minWidth = '320px';
+  dlgBox.style.maxWidth = '720px';
+  dlgBox.style.color = '#f5f7ff';
+  dlgBox.style.fontFamily = 'system-ui, sans-serif'; // leave font + size as-is
+  dlgBox.style.fontSize = '14px';
+  dlgBox.style.boxShadow = '0 0 18px rgba(0,0,0,0.65)';
+  dlgBox.style.cursor = 'pointer';
+
+  // Fixed-size box + vertical layout
+  dlgBox.style.width = '420px';        // fixed width
+  dlgBox.style.height = '140px';       // fixed height
+  dlgBox.style.display = 'flex';
+  dlgBox.style.flexDirection = 'column';
+  dlgBox.style.boxSizing = 'border-box';
+  dlgBox.style.overflow = 'hidden';
+  dlgBox.style.wordWrap = 'break-word';
+  dlgBox.style.lineHeight = '1.3';
+
+  // ── NEW: main row = [portrait] [speaker + text] ─────────────────────────
+  dlgMainRow = document.createElement('div');
+  dlgMainRow.style.flex = '1 1 auto';
+  dlgMainRow.style.display = 'flex';
+  dlgMainRow.style.flexDirection = 'row'; // we may flip this per speaker
+  dlgMainRow.style.gap = '10px';
+
+  dlgPortraitWrap = document.createElement('div');
+  dlgPortraitWrap.style.flex = '0 0 auto';
+  dlgPortraitWrap.style.width = '96px';
+  dlgPortraitWrap.style.height = '96px';
+  dlgPortraitWrap.style.background = '#101625';
+  dlgPortraitWrap.style.borderRadius = '6px';
+  dlgPortraitWrap.style.overflow = 'hidden';
+  dlgPortraitWrap.style.display = 'flex';
+  dlgPortraitWrap.style.alignItems = 'center';
+  dlgPortraitWrap.style.justifyContent = 'center';
+  dlgPortraitWrap.style.border = '1px solid #222b3d';
+
+  dlgPortraitImg = document.createElement('img');
+  dlgPortraitImg.style.maxWidth = '100%';
+  dlgPortraitImg.style.maxHeight = '100%';
+  dlgPortraitImg.style.display = 'block';
+  dlgPortraitImg.style.imageRendering = 'pixelated';
+
+  dlgPortraitWrap.appendChild(dlgPortraitImg);
+
+  // Inner content area (speaker + text)
+  dlgContent = document.createElement('div');
+  dlgContent.style.flex = '1 1 auto';
+  dlgContent.style.display = 'flex';
+  dlgContent.style.flexDirection = 'column';
+
+  dlgSpeaker = document.createElement('div');
+  dlgSpeaker.style.fontWeight = '600';
+  dlgSpeaker.style.marginBottom = '4px';
+  dlgSpeaker.style.opacity = '0.9';
+
+  dlgText = document.createElement('div');
+  dlgText.style.minHeight = '32px';
+  dlgText.style.lineHeight = '1.4';
+  dlgText.style.whiteSpace = 'pre-wrap'; // preserve line breaks in story text
+
+  dlgContent.appendChild(dlgSpeaker);
+  dlgContent.appendChild(dlgText);
+
+  dlgMainRow.appendChild(dlgPortraitWrap);
+  dlgMainRow.appendChild(dlgContent);
+
+  dlgHint = document.createElement('div');
+  dlgHint.style.marginTop = '4px';   // small gap above hint
+  dlgHint.style.fontSize = '11px';
+  dlgHint.style.opacity = '0.7';
+  dlgHint.textContent = 'Click or press Space/Enter to continue…';
+
+  dlgBox.appendChild(dlgMainRow);
+  dlgBox.appendChild(dlgHint);
+
+  dlgRoot.appendChild(dlgBox);
+  document.body.appendChild(dlgRoot);
+
+  dlgRoot.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    dialogueAdvance();
+  });
+
+  window.addEventListener('keydown', (ev) => {
+    if (!dlgActive) return;
+    if (ev.key === ' ' || ev.key === 'Enter') {
+      ev.preventDefault();
+      dialogueAdvance();
+    }
+  });
+}
+
+
+function dialogueStartTyping(text, speed) {
+  if (dlgTypingTimer) {
+    clearInterval(dlgTypingTimer);
+    dlgTypingTimer = null;
+  }
+  dlgFullText = String(text || '');
+  dlgText.textContent = '';
+  if (!dlgFullText) {
+    dlgTypingDone = true;
+    return;
+  }
+
+  // Interpret line.speed as chars-per-second (see story.js TYPE)
+  const cps = (typeof speed === 'number' && speed > 0) ? speed : 22;
+  const delay = 1000 / cps;
+  let i = 0;
+  dlgTypingDone = false;
+
+  dlgTypingTimer = setInterval(() => {
+    if (i >= dlgFullText.length) {
+      clearInterval(dlgTypingTimer);
+      dlgTypingTimer = null;
+      dlgTypingDone = true;
+      dlgText.textContent = dlgFullText;
+      return;
+    }
+    i++;
+    dlgText.textContent = dlgFullText.slice(0, i);
+  }, delay);
+}
+
+function dialogueFinishTyping() {
+  if (dlgTypingTimer) {
+    clearInterval(dlgTypingTimer);
+    dlgTypingTimer = null;
+  }
+  dlgTypingDone = true;
+  dlgText.textContent = dlgFullText;
+}
+
+function dialogueShowNext() {
+  if (!dlgLines || dlgIndex >= dlgLines.length) {
+    dialogueEnd();
+    return;
+  }
+
+  const line = dlgLines[dlgIndex++] || {};
+  const id = line.speaker || '';
+  const label =
+    SPEAKER_LABELS[id] ||
+    (id ? id.charAt(0).toUpperCase() + id.slice(1) : '');
+
+  dlgSpeaker.textContent = label || '';
+  dlgSpeaker.dataset.speaker = id || '';
+
+  // 🔧 NEW: portrait selection
+  const cfg = getPortraitConfigForLine(line);
+  if (cfg && dlgPortraitImg && dlgPortraitWrap && dlgMainRow) {
+    dlgPortraitImg.src = cfg.src;
+    dlgPortraitImg.alt = label || '';
+    dlgPortraitWrap.style.display = 'flex';
+
+    // Knights on the left facing right, dragon on the right facing left
+    dlgMainRow.style.flexDirection = (cfg.side === 'right') ? 'row-reverse' : 'row';
+  } else if (dlgPortraitWrap) {
+    dlgPortraitWrap.style.display = 'none';
+  }
+
+  dialogueStartTyping(line.text, line.speed);
+}
+
+
+function dialogueAdvance() {
+  if (!dlgActive) return;
+  if (!dlgTypingDone) {
+    dialogueFinishTyping();
+  } else {
+    dialogueShowNext();
+  }
+}
+
+function dialogueEnd() {
+  dlgActive = false;
+  if (dlgTypingTimer) {
+    clearInterval(dlgTypingTimer);
+    dlgTypingTimer = null;
+  }
+  if (dlgRoot) {
+    dlgRoot.style.display = 'none';
+  }
+  document.body.classList.remove('dl-dialogue-open');
+
+  const resolve = dlgResolve;
+  dlgResolve = null;
+  dlgLines = [];
+  dlgIndex = 0;
+
+  if (resolve) resolve();
+}
+
+function getPortraitConfigForLine(line) {
+  if (!line) return null;
+  // Allow explicit portrait override later: line.portrait = 'dragon' | 'knightFoo' etc.
+  const key = line.portrait || line.speaker;
+  if (key === 'dragon') {
+    return SPEAKER_PORTRAITS.dragon;
+  }
+  // All the Round Table folks use the generic knight portrait for now.
+  return SPEAKER_PORTRAITS.defaultKnight;
+}
+
+
 // ---------- Enemy meta for the Preview ----------
 const ENEMY_META = {
   villager:   { name: 'Villager',  color: '#9acd32', blurb: 'Basic grunt. Slow and squishy.' },
-  squire:     { name: 'Squire',    color: '#7fd1ff', blurb: 'A bit tougher and quicker than a villager.' },
-  knight:     { name: 'Knight',    color: '#ffd166', blurb: 'Fast mover with solid armor and damage.' },
+  squire:     { name: 'Squire',    color: '#7fd1ff', blurb: 'A bit tougher and better-trained than a villager.' },
+  knight:     { name: 'Knight',    color: '#ffd166', blurb: 'Fast mover with solid hp and damage.' },
   hero:       { name: 'Hero',      color: '#ff6b6b', blurb: 'Shield-bearer: blocks direct fire for units behind him.' },
   engineer:   { name: 'Engineer',  color: '#c084fc', blurb: 'Tunnels to the lair and plants a timed bomb.' },
-  kingsguard: { name: 'King\'s Guard', color: '#ffa8a8', blurb: 'Miniboss: heavier Knight, moves a bit slower.' },
-  boss:       { name: 'Knight of the Round Table', color: '#f4a261', blurb: 'Boss: massive HP; a real push.' },
+  kingsguard: { name: 'King\'s Guard', color: '#ffa8a8', blurb: 'Miniboss: heavier Knight, moves a bit slower but hits harder.' },
+  boss:       { name: 'Knight of the Round Table', color: '#f4a261', blurb: 'Knight of the Round Table: massive HP and damage.' },
 };
 
-// Cache the combat module (so we can ask it for wave composition)
+// Boss display names for the Next Wave preview, keyed by story.js boss id
+const BOSS_PREVIEW_NAME = {
+  mordred:   'Sir Mordred',
+  kay:       'Sir Kay',
+  palamedes: 'Sir Palamedes',
+  gawain:    'Sir Gawain',
+  percival:  'Sir Percival',
+  bors:      'Sir Bors',
+  tristan:   'Sir Tristan',
+  galahad:   'Sir Galahad',
+  bedivere:  'Sir Bedivere',
+  lancelot:  'Sir Lancelot',
+  arthur:    'King Arthur',
+};
+
+// ---------- Config helpers (economy) ----------
+function edgeCost(gs) {
+  return ((state.getCfg(gs)?.tuning?.economy?.wallCostBones) ?? 1) | 0;
+}
+function edgeRefund(gs) {
+  return ((state.getCfg(gs)?.tuning?.economy?.wallRefundBones) ?? 0) | 0;
+}
+
+// Cache the combat module (so we can ask it for wave composition/cooldowns)
 let _combatMod = null;
 async function getCombat() {
   if (_combatMod) return _combatMod;
@@ -50,66 +350,54 @@ export function bindUI() {
   wireCanvasEdgeBuild();
   renderUpgradesPanel();
   refreshHUD();          // also triggers first preview render
-
-
-  // Dev tools
   ensureDevPanel();
-
   window.dispatchEvent(new CustomEvent('dl-boot-ok'));
 }
 
 // Track last values so we only rebuild when needed
 let _lastPreviewWave = -1;
 let _lastGold = -1;
-let _lastGoldForPanel = -1; 
 let _lastWaveHUD = -1;
 let _lastBones = -1;
 let _lastHPStr = '';
 let _lastAuto = null;
+let _lastSpeed = null;
+let _abilityLoopInit = false;
+let _hoverKey = null;
+let _hoverHasWall = null;
+let _abilityButtons = []; // [{ key, btn }]
 
 
 // ---------- Optional small API for main/render ----------
-export const UI = { refreshHUD, tell, renderUpgradesPanel };
+export const UI = { refreshHUD, tell, renderUpgradesPanel, showDialogue };
 
-export function refreshHUD() {
-  const gs = state.GameState;
-  const ds = state.getDragonStatsTuned(gs);
-
-  // Dev: top up first (this may change gold/bones)
-  if (gs.dev?.infiniteMoney) {
-    if ((gs.gold | 0)  < 500_000) gs.gold  = 1_000_000;
-    if ((gs.bones | 0) < 500_000) gs.bones = 1_000_000;
+// Boss / story dialogue API (used by main.js)
+export function showDialogue(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) {
+    return Promise.resolve();
   }
 
-  // --- GOLD ---
-  const goldNow = gs.gold | 0;            // define once, early
-  if (hud.gold) hud.gold.textContent = String(goldNow);
-  if (goldNow !== _lastGold) {            // use _lastGold only as the rebuild gate
-    _lastGold = goldNow;
-    renderUpgradesPanel();
+  // If another dialogue is somehow active, end it cleanly first.
+  if (dlgActive) {
+    dialogueEnd();
   }
 
-  // --- Rest of HUD (unchanged) ---
-  const waveNow  = gs.wave | 0;
-  const bonesNow = gs.bones | 0;
-  const hpStrNow = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
-  const autoNow  = !!gs.autoStart;
+  ensureDialogueLayer();
 
-  if (hud.wave && waveNow !== _lastWaveHUD) { _lastWaveHUD = waveNow; hud.wave.textContent = String(waveNow); }
-  if (hud.bones && bonesNow !== _lastBones) { _lastBones = bonesNow; hud.bones.textContent = String(bonesNow); }
-  if (hud.hp && hpStrNow !== _lastHPStr)    { _lastHPStr = hpStrNow; hud.hp.textContent = hpStrNow; }
-  if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.checked = autoNow; }
+  dlgLines = lines.slice(); // copy to avoid outside mutation
+  dlgIndex = 0;
+  dlgActive = true;
 
-  if (gs.cfgLoaded && (gs.wave | 0) !== _lastPreviewWave) {
-    _lastPreviewWave = gs.wave | 0;
-    renderNextWavePreview().catch(err => console.warn('preview failed:', err));
+  if (dlgRoot) {
+    dlgRoot.style.display = 'flex';
   }
+  document.body.classList.add('dl-dialogue-open');
 
-  renderHealButtonLabel(gs);
-  renderGridHelp(gs);
+  return new Promise((resolve) => {
+    dlgResolve = resolve;
+    dialogueShowNext();
+  });
 }
-
-
 
 // Lightweight message banner
 function tell(s, color = '') {
@@ -125,15 +413,59 @@ function tell(s, color = '') {
   }
 }
 
-  
+export function refreshHUD() {
+  const gs = state.GameState;
+  const ds = state.getDragonStatsTuned(gs);
+
+  // Dev: top up first (this may change gold/bones)
+  if (gs.dev?.infiniteMoney) {
+    if ((gs.gold | 0)  < 500_000) gs.gold  = 1_000_000;
+    if ((gs.bones | 0) < 500_000) gs.bones = 1_000_000;
+  }
+
+  // --- GOLD ---
+  const goldNow = gs.gold | 0;
+  if (hud.gold) hud.gold.textContent = String(goldNow);
+  if (goldNow !== _lastGold) {
+    _lastGold = goldNow;
+    renderUpgradesPanel();
+  }
+
+  // --- Rest of HUD ---
+  const waveNow  = gs.wave | 0;
+  const bonesNow = gs.bones | 0;
+  const hpStrNow = `${gs.dragonHP | 0}/${ds.maxHP | 0}`;
+  const autoNow  = !!gs.autoStart;
+  const speedNow = (typeof gs.timeScale === 'number' && gs.timeScale > 0) ? gs.timeScale : 1;
+
+  if (hud.wave && waveNow !== _lastWaveHUD) { _lastWaveHUD = waveNow; hud.wave.textContent = String(waveNow); }
+  if (hud.bones && bonesNow !== _lastBones) { _lastBones = bonesNow; hud.bones.textContent = String(bonesNow); }
+  if (hud.hp && hpStrNow !== _lastHPStr)    { _lastHPStr = hpStrNow; hud.hp.textContent = hpStrNow; }
+  if (hud.auto && autoNow !== _lastAuto)    { _lastAuto = autoNow;   hud.auto.checked = autoNow; }
+
+  // 🔧 Fix: close the speed block here so preview & heal/grid are NOT gated on speed changes
+  if (hud.speed && speedNow !== _lastSpeed) {
+    _lastSpeed = speedNow;
+    hud.speed.textContent = `${speedNow}× Speed`;
+  }
+
+  // 🔁 Wave preview should depend on wave, not speed
+  if (gs.cfgLoaded && (waveNow !== _lastPreviewWave)) {
+    _lastPreviewWave = waveNow;
+    renderNextWavePreview().catch(err => console.warn('preview failed:', err));
+  }
+
+  // These should run every refresh (or at least not be tied to speed)
+  renderHealButtonLabel(gs);
+  renderGridHelp(gs);
+}
+
 // ---------- Buttons / HUD wiring ----------
 function wireButtons() {
-  const gs = state.GameState;
-
   if (hud.healBtn) {
     hud.healBtn.addEventListener('click', () => {
-  window.dispatchEvent(new CustomEvent('dl-heal'));
-});
+      window.dispatchEvent(new CustomEvent('dl-heal'));
+    });
   }
 
   if (hud.start) {
@@ -145,50 +477,53 @@ function wireButtons() {
 
   if (hud.auto) {
     hud.auto.addEventListener('change', (e) => {
-  window.dispatchEvent(new CustomEvent('dl-auto-start', { detail: !!e.target.checked }));
-});
-
+      window.dispatchEvent(new CustomEvent('dl-auto-start', { detail: !!e.target.checked }));
+    });
   }
 
+  if (hud.speed) {
+  hud.speed.addEventListener('click', () => {
+    window.dispatchEvent(new CustomEvent('dl-speed-toggle'));
+  });
+}
+  
   if (hud.save) {
     hud.save.addEventListener('click', () => {
-  window.dispatchEvent(new CustomEvent('dl-save'));
-});
+      window.dispatchEvent(new CustomEvent('dl-save'));
+    });
   }
 
   if (hud.load) {
-   hud.load.addEventListener('click', () => {
-  window.dispatchEvent(new CustomEvent('dl-load'));
-});
+    hud.load.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('dl-load'));
+    });
   }
 
-    if (hud.clear) {
+  if (hud.clear) {
     hud.clear.addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('dl-save-clear'));
     });
   }
-
 }
 
 function renderHealButtonLabel(gs) {
   const btn = document.getElementById('healBtn');
   if (!btn) return;
-  const costPerHP = (state.getCfg(gs).tuning.dragon.healCostBone | 0) || 1;
+  const costPerHP = (state.getCfg(gs)?.tuning?.dragon?.healCostBone ?? 1) | 0;
   const unit = costPerHP === 1 ? 'bone' : 'bones';
   btn.textContent = `Heal (1 HP / ${costPerHP} ${unit})`;
 }
 
-// ---------- upgrades panel ----------
-function renderUpgradesPanel() {
+// ---------- Upgrades panel ----------
+export function renderUpgradesPanel() {
   const root = hud.upgrades;
   if (!root) return;
 
-  const data = getUpgradeInfo(state.GameState);   // <-- computed rows
+  const data = upgrades.getUpgradeInfo(state.GameState);
   const list = Array.isArray(data) ? data : Object.values(data);
   root.innerHTML = '';
 
-  // Keep references to "Use" buttons so we can live-update them
-  const useBtns = []; // { key: 'gust'|'roar'|'stomp', btn }
+  _abilityButtons = []; // reset the live list each render
 
   list.forEach(info => {
     const row = document.createElement('div');
@@ -212,11 +547,11 @@ function renderUpgradesPanel() {
     }
 
     buy.addEventListener('click', () => {
-  if (info.isMax) return; // safety
+      if (info.isMax) return;
       window.dispatchEvent(new CustomEvent('dl-upgrade-buy', {
-    detail: { id: info.key, title: info.title, cost: info.cost }
-  }));
-});
+        detail: { id: info.key, title: info.title, cost: info.cost }
+      }));
+    });
 
     const left = document.createElement('div');
     left.style.display = 'flex';
@@ -227,31 +562,32 @@ function renderUpgradesPanel() {
     row.appendChild(left);
     row.appendChild(buy);
 
-    // Ability "Use" buttons (Gust/Roar/Stomp)
+    // Ability Use buttons (gust / roar / stomp)
     if (info.type === 'ability' && (info.key === 'gust' || info.key === 'roar' || info.key === 'stomp')) {
       const use = document.createElement('button');
       use.className = 'btn';
-
-      use.textContent = 'Locked'; // live-updated below
+      use.textContent = 'Locked';
       use.disabled = true;
 
       use.addEventListener('click', () => {
         const U = state.GameState.upgrades || {};
         const lvlNow = (U[info.key] | 0);
-        if (lvlNow <= 0) return; // still locked
+        if (lvlNow <= 0) return;
         if (info.key === 'gust')  state.GameState.reqWingGust = true;
         if (info.key === 'roar')  state.GameState.reqRoar     = true;
         if (info.key === 'stomp') state.GameState.reqStomp    = true;
       });
 
       row.appendChild(use);
-      useBtns.push({ key: info.key, btn: use });
+_abilityButtons.push({ key: info.key, btn: use });
     }
 
     root.appendChild(row);
   });
 
-  // ---- Live cooldown / lock updater ----
+ // Live cooldown / lock updater (start once)
+if (!_abilityLoopInit) {
+  _abilityLoopInit = true;
   (async function abilityUseUpdater() {
     const combat = await getCombat();
     if (typeof combat.getCooldowns !== 'function') return;
@@ -260,7 +596,7 @@ function renderUpgradesPanel() {
 
     function tick() {
       const cds = combat.getCooldowns();
-      for (const { key, btn } of useBtns) {
+      for (const { key, btn } of _abilityButtons) {
         const U = state.GameState.upgrades || {};
         const level = (U[key] | 0);
         const locked = level <= 0;
@@ -284,9 +620,10 @@ function renderUpgradesPanel() {
     }
     requestAnimationFrame(tick);
   })();
-} // <-- closes renderUpgradesPanel()
+}
+}
 
-// Wall instructional text
+// ---------- Wall instructional text ----------
 function renderGridHelp(gs) {
   const el = document.querySelector('.gridHelp');
   if (!el) return;
@@ -296,12 +633,14 @@ function renderGridHelp(gs) {
     return;
   }
 
- const cost = ((state.getCfg(gs)?.tuning?.economy?.wallCostBones ?? state.COSTS.edgeWall) | 0);
+  const cost = edgeCost(gs);
   el.textContent =
-    `Build Mode: Click a TILE EDGE to add a wall (${cost} bone). ` +
+    `Build Mode: Click a TILE EDGE to add a wall (${cost} bone${cost === 1 ? '' : 's'}). ` +
     `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
 }
-
+// Make available to main.js even if it calls it globally
+// (keeps compatibility without changing main.js imports)
+if (typeof window !== 'undefined') window.renderGridHelp = renderGridHelp;
 
 // ---------- Canvas Edge Build Mode ----------
 function wireCanvasEdgeBuild() {
@@ -312,86 +651,107 @@ function wireCanvasEdgeBuild() {
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
 
   cv.addEventListener('mousemove', (e) => {
-  const gs = state.GameState;
+    const gs = state.GameState;
 
-  // Hide the hover + do nothing while a wave is active
-  if (!state.canEditMaze(gs)) {
-    gs.uiHoverEdge = null;
-    return;
+// Hide the hover + do nothing while a wave is active
+if (!state.canEditMaze(gs)) {
+  gs.uiHoverEdge = null;
+  _hoverKey = null;
+  _hoverHasWall = null;
+  return;
+}
+
+const hover = edgeHitTest(cv, e);
+gs.uiHoverEdge = hover; // for render highlight
+if (!hover) {
+  if (_hoverKey !== null) {
+    _hoverKey = null;
+    _hoverHasWall = null;
+    tell(''); // clear any stale message
   }
+  return;
+}
 
-  const hover = edgeHitTest(cv, e);
-  gs.uiHoverEdge = hover; // for render highlight
-  if (hover) {
-    const hasWall = edgeHasWall(gs, hover.x, hover.y, hover.side);
-    const verb = hasWall ? 'Remove' : 'Place';
-    const cost = hasWall
-      ? `(+${state.COSTS.edgeRefund} bones)`
-      : `(${state.COSTS.edgeWall} bones)`;
-    tell(`${verb} wall: (${hover.x},${hover.y}) ${hover.side} ${cost}`, '#9cf');
-  }
-});
+const hasWall = walls.edgeHasWall(gs, hover.x, hover.y, hover.side);
+const k = `${hover.x},${hover.y},${hover.side}`;
+if (k !== _hoverKey || hasWall !== _hoverHasWall) {
+  _hoverKey = k;
+  _hoverHasWall = hasWall;
 
+const verb = hasWall ? 'Remove' : 'Place';
+const refund = edgeRefund(gs) | 0;
+const msg = hasWall
+  ? (refund > 0 ? `Remove wall: (${hover.x},${hover.y}) ${hover.side} (+${refund} bones)` 
+                : `Remove wall: (${hover.x},${hover.y}) ${hover.side}`)
+  : `Place wall: (${hover.x},${hover.y}) ${hover.side} (${edgeCost(gs)} bones)`;
+tell(msg, '#9cf');
+}
+  });
 
   cv.addEventListener('mouseleave', () => {
     state.GameState.uiHoverEdge = null;
   });
 
   cv.addEventListener('mousedown', (e) => {
-  const gs = state.GameState;
+    const gs = state.GameState;
 
-  // Hard UI guard: no edits during waves
-  if (!state.canEditMaze(gs)) {
-    tell('You can only place/remove walls between waves.', '#f88');
-    return;
-  }
-
-  const hover = edgeHitTest(cv, e);
-  if (!hover) return;
-
-  const place  = (e.button === 0);
-  const remove = (e.button === 2);
-  if (!place && !remove) return;
-
-  const hasWall = edgeHasWall(gs, hover.x, hover.y, hover.side);
-  if (place && hasWall) return;
-  if (remove && !hasWall) return;
-
-  if (place) {
-    const cost = ((state.getCfg(gs)?.tuning?.economy?.wallCostBones ?? state.COSTS.edgeWall) | 0);
-    if ((gs.bones | 0) < cost) {
-      tell('Not enough bones'); 
-      return;
-    }
-    if (edgeTouchesDragon(gs, hover.x, hover.y, hover.side)) {
-      tell("Can't build on the dragon", '#f88');
+    // Hard UI guard: no edits during waves
+    if (!state.canEditMaze(gs)) {
+      tell('You can only place/remove walls between waves.', '#f88');
       return;
     }
 
-    // Attempt to place
-    toggleEdge(gs, hover.x, hover.y, hover.side);
+    const hover = edgeHitTest(cv, e);
+    if (!hover) return;
 
-    // If placement was rejected (e.g., would fully block entry↔exit), don't charge
-    const placed = edgeHasWall(gs, hover.x, hover.y, hover.side);
-    if (!placed) {
-      tell("Can't block entry ↔ exit");
-      return;
+    const place  = (e.button === 0);
+    const remove = (e.button === 2);
+    if (!place && !remove) return;
+
+    const hasWall = walls.edgeHasWall(gs, hover.x, hover.y, hover.side);
+    if (place && hasWall) return;
+    if (remove && !hasWall) return;
+
+    if (place) {
+      const cost = edgeCost(gs);
+      if ((gs.bones | 0) < cost) {
+        tell('Not enough bones');
+        return;
+      }
+      if (edgeTouchesDragon(gs, hover.x, hover.y, hover.side)) {
+        tell("Can't build on the dragon", '#f88');
+        return;
+      }
+
+      // Attempt to place
+      walls.toggleEdge(gs, hover.x, hover.y, hover.side);
+
+      // If placement was rejected (e.g., would fully block entry↔exit), don't charge
+      const placed = walls.edgeHasWall(gs, hover.x, hover.y, hover.side);
+      if (!placed) {
+        tell("Can't block entry ↔ exit");
+        return;
+      }
+
+      // Charge after successful placement
+      gs.bones -= cost;
+      globalThis.Telemetry?.log('wall:place', { x: hover.x, y: hover.y, side: hover.side, cost });
+
+      // Ensure topology rebuild notices the change
+      state.bumpTopology?.(gs, 'ui:edge-place');
+
+    } else if (remove) {
+      // Remove (no refund here; if you want, credit edgeRefund(gs) to gs.bones)
+      walls.toggleEdge(gs, hover.x, hover.y, hover.side);
+      globalThis.Telemetry?.log('wall:remove', { x: hover.x, y: hover.y, side: hover.side });
+
+      state.bumpTopology?.(gs, 'ui:edge-remove');
     }
 
-    // Charge after successful placement
-    gs.bones -= cost;
-    globalThis.Telemetry?.log('wall:place', { x: hover.x, y: hover.y, side: hover.side, cost });
-
-  } else if (remove) {
-    // Remove (no refund here)
-    toggleEdge(gs, hover.x, hover.y, hover.side);
-    globalThis.Telemetry?.log('wall:remove', { x: hover.x, y: hover.y, side: hover.side });
-  }
-  // Use the local helper to avoid TDZ issues with UI export
-  refreshHUD?.();
-});
+    // Keep HUD snappy after edits
+    refreshHUD?.();
+  });
 }
-
 
 function edgeHitTest(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
@@ -419,7 +779,6 @@ function edgeHitTest(canvas, evt) {
   return { x: cx, y: cy, side };
 }
 
-
 function edgeTouchesDragon(gs, x, y, side) {
   // side is 'N','S','E','W' for the edge on cell (x,y)
   const a = { x, y };
@@ -428,8 +787,6 @@ function edgeTouchesDragon(gs, x, y, side) {
   if (side === 'S') b.y = y + 1;
   if (side === 'W') b.x = x - 1;
   if (side === 'E') b.x = x + 1;
-
-  // If either cell is part of the dragon, block building
   return state.isDragonCell(a.x, a.y, gs) || state.isDragonCell(b.x, b.y, gs);
 }
 
@@ -439,24 +796,41 @@ async function renderNextWavePreview() {
   if (!root) return;
   root.innerHTML = '';
 
-  const combat = await getCombat();
+    const combat = await getCombat();
   const wave = state.GameState.wave | 0;
 
-  // Get the raw list, then count by type
-  const list = (typeof combat.previewWaveList === 'function')
-    ? combat.previewWaveList(wave)
-    : [];
+  // ✅ Always use the same function you just tested in the console
+  const counts = (typeof combat.previewWaveCounts === 'function')
+    ? combat.previewWaveCounts(wave)
+    : (() => {
+        const list = (typeof combat.previewWaveList === 'function')
+          ? combat.previewWaveList(wave)
+          : [];
+        const tmp = {};
+        for (const type of list) tmp[type] = (tmp[type] | 0) + 1;
+        return tmp;
+      })();
 
-  const counts = {};
-  for (const type of list) counts[type] = (counts[type] | 0) + 1;
+  // One-time HUD probe so we see exactly what the panel is using
+  console.debug('[HUD preview] wave', wave, 'counts', counts);
 
-  // Build rows in a consistent order
+
   const order = ['villager','squire','knight','hero','engineer','kingsguard','boss'];
   order.forEach((type) => {
     const n = counts[type] | 0;
     if (n <= 0) return;
 
-    const meta = ENEMY_META[type] || { name: type, color: '#ccc', blurb: '' };
+      let meta = ENEMY_META[type] || { name: type, color: '#ccc', blurb: '' };
+
+  // If this is a boss, specialize the name based on the scheduled boss for this wave.
+  if (type === 'boss') {
+    const bossId = getBossId(wave);                 // e.g. 'mordred', 'kay', ...
+    const displayName = bossId && BOSS_PREVIEW_NAME[bossId];
+    if (displayName) {
+      meta = { ...meta, name: displayName };        // keep color/blurb, override name
+    }
+  }
+
 
     const row = document.createElement('div');
     row.style.display = 'grid';
@@ -465,18 +839,31 @@ async function renderNextWavePreview() {
     row.style.gap = '8px';
     row.style.margin = '6px 0';
 
-    // Icon (colored circle via inline SVG)
-    const ico = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    ico.setAttribute('width', '24');
-    ico.setAttribute('height', '24');
-    const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circ.setAttribute('cx', '12'); circ.setAttribute('cy', '12'); circ.setAttribute('r', '9');
-    circ.setAttribute('fill', meta.color);
-    circ.setAttribute('stroke', '#111');
-    circ.setAttribute('stroke-width', '2');
-    ico.appendChild(circ);
+        const ICON_SIZE = 24;
+    const ico = document.createElement('canvas');
+    ico.width = ICON_SIZE;
+    ico.height = ICON_SIZE;
+    ico.style.width = ICON_SIZE + 'px';
+    ico.style.height = ICON_SIZE + 'px';
 
-    // Name + blurb
+    const ctx = ico.getContext('2d');
+    if (ctx) {
+      ctx.imageSmoothingEnabled = false;
+
+      // Base radius tuned so the ring fits inside 24×24 nicely
+      const radius = ICON_SIZE * 0.34;
+
+      // Use the shared renderer so rings & colors match the battlefield
+      drawEnemyGlyph(ctx, ICON_SIZE / 2, ICON_SIZE / 2, type, {
+        radius,
+        // No per-enemy flags here; the helper will:
+        // - Give heroes a shield ring
+        // - Give kingsguard a miniboss ring
+        // - Give bosses a boss ring
+      });
+    }
+
+
     const txt = document.createElement('div');
     const title = document.createElement('div');
     title.textContent = meta.name;
@@ -488,7 +875,6 @@ async function renderNextWavePreview() {
     txt.appendChild(title);
     txt.appendChild(blurb);
 
-    // Count pill
     const pill = document.createElement('div');
     pill.textContent = 'x ' + n;
     pill.style.background = '#1b2437';
@@ -503,7 +889,6 @@ async function renderNextWavePreview() {
     root.appendChild(row);
   });
 
-  // Empty state
   if (!root.children.length) {
     const p = document.createElement('div');
     p.style.opacity = '0.7';
@@ -512,13 +897,10 @@ async function renderNextWavePreview() {
   }
 }
 
-
 // ---------- Dev / Playtest Panel ----------
 async function ensureDevPanel() {
   const rightCol = document.getElementById('rightCol');
   if (!rightCol) return;
-
-  // Avoid duplicates if bindUI is ever called twice
   if (document.getElementById('devPanel')) return;
 
   const panel = document.createElement('div');
@@ -642,7 +1024,7 @@ async function ensureDevPanel() {
 
   panel.appendChild(utilRow);
 
-    // === Maze Presets (A/B/C) ===
+  // === Maze Presets (A/B/C) ===
   const presetTitle = document.createElement('div');
   presetTitle.className = 'pTitle';
   presetTitle.textContent = 'Maze Presets';
@@ -695,7 +1077,7 @@ async function ensureDevPanel() {
       const edges = map[slot];
       if (!edges) { tell?.(`Preset ${slot} is empty`, '#f88'); return; }
       state.applyMaze(state.GameState, edges);
-      refreshHUD?.(); // optional; draw will pick it up next tick
+      refreshHUD?.();
       tell?.(`Loaded Preset ${slot} (${labelFor(edges)})`);
     });
 
@@ -712,7 +1094,6 @@ async function ensureDevPanel() {
       tell?.(`Deleted Preset ${slot}`);
     });
 
-    // initialize label
     const initMap = getPresetMap();
     info.textContent = labelFor(initMap[slot]);
 
@@ -724,9 +1105,9 @@ async function ensureDevPanel() {
     return wrap;
   }
 
-  row(makePresetRow('A'));
-  row(makePresetRow('B'));
-  row(makePresetRow('C'));
+  panel.appendChild(makePresetRow('A'));
+  panel.appendChild(makePresetRow('B'));
+  panel.appendChild(makePresetRow('C'));
 
   rightCol.appendChild(panel);
 }

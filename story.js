@@ -1,23 +1,27 @@
 // story.js
 // Dragon’s Lair — narrative scaffolding + dialogue
-// Import into main flow and call getDialogueFor(wave, "entry"|"defeat")
-// to retrieve an ordered list of { speaker, text, mood?, portrait?, sfx?, speed? }.
+// Import into main flow and call getDialogueFor(wave, event), where:
+//   - "entry"   → boss appears
+//   - "defeat"  → boss is slain (dragon/player wins this fight)
+//   - "victory" → dragon is slain (Camelot wins / game over)
+// Returns an ordered list of { speaker, text, mood?, portrait?, sfx?, speed? }.
+
 
 // =========================
 // Public API
 // =========================
 export const BOSS_SCHEDULE = {
-  10: 'sir mordred',
-  20: 'sir kay',
-  30: 'sir palamedes',
-  40: 'sir gawain',
-  50: 'sir percival',
-  60: 'sir bors',
-  70: 'sir tristan',
-  80: 'sir galahad',
-  90: 'sir bedivere',
-  100: 'sir lancelot',
-  101: 'king arthur',
+  5: 'mordred',
+  10: 'kay',
+  15: 'palamedes',
+  20: 'gawain',
+  25: 'percival',
+  30: 'bors',
+  35: 'tristan',
+  40: 'galahad',
+  45: 'bedivere',
+  50: 'lancelot',
+  51: 'arthur',
 };
 
 export function isBossLevel(wave) {
@@ -59,27 +63,27 @@ export function getOffscreenSynopsis() {
 
 // Dragon identity + reveal cadence
 const DRAGON = {
-  canonicalName: 'Caerdrake', // pick one; you can change anytime
-  titles: ['The Last Ember', 'Winged General', 'Pendragon’s Shadow'],
+  canonicalName: 'Cargarax', // pick one; you can change anytime
+  titles: ['The Last Ember', 'The Calamity from the Clouds', 'Pendragon’s Shadow', 'Car', 'The Hearth of Camelot'],
   // Reveal beats:
-  nameRevealedAt: 40,   // Gawain (Lv. 40)
-  titlesRevealedAt: 20, // Kay (Lv. 20)
+  nameRevealedAt: 20,   // Gawain (Lv. 20)
+  titlesRevealedAt: 10, // Kay (Lv. 10)
 };
 
 // Verbosity ramp — how “talkative” the dragon becomes
 const VERBOSITY = {
-  dragonRepliesStart: 50,     // first short replies
-  fullConversationsStart: 90, // multi-exchange
+  dragonRepliesStart: 25,     // first short replies
+  fullConversationsStart: 45, // multi-exchange
 };
 
 // Off-screen Camelot collapse — phase gates for flavor + tone
 const PHASES = [
   { at: 1,   label: 'Hunt',        msg: 'Rumors spread: a “beast” lairs in the mountains.' },
-  { at: 20,  label: 'Recognition', msg: 'Whispers from Camelot: it may be their dragon.' },
-  { at: 50,  label: 'Retrieval',   msg: 'Envoys fail; knights sent to retrieve their weapon.' },
-  { at: 80,  label: 'Crisis',      msg: 'Fronts falter; fires light distant coasts.' },
-  { at: 100, label: 'Desperation', msg: 'Only legends remain to stand between Camelot and ruin.' },
-  { at: 101, label: 'The King',    msg: 'Arthur rides, not to conquer, but to plead.' },
+  { at: 10,  label: 'Recognition', msg: 'Whispers from Camelot: it may be their dragon.' },
+  { at: 25,  label: 'Retrieval',   msg: 'Envoys fail; knights sent to retrieve their weapon.' },
+  { at: 40,  label: 'Crisis',      msg: 'Fronts falter; fires light distant coasts.' },
+  { at: 50, label: 'Desperation', msg: 'Only legends remain to stand between Camelot and ruin.' },
+  { at: 51, label: 'The King',    msg: 'Arthur rides, not to conquer, but to plead.' },
 ];
 
 // Minimal, safe “moods” for your textbox portraits/animations if you want
@@ -90,9 +94,9 @@ const MOOD = {
 
 // Optional SFX/typing speed hints for your typewriter effect
 const TYPE = {
-  short: { sfx: 'blip', speed: 28 },
-  normal: { sfx: 'blip', speed: 22 },
-  slow: { sfx: 'blip', speed: 16 },
+  short: { sfx: 'blip', speed: 35 },
+  normal: { sfx: 'blip', speed: 35 },
+  slow: { sfx: 'blip', speed: 35 },
 };
 
 // =========================
@@ -102,6 +106,7 @@ const WORLD = {
   phaseIdx: 0,
   offscreenNotes: [PHASES[0].msg],
   // You can hang additional flags as needed.
+  seenEntryWaves: new Set(),
 };
 
 // Advance phase notes as waves pass
@@ -170,35 +175,56 @@ function composeDialogue(id, wave, event, T) {
 
 // ============ Boss Beats ============
 
-// Lv.10 — Mordred: first recognition (short, cryptic)
+// Lv.5 — Mordred: first recognition (short, cryptic)
 function mordred(wave, event, talk, convo, T) {
-  if (event === 'entry') {
-    return [ K('mordred', '…You.', 'k_stern', 'short') ];
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
+  
   // defeat
   return [
-    K('mordred', 'I thought you a beast. Now I remember the fear you carried ahead of Camelot’s banners.', 'k_stern', 'normal'),
-    talk ? D('I carry it still.', 'd_terse', 'short') : null,
+    K('mordred', 'Oh! …It’s you.', 'k_stern', 'normal'),
   ].filter(Boolean);
 }
 
-// Lv.20 — Kay: titles revealed, sarcastic edge
+// Lv.10 — Kay: titles revealed, sarcastic edge
 function kay(wave, event, talk, convo, T) {
   if (event === 'entry') {
-    return [ K('kay', `Look at you—{DRAGON_TITLES} skulking in a cave. Seneschal says hello.`, 'k_neutral', 'normal') ];
+    return [ 
+      K('kay', `Look at you--The Last Ember, skulking in a cave. How ignoble.`, 'k_neutral', 'normal'),
+      D('...', 'd_bitter', 'short'),
+      K('kay', 'Have you no words for me, turncloak? Very well, then--Let’s be quick about it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
+
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
+  }
+  
   return [
     K('kay', 'Arthur fed a kingdom on your fire. Now we choke on smoke without it.', 'k_stern', 'normal'),
-    talk ? D('I won’t be your hearth again.', 'd_bitter', 'short') : null,
+    D('I won’t be your hearth again.', 'd_bitter', 'short'),
   ].filter(Boolean);
 }
 
-// Lv.30 — Palamedes: outsider rebuke
+// Lv.15 — Palamedes: outsider rebuke
 function palamedes(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [
       K('palamedes', 'I was never theirs. Still, I stood the wall you abandoned.', 'k_stern', 'normal'),
       talk ? D('And how many villages did that wall cast into shadow?', 'd_bitter', 'short') : null,
+    ].filter(Boolean);
+  }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
     ].filter(Boolean);
   }
   return [
@@ -207,10 +233,16 @@ function palamedes(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.40 — Gawain: name reveal (reverent, angry)
+// Lv.20 — Gawain: name reveal (reverent, angry)
 function gawain(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('gawain', `Name yourself… No. I remember. {DRAGON_NAME}.`, 'k_stern', 'slow') ];
+  }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
   return [
     K('gawain', `You carried our standard to Rome and back. And then dropped it here.`, 'k_stern', 'normal'),
@@ -218,10 +250,16 @@ function gawain(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.50 — Percival: naïve awe + gratitude
+// Lv.25 — Percival: naïve awe + gratitude
 function percival(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('percival', 'You saved me once. I was small. You were… vast.', 'k_neutral', 'normal') ];
+  }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
   return [
     K('percival', 'I thought heroes never tired. I was wrong.', 'k_sorrow', 'normal'),
@@ -229,10 +267,16 @@ function percival(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.60 — Bors: cold duty
+// Lv.30 — Bors: cold duty
 function bors(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('bors', 'Kingdom before creature. Return, or be ended.', 'k_stern', 'normal') ];
+  }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
   return [
     K('bors', 'Camelot weakens while you hide.', 'k_stern', 'normal'),
@@ -240,10 +284,16 @@ function bors(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.70 — Tristan: melancholy
+// Lv.35 — Tristan: melancholy
 function tristan(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('tristan', 'Even love cannot argue with ruin. Come back with me.', 'k_sorrow', 'slow') ];
+  }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
   return [
     K('tristan', 'Once your shadow meant hope. Now it is a tombstone across the hills.', 'k_sorrow', 'normal'),
@@ -251,10 +301,16 @@ function tristan(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.80 — Galahad: holy condemnation
+// Lv.40 — Galahad: holy condemnation
 function galahad(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ K('galahad', 'Purity does not flee its purpose. Repent or be purged.', 'k_holy', 'normal') ];
+  }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
   }
   return [
     K('galahad', 'You turned your back not on Arthur, but on grace.', 'k_holy', 'normal'),
@@ -262,7 +318,7 @@ function galahad(wave, event, talk, convo, T) {
   ].filter(Boolean);
 }
 
-// Lv.90 — Bedivere: weary reflection; dragon begins fuller replies
+// Lv.45 — Bedivere: weary reflection; dragon begins fuller replies
 function bedivere(wave, event, talk, convo, T) {
   if (event === 'entry') {
     const lines = [
@@ -271,13 +327,19 @@ function bedivere(wave, event, talk, convo, T) {
     if (convo) lines.push(D('I grieve him too. But grief cannot leash me again.', 'd_weary', 'normal'));
     return lines;
   }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
+  }
   return [
     K('bedivere', 'I returned a sword to still waters once. I cannot return you.', 'k_sorrow', 'normal'),
     D('Then return your king to peace. Tell him: I will not burn for Camelot again.', 'd_solemn', 'normal'),
   ];
 }
 
-// Lv.100 — Lancelot: speaks on entry; full conversation
+// Lv.50 — Lancelot: speaks on entry; full conversation
 function lancelot(wave, event, talk, convo, T) {
   if (event === 'entry') {
     const lines = [
@@ -287,6 +349,12 @@ function lancelot(wave, event, talk, convo, T) {
     ];
     return lines;
   }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
+  }
   // defeat
   return [
     K('lancelot', 'Forgive me—for failing to forgive you.', 'k_sorrow', 'slow'),
@@ -294,7 +362,7 @@ function lancelot(wave, event, talk, convo, T) {
   ];
 }
 
-// Lv.101 — Arthur: existential plea; tragic philosophy clash
+// Lv.51 — Arthur: existential plea; tragic philosophy clash
 function arthur(wave, event, talk, convo, T) {
   if (event === 'entry') {
     const lines = [
@@ -305,12 +373,69 @@ function arthur(wave, event, talk, convo, T) {
     ];
     return lines;
   }
+  if (event === 'victory') {
+    // Boss wins, dragon dies
+    return [
+      K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+    ].filter(Boolean);
+  }
   // defeat
   return [
     K('arthur', 'I asked for your shadow, not your servitude.', 'k_sorrow', 'slow'),
     D('Your shadow swallowed kingdoms. Let the sun set on Camelot, my king.', 'd_solemn', 'slow'),
   ];
 }
+
+// =========================
+// Boss lifecycle hooks (events from combat.js)
+// =========================
+//
+// combat.js will dispatch:
+//   window.dispatchEvent(new CustomEvent('dl-boss-appeared', { detail: { wave, id, type } }));
+//   window.dispatchEvent(new CustomEvent('dl-boss-defeated', { detail: { wave, id, type } }));
+//
+// This section listens for those events, builds the right dialogue using
+// getDialogueFor(wave, 'entry' | 'defeat'), and re-emits a single
+// 'dl-story-dialog' event for the UI layer to render.
+
+function emitBossDialogue(wave, event) {
+  if (!wave) return;
+  const lines = getDialogueFor(wave, event);
+  if (!lines || !lines.length) return;
+
+  try {
+    window.dispatchEvent?.(
+      new CustomEvent('dl-story-dialog', {
+        detail: { wave, event, lines },
+      })
+    );
+  } catch (_) {}
+}
+
+// When the first boss actually spawns on the map
+window.addEventListener('dl-boss-appeared', (ev) => {
+  const wave = ev?.detail?.wave | 0;
+  try {
+    WORLD.seenEntryWaves?.add?.(wave);
+  } catch (_) {}
+  emitBossDialogue(wave, 'entry');
+});
+
+// When that boss actually dies (not when the wave ends)
+window.addEventListener('dl-boss-defeated', (ev) => {
+  const wave = ev?.detail?.wave | 0;
+  emitBossDialogue(wave, 'defeat');
+});
+
+// When that boss wins
+window.addEventListener('dl-boss-victory', (ev) => {
+  const wave = ev?.detail?.wave | 0;
+  // 👇 NEW: only show victory dialogue if the entry happened for this wave
+  if (!WORLD.seenEntryWaves || !WORLD.seenEntryWaves.has?.(wave)) {
+    return; // dragon died before boss spawn → no boss victory dialogue
+  }
+  emitBossDialogue(wave, 'victory');
+});
 
 // =========================
 // Integration Hints

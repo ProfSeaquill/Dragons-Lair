@@ -3,9 +3,12 @@
 // and subtle heat shimmer near the dragon’s mouth
 
 import * as state from './state.js';
+import { drawClawSlashes } from './combat/upgrades/abilities/claw.js';
+import { drawWingGusts }   from './combat/upgrades/abilities/wing_gust.js';
+import { ROAR_FX_VISUAL } from './combat/upgrades/abilities/roar.js';
 
 // DEBUG toggle
-window.__logFlame = window.__logFlame ?? true;
+window.__logFlame = window.__logFlame ?? false; // default quiet; toggle in console if needed
 
 
 // ===== Phase 9: render scratch + caches =====
@@ -24,6 +27,40 @@ const dragonImg = new Image();
 let dragonReady = false;
 dragonImg.onload = () => { dragonReady = true; };
 dragonImg.src = './assets/dragon_idle.png';
+
+/* -----------------------------------------------------------
+ * WING GUST SPRITE SHEET
+ * --------------------------------------------------------- */
+const wingGustImg = new Image();
+let wingGustReady = false;
+wingGustImg.onload = () => { wingGustReady = true; };
+// 4 frames horizontally, each 96x96px
+wingGustImg.src = './assets/wing_gust.png';
+
+/* -----------------------------------------------------------
+ * ROAR WAVE SPRITE SHEET (4× frames, 1 row)
+ * --------------------------------------------------------- */
+const roarImg = new Image();
+let roarReady = false;
+
+roarImg.onload = () => {
+  roarReady = true;
+  console.log('[roar] sprite loaded', roarImg.src, roarImg.width, roarImg.height);
+};
+
+roarImg.onerror = (e) => {
+  roarReady = false;
+  console.error('[roar] FAILED TO LOAD SPRITE', roarImg.src, e);
+};
+
+// 👇 keep your existing path if it's correct
+roarImg.src = './assets/roar.png';
+
+// We *only* fix the frame count. Frame W/H are derived from the actual image size.
+const ROAR_FRAME_COUNT = 4;
+const ROAR_DEFAULT_DUR = 0.70;
+
+
 
 /* -----------------------------------------------------------
  * FLAME STRIPS (corridor fire) — optional textures
@@ -50,13 +87,13 @@ caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
  * Enemy type colors
  * --------------------------------------------------------- */
 const TYPE_COLOR = {
-  villager:  '#9acd32',
-  squire:    '#7fd1ff',
-  knight:    '#ffd166',
-  hero:      '#ff6b6b',
-  engineer:  '#c084fc',
-  kingsguard:'#ffa8a8',
-  boss:      '#f4a261',
+  villager:   '#c4a484',
+  squire:     '#7fd1ff',
+  knight:     '#9acd32',
+  hero:       '#e0e0e0',
+  engineer:   '#c084fc',
+  kingsguard: '#ED2939',   // red
+  boss:       '#ffd700',   // gold
 };
 
 /* -----------------------------------------------------------
@@ -184,6 +221,9 @@ if (state.canEditMaze(gs)) {
   // -------- Enemies / Dragon / Mouth fire / Heat shimmer
   drawEnemies(ctx, gs);
   drawDragonAndMouthFire(ctx, gs);
+  drawClawSlashes(ctx, gs);
+  drawWingGusts(ctx, gs);
+  drawRoarFx(ctx, gs); 
   // drawHeatShimmer(ctx, gs); // subtle, after dragon + fire for overlay then
 drawFireSplash(ctx, gs);
 
@@ -195,6 +235,9 @@ drawFireSplash(ctx, gs);
   
   // -------- Bombs (engineer)
   drawBombs(ctx, gs);
+
+  // -------- Bomb blast (detonation flash)
+  drawBombBlasts(ctx, gs);
 
 }
 
@@ -345,58 +388,168 @@ function drawCapsule(ctx, cx, cy, w, h, angleRad = 0) {
   ctx.restore();
 }
 
+// Small deterministic nudge so stacked enemies don't perfectly overlap.
+// Purely visual; does not affect gameplay coordinates.
+function enemyRenderOffset(e, tsize) {
+  const id = (e?.id | 0);
+  const s1 = ((id * 1103515245 + 12345) >>> 16) & 0xff; // LCG-ish hash
+  const s2 = ((id * 2654435761 + 97) >>> 16) & 0xff;
+  const amp = Math.max(0.5, tsize * 0.08);  // ~8% tile
+  // map 0..255 -> [-1,1] then scale; slight bias along intended dir if available
+  const jx = ((s1 / 127.5) - 1) * amp;
+  const jy = ((s2 / 127.5) - 1) * amp;
+
+  // If we know a grid-facing dir, bias the offset slightly along it so a column reads left/right/vertically.
+  let bx = 0, by = 0;
+  const d = e?.dir;
+  if (d === 'E') bx = amp * 0.25;
+  else if (d === 'W') bx = -amp * 0.25;
+  else if (d === 'S') by = amp * 0.25;
+  else if (d === 'N') by = -amp * 0.25;
+
+  return { dx: jx + bx, dy: jy + by };
+}
+
 /* ===================== enemies, dragon, fire, shimmer ===================== */
+// Shared enemy glyph helper: used by main renderer *and* HUD preview
+export function drawEnemyGlyph(ctx, cx, cy, type, opts = {}) {
+  const radius = opts.radius ?? Math.max(3, (opts.tsize ?? state.GRID.tile) * 0.18);
+
+  // Body color by type, with a shield fallback
+  const bodyColor =
+    opts.bodyColor
+    || TYPE_COLOR[type]
+    || (opts.shield ? '#5cf' : '#fc3');
+
+  // Core body
+  circle(ctx, cx, cy, radius, bodyColor, true);
+
+  const ringWidth = opts.ringWidth ?? 2;
+
+  // Shield ring (heroes always get one)
+  const hasShieldRing =
+    opts.forceShieldRing
+    || type === 'hero'
+    || !!opts.shield;
+  if (hasShieldRing) {
+    ring(ctx, cx, cy, radius + ringWidth, '#9df');
+  }
+
+  // Miniboss ring (kingsguard are minibosses by definition)
+  const isMiniboss =
+    opts.forceMiniboss
+    || !!opts.miniboss
+    || type === 'kingsguard';
+  if (isMiniboss) {
+    ring(ctx, cx, cy, radius + ringWidth, '#000');
+  }
+
+  // Boss ring
+  const isBoss =
+    opts.forceBoss
+    || !!opts.boss
+    || type === 'boss';
+  if (isBoss) {
+    ring(ctx, cx, cy, radius + ringWidth, '#fff');
+  }
+
+  return radius;
+}
 
 function drawEnemies(ctx, gs) {
   if (!Array.isArray(gs.enemies)) return;
-  const r = Math.max(3, state.GRID.tile * 0.22);
+  const t = state.GRID.tile;
+  const baseR = Math.max(3, t * 0.18);
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
-  for (const e of gs.enemies) {
-    if (e.type === 'engineer' && e.tunneling) {
-      continue;
+  // Shallow copy + Y-sort for nicer overlap (closest is drawn last)
+  const list = gs.enemies.slice().sort((a, b) => {
+    const ay = Number.isFinite(a.drawY) ? a.drawY
+             : Number.isFinite(a.y)     ? a.y
+             : (a.cy + 0.5) * t;
+    const by = Number.isFinite(b.drawY) ? b.drawY
+             : Number.isFinite(b.y)     ? b.y
+             : (b.cy + 0.5) * t;
+    return ay - by;
+  });
+
+  for (const e of list) {
+    if (e.type === 'engineer' && e.tunneling) continue; // drawn by tunnel ring
+
+    // Resolve a pixel position (prefer smooth interpolants if present)
+    let ex = Number.isFinite(e.drawX) ? e.drawX
+           : Number.isFinite(e.x)     ? e.x
+           : (Number.isInteger(e.cx) ? (e.cx + 0.5) * t : NaN);
+
+    let ey = Number.isFinite(e.drawY) ? e.drawY
+           : Number.isFinite(e.y)     ? e.y
+           : (Number.isInteger(e.cy) ? (e.cy + 0.5) * t : NaN);
+
+    // Final safety: if still not finite, try to recover; else skip drawing this enemy this frame.
+    if (!Number.isFinite(ex) || !Number.isFinite(ey)) {
+      if (Number.isInteger(e.tileX) && Number.isInteger(e.tileY)) {
+        ex = (e.tileX + 0.5) * t;
+        ey = (e.tileY + 0.5) * t;
+      } else {
+        continue;
+      }
     }
-    const t = state.GRID.tile; // or your existing tile size ref
-    const ex = (e.x != null) ? e.x : (e.cx + 0.5) * t;
-    const ey = (e.y != null) ? e.y : (e.cy + 0.5) * t;
-    const size = (e.size || 1) * t * 0.9;
-    if (!isOnScreen(ex - size*0.5, ey - size*0.5, size, size, ctx.canvas.width, ctx.canvas.height)) continue;
-    if (!enemyPixelPositionInto(SCR.p, e)) continue;
-    const p = SCR.p;
 
+    // ---- per-type radius tweaks ----
+    let radius = baseR;
 
-    const bodyColor = TYPE_COLOR[e.type] || (e?.shield ? '#5cf' : '#fc3');
-    circle(ctx, p.x, p.y, r, bodyColor, true);
-    if (e?.shield)   ring(ctx, p.x, p.y, r + 2, '#9df');
-    if (e?.miniboss) ring(ctx, p.x, p.y, r + 5, '#f7a');
+    // 1) Shrink villagers, squires, and heroes by 5%
+    if (e.type === 'villager' || e.type === 'squire' || e.type === 'hero') {
+      radius *= 0.95;
+    }
 
-    // Optional HP bar logic (kept if you use e.showHpUntil / e.maxHp)
+    // 3) Kingsguard +10% size
+    if (e.type === 'kingsguard') {
+      radius *= 1.10;
+    }
+
+    // 4) Bosses +25% size
+    if (e.type === 'boss') {
+      radius *= 1.25;
+    }
+
+    const size = radius * 2;
+    if (!isOnScreen(ex - size * 0.5, ey - size * 0.5, size, size, ctx.canvas.width, ctx.canvas.height)) continue;
+
+    // Deterministic micro-offset to reduce perfect stacking
+    const off = enemyRenderOffset(e, t);
+    const px = ex + off.dx;
+    const py = ey + off.dy;
+
+    // Draw enemy body + rings via shared helper
+    drawEnemyGlyph(ctx, px, py, e.type, {
+      radius,
+      shield: e.shield,
+      miniboss: e.miniboss,
+      boss: e.boss,
+    });
+
+    // Optional HP bar (uses e.showHpUntil / e.maxHp)
     if (e.showHpUntil && now < e.showHpUntil && e.maxHp > 0) {
-      const t = state.GRID.tile;
       const barW = Math.max(18, t * 0.8);
       const barH = Math.max(3,  t * 0.10);
-      const x = p.x - barW / 2;
-      const y = p.y - r - 6 - barH;
+      const x = px - barW / 2;
+      const y = py - radius - 6 - barH;  // use radius instead of fixed r
 
       const life = Math.max(0, e.showHpUntil - now) / 1000; // 0..1s
       const alpha = Math.min(1, life * 1.2);
-
       const ratio = Math.max(0, Math.min(1, e.hp / e.maxHp));
+
       ctx.save();
       ctx.globalAlpha = alpha;
-
-      // back
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(x, y, barW, barH);
-
-      // front
-      ctx.fillStyle = '#4ade80';
-      ctx.fillRect(x + 1, y + 1, (barW - 2) * ratio, barH - 2);
-
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x, y, barW, barH);
+      ctx.fillStyle = '#4ade80';         ctx.fillRect(x + 1, y + 1, (barW - 2) * ratio, barH - 2);
       ctx.restore();
     }
   }
 }
+
+
 
 function drawDragonAndMouthFire(ctx, gs) {
   const p = centerOf(state.EXIT.x, state.EXIT.y);
@@ -410,6 +563,69 @@ const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
   if (dragonReady) {
     ctx.drawImage(dragonImg, p.x - half, p.y - half, size, size);
   } 
+}
+
+  function drawRoarFx(ctx, gs) {
+  if (!roarReady) return;
+
+  const effects = gs.effects || [];
+  const roarFx = effects.filter(fx => fx && fx.type === 'roarWave');
+  if (!roarFx.length) return;
+
+  const sheetW = roarImg.width || 1;
+  const sheetH = roarImg.height || 1;
+  const fw = sheetW / ROAR_FRAME_COUNT; // 4 frames across
+  const fh = sheetH;                    // single row
+
+  const tsize = state.GRID.tile || 32;
+
+  // --- Anchor: dragon mouth (fallback to anchor if needed) ---
+  const mouth  = state.dragonMouthCell ? state.dragonMouthCell(gs) : null;
+  const anchor = mouth || state.dragonAnchor(gs);
+
+  const sizeTiles   = (ROAR_FX_VISUAL && ROAR_FX_VISUAL.sizeTiles)   || 2.0;
+  const offsetTiles = (ROAR_FX_VISUAL && ROAR_FX_VISUAL.offsetYTiles) || 0.8;
+
+  const anchorX = (anchor.x + 0.5) * tsize;
+  const anchorY = (anchor.y - offsetTiles) * tsize;
+
+  if (!drawRoarFx._loggedOnce) {
+    drawRoarFx._loggedOnce = true;
+    console.log('[roarFx] using frame size & anchor', {
+      fw, fh, sheetW, sheetH, anchorX, anchorY
+    });
+  }
+
+  for (const fx of roarFx) {
+    const dur = fx.dur || ROAR_DEFAULT_DUR;
+    const t   = Math.max(0, Math.min(dur, fx.t || 0));
+    const progress = dur > 0 ? t / dur : 0;
+
+    const frame = Math.min(
+      ROAR_FRAME_COUNT - 1,
+      Math.floor(progress * ROAR_FRAME_COUNT)
+    );
+
+    const sx = frame * fw;
+    const sy = 0;
+
+    const dstW = tsize * sizeTiles;
+    const dstH = dstW * (fh / fw); // keep aspect ratio
+
+    ctx.save();
+    ctx.globalAlpha = 1 - progress * 0.3;
+
+    // Draw centered over the dragon’s head, flipped horizontally
+    ctx.translate(anchorX, anchorY);
+    ctx.scale(-1, 1);
+    ctx.drawImage(
+      roarImg,
+      sx, sy, fw, fh,
+      -dstW / 2, -dstH / 2,
+      dstW, dstH
+    );
+    ctx.restore();
+  }
 }
 
 
@@ -448,6 +664,7 @@ function drawFireSplash(ctx, gs) {
     ctx.restore();
   }
 }
+
 
 /**
  * Subtle heat shimmer near the dragon’s mouth.
@@ -509,6 +726,7 @@ function drawHeatShimmer(ctx, gs) {
   }
 }
 
+
 /* -------- Traveling corridor fire -------- */
 function drawFlameWaves(ctx, gs) {
   const tsize = state.GRID.tile;
@@ -521,21 +739,23 @@ function drawFlameWaves(ctx, gs) {
     const start = Math.max(0, fx.headIdx - tailLen);
     const end   = fx.headIdx;
 
-  if (window.__logFlame) {
-  console.debug('[flameWave] headIdx, head.dir, len',
-    fx.headIdx,
-    fx.path?.[fx.headIdx]?.dir,
-    fx.path?.length
-  );
-}
+    // Optional high-level debug about the head
+    if (window.__logFlame === true) {
+      console.debug('[flameWave] headIdx, head.dir, len',
+        fx.headIdx,
+        fx.path?.[fx.headIdx]?.dir,
+        fx.path?.length
+      );
+    }
 
     for (let i = start; i <= end; i++) {
       const seg = fx.path[i];
       if (!seg) continue;
 
-      if (window.__logFlame && (seg.dir !== 'h' && seg.dir !== 'v')) {
-  console.warn('[flameWave] segment missing dir at i=', i, seg);
-}
+      // Per-segment sanity logging — now that seg & i exist
+      if (window.__logFlame === true && (seg.dir !== 'h' && seg.dir !== 'v')) {
+        console.warn('[flameWave] segment missing dir at i=', i, seg);
+      }
 
       const c = centerOf(seg.x, seg.y);
       const age = end - i;                         // 0 = freshest
@@ -548,8 +768,7 @@ function drawFlameWaves(ctx, gs) {
       ctx.save();
       ctx.globalAlpha = alpha * 0.95;
 
-      // in drawFlameWaves loop
-      if (!seg || !seg.dir) continue; // no dir → don’t draw it
+      if (!seg || !seg.dir) { ctx.restore(); continue; } // safety
 
       if (horiz && fireHReady) {
         ctx.drawImage(fireStripH, c.x - w/2, c.y - h/2, w, h);
@@ -633,8 +852,8 @@ function drawDistHints(ctx, gs) {
       const b = centerOf(best.nx, best.ny);
       const dx = b.x - a.x, dy = b.y - a.y;
       const L = Math.hypot(dx, dy) || 1;
-      const ux = (dx / L) * (t * 0.22);
-      const uy = (dy / L) * (t * 0.22);
+      const ux = (dx / L) * (t * 0.18);
+      const uy = (dy / L) * (t * 0.18);
 
       circle(ctx, a.x + ux, a.y + uy, Math.max(2, t * 0.06), '#8fb3ff', true);
     }
@@ -648,7 +867,7 @@ function drawBombs(ctx, gs) {
   const t = state.GRID.tile;
   for (const fx of gs.effects) {
     if (fx.type !== 'bomb') continue;
-    const r = Math.max(6, t * 0.22);
+    const r = Math.max(6, t * 0.18);
     if (!isOnScreen(fx.x - r, fx.y - r, r*2, r*2, ctx.canvas.width, ctx.canvas.height)) continue;
     const pulse = 0.5 + 0.5 * Math.sin((fx.timer || 0) * 6.283);
     circle(ctx, fx.x, fx.y, r * (0.9 + 0.2 * pulse), '#f44', true);
@@ -659,6 +878,39 @@ function drawBombs(ctx, gs) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(Math.ceil(Math.max(0, fx.timer)).toString(), fx.x, fx.y);
+    ctx.restore();
+  }
+}
+
+function drawBombBlasts(ctx, gs) {
+  if (!Array.isArray(gs.effects)) return;
+  const t = state.GRID.tile;
+
+  for (const fx of gs.effects) {
+    if (fx.type !== 'bombBlast') continue;
+
+    const dur = fx.dur || 0.35;
+    const tt  = Math.max(0, Math.min(1, (fx.t || 0) / dur)); // 0 → 1 over life
+    const baseR = (fx.rTiles || 2) * t;
+
+    // Slight expansion over time
+    const r = baseR * (0.85 + 0.35 * tt);
+
+    if (!isOnScreen(fx.x - r, fx.y - r, r * 2, r * 2, ctx.canvas.width, ctx.canvas.height)) continue;
+
+    ctx.save();
+
+    // Fade out over time
+    const alpha = 1 - tt;
+
+    // Soft inner flash
+    ctx.globalAlpha = 0.35 * alpha;
+    circle(ctx, fx.x, fx.y, r * 0.9, '#f97316', true); // warm orange fill
+
+    // Bright ring
+    ctx.globalAlpha = 0.85 * alpha;
+    ring(ctx, fx.x, fx.y, r, '#fde68a'); // pale yellow rim
+
     ctx.restore();
   }
 }

@@ -11,7 +11,7 @@
       "dmgPerHit": 10,
       "burnDps": 0,
       "fireRate": 0.5,
-      "burnDuration": 2,
+      "burnDuration": 3,
 
       "enemyHpScaleAtMax": 100,
       "efficiencyAtMax": 0.9,
@@ -28,21 +28,21 @@
       "kBurnDps": 0.05,
       "kBurnDuration": 0.10,
 
-      "costBasePower": 10,
+      "costBasePower": 15,
       "costBaseRate": 15,
       "costBaseRange": 20,
-      "costBaseBurn": 12,
+      "costBaseBurn": 20,
       "costP": 1.5,
-      "costBumpPerLevel": 0.05
+      "costBumpPerLevel": 0.15
     },
 
     "claw":  { "baseCooldownSec": 5,  "minCooldownSec": 2,  "capDamage": 500,  "kCooldown": 0.25, "kDamage": 0.25 },
-    "gust":  { "baseCooldownSec": 10, "minCooldownSec": 5,  "capPushTiles": 12, "kCooldown": 0.30, "kPush": 0.35 },
-    "roar":  { "baseCooldownSec": 10, "minCooldownSec": 5,  "capStunSec": 6,   "kCooldown": 0.25, "kStun": 0.25 },
-    "stomp": { "baseCooldownSec": 10, "minCooldownSec": 5,  "capDamage": 50, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
+    "gust":  { "baseCooldownSec": 1, "minCooldownSec": 0,  "capPushTiles": 12, "kCooldown": 0.30, "kPush": 0.35 },
+    "roar":  { "baseCooldownSec": 1, "minCooldownSec": 0,  "capStunSec": 6,   "kCooldown": 0.25, "kStun": 0.25 },
+    "stomp": { "baseCooldownSec": 1, "minCooldownSec": 0,  "capDamage": 50, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
 
     "enemyScaling": {
-      "maxWave": 101,
+      "maxWave": 51,
       "hpCapMult": 10.0,
       "spdCapMult": 1.5,
       "dpsCapMult": 1.0,
@@ -53,14 +53,14 @@
     },
 
     "waves": {
-      "count": { "base": 5, "cap": 160, "k": 0.02 },
+      "count": { "base": 5, "cap": 101, "k": 0.04 },
 
       "mixCurves": {
-        "villager": { "minWave": 1,  "base": 1.00, "cap": 0.30, "k": 0.60 },
+        "villager": { "minWave": 1,  "base": 1.00, "cap": 0.25, "k": 0.60 },
         "squire":   { "minWave": 2,  "base": 0.10, "cap": 0.35, "k": 0.90 },
-        "knight":   { "minWave": 4,  "base": 0.10, "cap": 0.15, "k": 0.50 },
-        "hero":     { "minWave": 11, "base": 0.05, "cap": 0.10, "k": 0.80 },
-        "engineer": { "minWave": 21, "base": 0.03, "cap": 0.08, "k": 0.30 }
+        "knight":   { "minWave": 3,  "base": 0.10, "cap": 0.15, "k": 0.50 },
+        "hero":     { "minWave": 6, "base": 0.05, "cap": 0.12, "k": 0.80 },
+        "engineer": { "minWave": 11, "base": 0.03, "cap": 0.10, "k": 0.30 }
       },
 
       "groupPolicy": {
@@ -80,12 +80,10 @@
           "boss": 1,
           "knight": 2
         },
-        "forceLeaderFrom": ["kingsguard", "boss", "knight", "hero"],
+        "forceLeaderFrom": ["kingsguard", "boss", "hero"],
         "independent": ["engineer", "knight"],
         "leaderPlace": {
           "hero": "front",
-          "knight": "front",
-          "engineer": "back",
           "kingsguard": "back",
           "boss": "back",
           "*": "front"
@@ -95,12 +93,12 @@
       "groups": {
         "min": 4,
         "max": 10,
-        "spawnGap": 0.25,
-        "groupGap": 3.7
+        "spawnGap": 0.3,
+        "groupGap": 2.5
       },
 
       "mixOptions": { "floor": 0.0, "ceil": 0.8, "unlockFill": "renorm" },
-      "cadence": { "bossEvery": 10, "kingsguardEvery": 5 },
+      "cadence": { "bossEvery": 5, "kingsguardEvery": 1 },
       "ai": { "jxnDelayMsMin": 100, "jxnDelayMsMax": 300 }
     }
   }
