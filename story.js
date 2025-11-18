@@ -177,18 +177,27 @@ function composeDialogue(id, wave, event, T) {
 
 // Lv.5 — Mordred: first recognition (short, cryptic)
 function mordred(wave, event, talk, convo, T) {
+  if (event === 'entry') {
+    // No dialogue when he first appears
+    return [];
+  }
+
   if (event === 'victory') {
     // Boss wins, dragon dies
     return [
       K('mordred', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
     ].filter(Boolean);
   }
-  
-  // defeat
-  return [
-    K('mordred', 'Oh! …It’s you.', 'k_stern', 'normal'),
-  ].filter(Boolean);
+
+  if (event === 'defeat') {
+    return [
+      K('mordred', 'Oh! …It’s you.', 'k_stern', 'normal'),
+    ].filter(Boolean);
+  }
+  // Safety fallback (in case of typos)
+  return [];
 }
+
 
 // Lv.10 — Kay: titles revealed, sarcastic edge
 function kay(wave, event, talk, convo, T) {
