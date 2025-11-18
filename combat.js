@@ -1500,7 +1500,6 @@ function _apportion(total, sharesMap) {
   return new Map(ints);
 }
 
-// Optional sparse specials (kept out of shares)
 function _cadenceSpecials(wave, cadence, FLAGS) {
   const out = [];
 
