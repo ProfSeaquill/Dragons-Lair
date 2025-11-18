@@ -45,7 +45,7 @@ const SPEAKER_LABELS = {
 
 // 🔧 Portrait assets (update paths to match your actual filenames)
 const DRAGON_PORTRAIT_SRC = './assets/cargarax_portrait.png';
-const KNIGHT1_PORTRAIT_SRC = './assets/knight1_portrait.png';
+const KNIGHT_PORTRAIT_SRC = './assets/knight1_portrait.png';
 
 const SPEAKER_PORTRAITS = {
   dragon: { src: DRAGON_PORTRAIT_SRC, side: 'right' }, // faces left, on the right side
