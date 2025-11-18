@@ -442,7 +442,7 @@ export function drawEnemyGlyph(ctx, cx, cy, type, opts = {}) {
     || !!opts.miniboss
     || type === 'kingsguard';
   if (isMiniboss) {
-    ring(ctx, cx, cy, radius + ringWidth, '#ffd');
+    ring(ctx, cx, cy, radius + ringWidth, '#000');
   }
 
   // Boss ring
