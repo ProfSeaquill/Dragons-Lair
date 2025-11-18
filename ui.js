@@ -62,6 +62,12 @@ let dlgTypingTimer = null;
 let dlgTypingDone = true;
 let dlgFullText = '';
 
+// Portrait layout elements
+let dlgMainRow = null;
+let dlgPortraitWrap = null;
+let dlgPortraitImg = null;
+
+
 function ensureDialogueLayer() {
   if (dlgRoot) return;
 
