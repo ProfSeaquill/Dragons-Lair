@@ -76,11 +76,14 @@ function ensureDialogueLayer() {
   dlgRoot.style.position = 'fixed';
   dlgRoot.style.left = '0';
   dlgRoot.style.right = '0';
+  dlgRoot.style.top = '0';
   dlgRoot.style.bottom = '0';
   dlgRoot.style.zIndex = '999';
   dlgRoot.style.display = 'none';
+
+  // Center the box horizontally *and* vertically
   dlgRoot.style.justifyContent = 'center';
-  dlgRoot.style.alignItems = 'flex-end';
+  dlgRoot.style.alignItems = 'center';
   dlgRoot.style.pointerEvents = 'auto';
   dlgRoot.style.padding = '12px';
   dlgRoot.style.boxSizing = 'border-box';
