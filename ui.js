@@ -294,12 +294,12 @@ function getPortraitConfigForLine(line) {
 // ---------- Enemy meta for the Preview ----------
 const ENEMY_META = {
   villager:   { name: 'Villager',  color: '#9acd32', blurb: 'Basic grunt. Slow and squishy.' },
-  squire:     { name: 'Squire',    color: '#7fd1ff', blurb: 'A bit tougher and quicker than a villager.' },
-  knight:     { name: 'Knight',    color: '#ffd166', blurb: 'Fast mover with solid armor and damage.' },
+  squire:     { name: 'Squire',    color: '#7fd1ff', blurb: 'A bit tougher and better-trained than a villager.' },
+  knight:     { name: 'Knight',    color: '#ffd166', blurb: 'Fast mover with solid hp and damage.' },
   hero:       { name: 'Hero',      color: '#ff6b6b', blurb: 'Shield-bearer: blocks direct fire for units behind him.' },
   engineer:   { name: 'Engineer',  color: '#c084fc', blurb: 'Tunnels to the lair and plants a timed bomb.' },
-  kingsguard: { name: 'King\'s Guard', color: '#ffa8a8', blurb: 'Miniboss: heavier Knight, moves a bit slower.' },
-  boss:       { name: 'Knight of the Round Table', color: '#f4a261', blurb: 'Boss: massive HP; a real push.' },
+  kingsguard: { name: 'King\'s Guard', color: '#ffa8a8', blurb: 'Miniboss: heavier Knight, moves a bit slower but hits harder.' },
+  boss:       { name: 'Knight of the Round Table', color: '#f4a261', blurb: 'Knight of the Round Table: massive HP and damage.' },
 };
 
 // Boss display names for the Next Wave preview, keyed by story.js boss id
