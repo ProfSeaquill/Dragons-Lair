@@ -93,7 +93,7 @@ const TYPE_COLOR = {
   knight:     '#9acd32',
   hero:       '#e0e0e0',
   engineer:   '#c084fc',
-  kingsguard: '#ff3333',   // brighter red
+  kingsguard: '#ED2939',   // red
   boss:       '#ffd700',   // gold
 };
 
