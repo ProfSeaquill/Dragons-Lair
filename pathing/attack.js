@@ -67,33 +67,40 @@ e._suppressSep = false;
   e.pausedForAttack = !!adjAndOpen;
 }
 
-    if (!canAttack) continue;
-
-        e._atkCD = (e._atkCD ?? 0) - dt;
-    if (e._atkCD <= 0) {
-      // Raw configured rate (attacks per second)
-      const rawRate = Number(e.rate) || 0.5;
-
-      // Global hard cap so nothing can machine-gun the dragon.
-      // Tune this to taste: 1 = 1 attack per second
-      const MAX_RATE = 0.5;
-
-      const rate = Math.min(
-        Math.max(0.05, rawRate), // sane lower bound
-        MAX_RATE                 // hard upper bound
-      );
-
-      const dmg = Math.max(1, e.damage | 0);
-
-      // Optional: one-time debug to see who got clamped
-      if (rawRate > MAX_RATE && !e._rateClampedLogged) {
-        console.log('[attack clamp]', e.id, e.type, { rawRate, rate });
-        e._rateClampedLogged = true;
-      }
-
-      gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - dmg);
-      e._atkCD = 1 / rate;   // cooldown in *seconds*, dt is in seconds too
-      _markHit(e, dmg);
+        // --- Early out if we can't attack this frame ---
+    if (!canAttack) {
+      // Reset the scheduled attack time so we don't carry a stale cooldown
+      e._nextAttackAt = null;
+      continue;
     }
+
+    // --- Timestamp-based cooldown using real time ---
+    const now = (typeof performance !== 'undefined' && performance.now)
+      ? performance.now()
+      : Date.now(); // ms
+
+    // Enemy's configured rate: attacks per second
+    const rawRate = Number(e.rate) || 0.5;
+
+    // Optional: keep a lower bound so rate isn't absurdly slow
+    const rate = Math.max(0.05, rawRate);
+    const intervalMs = 1000 / rate; // ms per attack
+
+    // Initialize cooldown when we first start attacking
+    if (e._nextAttackAt == null) {
+      e._nextAttackAt = now + intervalMs;
+    }
+
+    // Not time to swing yet
+    if (now < e._nextAttackAt) continue;
+
+    // --- Time to apply damage ---
+    const dmg = Math.max(1, e.damage | 0);
+    gs.dragonHP = Math.max(0, (gs.dragonHP | 0) - dmg);
+    _markHit(e, dmg);
+
+    // Schedule the next attack
+    e._nextAttackAt = now + intervalMs;
+
   }
 }
