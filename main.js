@@ -38,6 +38,49 @@ async function loadConfigFiles() {
   return { tuning, enemies, waves: null, upgrades };
 }
 
+// main.js (near top)
+// Speed-scaled virtual clock so real-time systems (spawns, attacks) respect timeScale.
+function installSpeedScaledClock() {
+  if (typeof performance === 'undefined') return;
+  if (performance.__dlSpeedClockInstalled) return;  // guard: only once
+
+  // Keep references to the real clocks
+  const realPerfNow = (performance.now && performance.now.bind(performance)) || null;
+  const realDateNow = Date.now.bind(Date);
+
+  const baseRealMs = realPerfNow ? realPerfNow() : realDateNow();
+  let lastRealMs   = baseRealMs;
+  let virtualMs    = baseRealMs;
+
+  // For Date.now: anchor Unix epoch to current real time,
+  // then add the same scaled delta we apply to performance.now.
+  const baseUnixMs      = realDateNow();
+  const basePerfForUnix = baseRealMs;
+
+  performance.now = function dlSpeedNow() {
+    const realNow = realPerfNow ? realPerfNow() : realDateNow();
+    const realDt  = realNow - lastRealMs;
+    lastRealMs    = realNow;
+
+    // Read current speed from GameState (default 1×)
+    const gs = (typeof state !== 'undefined') ? state.GameState : null;
+    const speed = (gs && typeof gs.timeScale === 'number' && gs.timeScale > 0)
+      ? gs.timeScale
+      : 1;
+
+    virtualMs += realDt * speed;
+    return virtualMs;
+  };
+
+  // Keep Date.now consistent with the virtual performance.now
+  Date.now = function dlSpeedDateNow() {
+    const vPerf = performance.now(); // already virtual
+    const delta = vPerf - basePerfForUnix;
+    return baseUnixMs + delta;
+  };
+
+  performance.__dlSpeedClockInstalled = true;
+}
 
 
 // pick the per-frame update function (support update | tick | step)
@@ -378,7 +421,7 @@ function frame(now) {
 
 // ---------- Boot ----------
 function boot() {
-
+  installSpeedScaledClock();
   // lock Start until config is loaded
   const startBtn = document.getElementById('startBtn');
   if (startBtn) startBtn.disabled = true;
