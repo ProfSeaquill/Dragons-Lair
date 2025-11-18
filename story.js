@@ -342,7 +342,7 @@ function tristan(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ 
       K('tristan', 'The Hearth of Camelot! It is good to see your scaled face. How is your health?', 'k_sorrow', 'slow'), 
-      D('I don'tNor do I bear citizenship', 'd_bitter', 'normal'),
+      D('I dont Nor do I bear citizenship', 'd_bitter', 'normal'),
       K('tristan', 'Well then allow me to speak plainly. Return or be ended.', 'k_stern', 'normal'),
       D('I would say the same to you.', 'd_bitter', 'normal'),
     ];
