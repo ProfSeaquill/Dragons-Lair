@@ -8,6 +8,8 @@ import { spawnClawSlashEffect } from './combat/upgrades/abilities/claw.js';
 import { spawnWingGustCorridorFX } from './combat/upgrades/abilities/wing_gust.js';
 import { applyRoar } from './combat/upgrades/abilities/roar.js';
 import { applyStomp } from './combat/upgrades/abilities/stomp.js';
+import { BOSS_SCHEDULE } from './story.js';
+
 
 
 
@@ -1503,22 +1505,34 @@ function _cadenceSpecials(wave, cadence, FLAGS) {
   const out = [];
 
   // Boss cadence is still “every N waves”
-  const bossEvery = cadence?.bossEvery ?? FLAGS.bossEvery;
+  const bossEvery    = cadence?.bossEvery      ?? FLAGS.bossEvery;
 
   // If truthy, we spawn a kingsguard exactly *one wave before* each boss wave
   const kgBeforeBoss = cadence?.kingsguardEvery ?? FLAGS.kingsguardEvery;
 
-  if (bossEvery && wave % bossEvery === 0) {
+  // Story script: any wave in BOSS_SCHEDULE is a boss wave (Arthur, named knights, etc.)
+  const scriptedBoss = !!(BOSS_SCHEDULE && BOSS_SCHEDULE[wave]);
+
+  // Is the *next* wave a boss (either by cadence or by story)?
+  const nextWaveIsBoss =
+    !!(BOSS_SCHEDULE && BOSS_SCHEDULE[wave + 1]) ||
+    (bossEvery && (wave + 1) % bossEvery === 0);
+
+  // Boss if either:
+  // - the story explicitly schedules one (Arthur, etc.), OR
+  // - cadence says "every N waves"
+  if (scriptedBoss || (bossEvery && wave % bossEvery === 0)) {
     out.push('boss');
   }
 
-  if (kgBeforeBoss && bossEvery && (wave + 1) % bossEvery === 0) {
-    // i.e. waves 4, 9, 14, 19, ... when bossEvery=5
+  // Kingsguard exactly one wave before *any* boss wave
+  if (kgBeforeBoss && nextWaveIsBoss) {
     out.push('kingsguard');
   }
 
   return out;
 }
+
 
 
 // Main builder: reads getCfg(gs).waves { count, mixCurves, mixOptions, cadence }
