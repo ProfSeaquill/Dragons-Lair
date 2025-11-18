@@ -451,7 +451,7 @@ export function drawEnemyGlyph(ctx, cx, cy, type, opts = {}) {
     || !!opts.boss
     || type === 'boss';
   if (isBoss) {
-    ring(ctx, cx, cy, radius + ringWidth, '#f7a');
+    ring(ctx, cx, cy, radius + ringWidth, '#fff');
   }
 
   return radius;
