@@ -372,9 +372,9 @@ function tristan(wave, event, talk, convo, T) {
 function galahad(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ 
-      K('galahad', 'Cargarax. Even these cave walls cannot hide your sins from the Lord. Repent or be purged.', 'k_holy', 'normal')
+      K('galahad', 'Cargarax. Even these cave walls cannot hide your sins from the Lord. Repent or be purged.', 'k_holy', 'normal'),
       D('You have always been tiresome, young Galahad.', 'd_bitter', 'normal'),
-      K('galahad', 'It is not I that tires you, but the weight of your sins. How many innocents have you slain? How many of Camelot’s own have perished in your foul flames?'', 'k_sorrow', 'slow'),
+      K('galahad', 'It is not I that tires you, but the weight of your sins. How many innocents have you slain? How many of Camelot’s own have perished in your foul flames?', 'k_sorrow', 'slow'),
       D('Words are words, boy. A true knight speaks with his blade.', 'd_bitter', 'normal'),
       K('galahad', 'On this we agree.', 'k_sorrow', 'slow'),
     ];
@@ -412,10 +412,8 @@ function bedivere(wave, event, talk, convo, T) {
       K('bedivere', 'This is madness, Sir. We have fought all my life to protect Camelot. She needs us now, more than ever. Come with me--whatever grievance you have can be discussed.', 'k_sorrow', 'slow'),
       D('Not this grievance, Sir. Not this time.', 'd_bitter', 'normal'),
       K('bedivere', 'I see. Ha! We are no longer young, the two of us--but you age like a dragon, you cheating prick.', 'k_sorrow', 'slow'),
-      K('galahad', 'Still, if my old bones will carry me to you, I promise you a sporting fight. Prepare yourself.', 'k_sorrow', 'slow'),
+      K('bedivere', 'Still, if my old bones will carry me to you, I promise you a sporting fight. Prepare yourself.', 'k_sorrow', 'slow'),
     ];
-    if (convo) lines.push(
-    return lines;
   }
 
   if (event === 'victory') {
