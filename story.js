@@ -313,7 +313,7 @@ function bors(wave, event, talk, convo, T) {
     return [ 
       K('bors', 'The dragon, Cargarax--you stand guilty of many crimes, among them treason and the slaying of the smallfolk you swore to protect. How do you plea?', 'k_stern', 'normal'), 
       D('I am no knight, Bors. I swore no oaths.', 'd_bitter', 'normal'),
-      K('bors', 'As a citizen of Camelot, you--,' 'k_neutral', 'normal'),
+      K('bors', 'As a citizen of Camelot, you--,', 'k_neutral', 'normal'),
       D('Nor do I bear citizenship', 'd_bitter', 'normal'),
       K('bors', 'Well then allow me to speak plainly. Return or be ended.', 'k_stern', 'normal'),
       D('I would say the same to you.', 'd_bitter', 'normal'),       
