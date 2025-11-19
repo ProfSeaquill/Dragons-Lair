@@ -245,7 +245,7 @@ function palamedes(wave, event, talk, convo, T) {
 
   if (event === 'defeat') {
     return [
-      K('palamedes', 'I do not look forward to listening to that pig’s arse Kay for evernity. Goodbye, wyrmbrother.', 'k_stern', 'normal'),
+      K('palamedes', 'I do not look forward to listening to that pig’s arse Kay for eternity. Goodbye, wyrmbrother.', 'k_stern', 'normal'),
     ].filter(Boolean);
   }
 
