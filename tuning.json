@@ -58,7 +58,7 @@
       "mixCurves": {
         "villager": { "minWave": 1,  "base": 1.00, "cap": 0.25, "k": 0.60 },
         "squire":   { "minWave": 2,  "base": 0.10, "cap": 0.35, "k": 0.90 },
-        "knight":   { "minWave": 3,  "base": 0.10, "cap": 0.15, "k": 0.50 },
+        "knight":   { "minWave": 3,  "base": 0.10, "cap": 0.20, "k": 0.60 },
         "hero":     { "minWave": 6, "base": 0.07, "cap": 0.13, "k": 0.80 },
         "engineer": { "minWave": 11, "base": 0.05, "cap": 0.10, "k": 0.30 }
       },
