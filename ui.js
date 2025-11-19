@@ -2,7 +2,7 @@
 import * as state from './state.js';
 import * as walls from './grid/walls.js';
 import * as upgrades from './upgrades.js';
-import { getBossId } from './story.js';
+import { getBossId, BOSS_SCHEDULE } from './story.js';
 import { drawEnemyGlyph } from './render.js';
 
 
