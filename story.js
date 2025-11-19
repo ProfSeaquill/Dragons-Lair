@@ -257,7 +257,7 @@ function gawain(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ 
     K('gawain', `It’s truly you. I confess, when I was asked to bring you back, I did not believe it. Will you come home, {DRAGON_NAME}? You are missed.`, 'k_stern', 'slow'),
-    D('Gawain...leafve this place.', 'd_bitter', 'short'),
+    D('Gawain...leave this place.', 'd_bitter', 'short'),
     K('gawain', `I will not pretend to understand your decision, but I respect it. We will discuss again after the battle.`, 'k_stern', 'slow'),
     ]
   }
@@ -342,23 +342,26 @@ function tristan(wave, event, talk, convo, T) {
   if (event === 'entry') {
     return [ 
       K('tristan', 'The Hearth of Camelot! It is good to see your scaled face. How is your health?', 'k_sorrow', 'slow'), 
-      D('I dont Nor do I bear citizenship', 'd_bitter', 'normal'),
-      K('tristan', 'Well then allow me to speak plainly. Return or be ended.', 'k_stern', 'normal'),
-      D('I would say the same to you.', 'd_bitter', 'normal'),
+      D('I do not desire conversation, Tristan.', 'd_bitter', 'normal'),
+      K('tristan', 'Of course. And I was not sent here to converse. Camelot needs you, Sir. Our enemies have grown bold as word of your absence grows.', 'k_stern', 'normal'),
+      D('Camelot is no longer a concern of mine.', 'd_bitter', 'normal'),
+      K('tristan', 'But... Sir, may I ask why?', 'k_sorrow', 'slow'),
+      D('I owe you no answers, Tristan. Come if you must.', 'd_bitter', 'normal'),
+      K('tristan', 'Ah. So it is.', 'k_sorrow', 'slow'),
     ];
   }
 
   if (event === 'victory') {
     // Boss wins, dragon dies
     return [
-      K('tristan', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+      K('tristan', 'You preferred to die than to defend your homeland. Why?', 'k_stern', 'normal'),
     ].filter(Boolean);
   }
 
   if (event === 'defeat') {
     return [
-      K('tristan', 'Once your shadow meant hope. Now it is a tombstone across the hills.', 'k_sorrow', 'normal'),
-      talk ? D('Then let the hills rest at last.', 'd_weary', 'normal') : null,
+      K('tristan', 'Your shadow once meant hope. I wish for those days return, though I will not be here to see them. Goodbye, Sir.', 'k_sorrow', 'normal'),
+      D('Rest well, Tristan.', 'd_weary', 'normal'),
     ].filter(Boolean);
   }
 
@@ -368,20 +371,28 @@ function tristan(wave, event, talk, convo, T) {
 // Lv.40 — Galahad: holy condemnation
 function galahad(wave, event, talk, convo, T) {
   if (event === 'entry') {
-    return [ K('galahad', 'Purity does not flee its purpose. Repent or be purged.', 'k_holy', 'normal') ];
+    return [ 
+      K('galahad', 'Cargarax. Even these cave walls cannot hide your sins from the Lord. Repent or be purged.', 'k_holy', 'normal')
+      D('You have always been tiresome, young Galahad.', 'd_bitter', 'normal'),
+      K('galahad', 'It is not I that tires you, but the weight of your sins. How many innocents have you slain? How many of Camelot’s own have perished in your foul flames?'', 'k_sorrow', 'slow'),
+      D('Words are words, boy. A true knight speaks with his blade.', 'd_bitter', 'normal'),
+      K('galahad', 'On this we agree.', 'k_sorrow', 'slow'),
+    ];
   }
 
   if (event === 'victory') {
     // Boss wins, dragon dies
     return [
-      K('galahad', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+      K('galahad', 'I will pray for your soul. But I fear it may be too late.', 'k_stern', 'normal'),
     ].filter(Boolean);
   }
 
   if (event === 'defeat') {
     return [
-      K('galahad', 'You turned your back not on Arthur, but on grace.', 'k_holy', 'normal'),
-      talk ? D('Grace did not put out the fires we lit.', 'd_bitter', 'normal') : null,
+      K('galahad', 'I thought your fires cleansing before. When you fought on our side. You betrayed our king and our god. Why?', 'k_holy', 'normal'),
+      D('There are things that can only be understood with time, boy. They cannot be explained.', 'd_bitter', 'normal'),
+      K('galahad', 'Am I dying? Sir Car, is this the end of my life?', 'k_sorrow', 'slow'),
+      D('There is no death for those who have salvation. Tonight you dine in heaven, young Galahad. Be brave and rest well.', 'd_bitter', 'normal'),
     ].filter(Boolean);
   }
 
@@ -392,23 +403,34 @@ function galahad(wave, event, talk, convo, T) {
 function bedivere(wave, event, talk, convo, T) {
   if (event === 'entry') {
     const lines = [
-      K('bedivere', 'Old friend—if friend I may still call you—Arthur grieves you most of all.', 'k_sorrow', 'slow'),
+      K('bedivere', 'Old friend—-if friend I may still call you—-Camelot is poorer without your laughter to shake her walls.', 'k_sorrow', 'slow'),
+      D('Your flatulence should be a fine substitute, Sir.', 'd_weary', 'normal'),
+      K('bedivere', 'Ha! So what is this? You have slain your own brothers. Even Galahad?', 'k_sorrow', 'slow'),
+      D('He was a quick study. But just as quick to folly. I gave him a quick death.', 'd_bitter', 'normal'),
+      K('bedivere', 'And will you do the same for me? A quick death?', 'k_sorrow', 'slow'),
+      D('If I must', 'd_bitter', 'normal'),
+      K('bedivere', 'This is madness, Sir. We have fought all my life to protect Camelot. She needs us now, more than ever. Come with me--whatever grievance you have can be discussed.', 'k_sorrow', 'slow'),
+      D('Not this grievance, Sir. Not this time.', 'd_bitter', 'normal'),
+      K('bedivere', 'I see. Ha! We are no longer young, the two of us--but you age like a dragon, you cheating prick.', 'k_sorrow', 'slow'),
+      K('galahad', 'Still, if my old bones will carry me to you, I promise you a sporting fight. Prepare yourself.', 'k_sorrow', 'slow'),
     ];
-    if (convo) lines.push(D('I grieve him too. But grief cannot leash me again.', 'd_weary', 'normal'));
+    if (convo) lines.push(
     return lines;
   }
 
   if (event === 'victory') {
     // Boss wins, dragon dies
     return [
-      K('bedivere', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+      K('bedivere', 'Two old soldiers like us ought to be ensconced in wines and good meat. Not this. Never this. ', 'k_stern', 'normal'),
     ].filter(Boolean);
   }
 
   if (event === 'defeat') {
     return [
-      K('bedivere', 'I returned a sword to still waters once. I cannot return you.', 'k_sorrow', 'normal'),
-      D('Then return your king to peace. Tell him: I will not burn for Camelot again.', 'd_solemn', 'normal'),
+      K('bedivere', 'You recall that battle? When I lost my arm?', 'k_sorrow', 'normal'),
+      D('I do', 'd_solemn', 'normal'),
+      K('bedivere', 'I thought that day would be my last. But your flames cauterized the wound. And now this is how I end. Ha!', 'k_sorrow', 'normal'),
+      D('Rest well, Sir Bedivere. Old friend.', 'd_solemn', 'normal'),
     ].filter(Boolean);
   }
 
@@ -419,9 +441,18 @@ function bedivere(wave, event, talk, convo, T) {
 function lancelot(wave, event, talk, convo, T) {
   if (event === 'entry') {
     const lines = [
-      K('lancelot', '{DRAGON_NAME}. I have no hatred left for you—only a duty I fail by loving.', 'k_sorrow', 'slow'),
-      D('No hatred remains in me either. Only a line I will not cross again.', 'd_solemn', 'normal'),
-      K('lancelot', 'Then meet me at that line. If I fall, let it be knowing I tried to carry you home.', 'k_sorrow', 'normal'),
+      K('lancelot', 'Hail, Sir {DRAGON_NAME}.', 'k_sorrow', 'slow'),
+      D('Sir Lancelot.', 'd_solemn', 'normal'),
+      K('lancelot', 'You know I have never borne you any ill will. But you have slain our brothers and doomed our kingdom. Our king no loger sleeps, and our queen...', 'k_sorrow', 'normal'),
+      D('Arthur is no longer my concern. Nor Lady Gwen.', 'd_solemn', 'normal'),
+      K('lancelot', 'You say that so firmly. What has happened, wrymbrother? Please, let us end this peacefully.', 'k_sorrow', 'normal'),
+      D('When Arthur wanted peace, he sent Kay. You are not here for peace.', 'd_solemn', 'normal'),
+      K('lancelot', 'True words. But I would not rather slay a friend.', 'k_sorrow', 'normal'),
+      D('Then think of me as an enemy.', 'd_solemn', 'normal'),
+      K('lancelot', 'I will try. But...', 'k_sorrow', 'normal'),
+      D('Go on.', 'd_solemn', 'normal'),
+      K('lancelot', 'It is just... you are so large. We do not have a grave plot prepared. Do you have a burial tradition among dragons that you would like me to observe?', 'k_sorrow', 'normal'),
+      D('The ever thoughtful, Sir Lancelot.', 'd_solemn', 'normal'),
     ];
     return lines;
   }
@@ -429,14 +460,18 @@ function lancelot(wave, event, talk, convo, T) {
   if (event === 'victory') {
     // Boss wins, dragon dies
     return [
-      K('lancelot', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+      K('lancelot', 'I expected more of a challenge, to be true. Rest well, wyrmbrother.', 'k_stern', 'normal'),
     ].filter(Boolean);
   }
 
   if (event === 'defeat') {
     return [
-      K('lancelot', 'Forgive me—for failing to forgive you.', 'k_sorrow', 'slow'),
-      D('I forgave you long ago. Forgiveness is not a leash.', 'd_solemn', 'normal'),
+      K('lancelot', 'I have never tasted defeat before. I find it does not suit my palate.', 'k_sorrow', 'slow'),
+      D('You fought well, Sir. Worthy of your fame.', 'd_solemn', 'normal'),
+      K('lancelot', 'Yet here I lie bleeding. Is this how so many of my foes have felt?', 'k_sorrow', 'slow'),
+      D('I too find naked. So perhaps.', 'd_solemn', 'normal'),
+      K('lancelot', 'Hahaha--oh. Thank you, Sir Cargarax. But please, Arthur needs you. Camelot needs you. Would you promise a dying knight that you will again serve our cause', 'k_sorrow', 'slow'),
+      D('You are a true knight, Sir Lancelot. Rest well.', 'd_solemn', 'normal'),
     ].filter(Boolean);
   }
 
@@ -447,10 +482,29 @@ function lancelot(wave, event, talk, convo, T) {
 function arthur(wave, event, talk, convo, T) {
   if (event === 'entry') {
     const lines = [
-      K('arthur', 'I need not command you. Only stand beside me, and the world will sheathe its blades.', 'k_stern', 'slow'),
-      D('That is why I left. Your peace is a silence we enforced with fire.', 'd_bitter', 'normal'),
-      K('arthur', 'So you choose their victory over ours?', 'k_stern', 'normal'),
-      D('No, Arthur. I choose the world over Camelot.', 'd_solemn', 'slow'),
+      K('arthur', 'When Lancelot did not return, I had to come myself.', 'k_stern', 'slow'),
+      D('And who presides over Camelot in your absence?', 'd_bitter', 'normal'),
+      K('arthur', 'Ha! Would that there was anything to preside over. Much of Camelot has fallen, Car.', 'k_stern', 'normal'), 
+      K('arthur', 'Between you slaying our knights and our enemies encroaching on our lands, our might is laughable.', 'k_stern', 'normal'),
+      D('So you have fled?', 'd_solemn', 'slow'),
+      K('arthur', 'Were I sensible king, I would. One of those kings from history who bears the crown as fashion and not burden. But instead, I still have hope. That you will return.', 'k_stern', 'slow'),
+      D('I wil not', 'd_bitter', 'normal'),
+      K('arthur', 'Do you hate me so? I am a flawed man--even at times a weak one--but I do not believe myself a cruel one.', 'k_stern', 'slow'),
+      D('It is not you, Art. It is Camelot.', 'd_bitter', 'normal'),
+      K('arthur', 'If Camelot has offended you, I will have it apologize at once.', 'k_stern', 'slow'),
+      D('How many wars did we fight together? Did I fight for your father and grandfather?', 'd_bitter', 'normal'),
+      K('arthur', 'Many. We are in your debt forever, Car. I know this.', 'k_stern', 'slow'),
+      D('And how many more will I fight?', 'd_bitter', 'normal'),
+      K('arthur', 'All knights retire, friend. You need not fight. Your presence alone will deter our foes, allow us to rebuild.', 'k_stern', 'slow'),
+      D('You misunderstand. I did not fight because I was violent. I fought because Camelot was violent. Where one foe ended, another began, an endless wave of boys and men dying in my flames.', 'd_bitter', 'normal'),
+      D('I came here knowing what would happen to Camelot in my absence. I desired it.', 'd_bitter', 'normal'),
+      K('arthur', 'You... the end of Camelot? The end of me and Gwen and Bedivere and Galahad? All your friends and brothers? The end of that?', 'k_stern', 'slow'),
+      D('There is no other way.', 'd_bitter', 'normal'),
+      K('arthur', 'There is always another way. That is why I am here. I still have faith in you, Car, though you seem to have lost your faith in me.', 'k_stern', 'slow'),
+      D('I have faith in you, Art. My faith is that you will always be a good man and a good king. Good kinds must often do cruel things.', 'd_bitter', 'normal'),
+      K('arthur', '...', 'k_stern', 'slow'),
+      K('arthur', 'I wish you were wrong, friend. But what I must now do proves you right. For Camelot.', 'k_stern', 'slow'),
+      D('For peace', 'd_bitter', 'normal'),
     ];
     return lines;
   }
@@ -458,14 +512,25 @@ function arthur(wave, event, talk, convo, T) {
   if (event === 'victory') {
     // Boss wins, dragon dies
     return [
-      K('arthur', 'Another dragon felled, and the world is safer for it.', 'k_stern', 'normal'),
+      K('arthur', 'I will have to lie about this day. To deter our foes. I will say that fifty of my best knight slayed you.', 'k_stern', 'normal'),
+      D('I know.', 'd_bitter', 'normal'),
+      K('arthur', 'Is this the peace you wanted?', 'k_stern', 'normal'),
+      D('It is the peace I must accept.', 'd_bitter', 'normal'),
+      K('arthur', 'I hate you for this, friend. I will never forgive you.', 'k_stern', 'normal'),
+      D('I made peace with that possibility when I left Camelot. Good luck, Art. Send my love to Lady Gwen.', 'd_bitter', 'normal'),
     ].filter(Boolean);
   }
 
   if (event === 'defeat') {
     return [
-      K('arthur', 'I asked for your shadow, not your servitude.', 'k_sorrow', 'slow'),
-      D('Your shadow swallowed kingdoms. Let the sun set on Camelot, my king.', 'd_solemn', 'slow'),
+      K('arthur', 'All I wanted was your presence. Not your servitude. Just your warmth by my side would have been enough.', 'k_sorrow', 'slow'),
+      D('Enough to continue a thing that must end.', 'd_solemn', 'slow'),
+      K('arthur', 'And you think when Camelot ends, there will not be another? You think this will end the cruelty of man?', 'k_stern', 'normal'),
+      D('No. Only the cruelty I have partaken in. Let the sun set on Camelot, Art. Let the hands of other men stain history in blood.', 'd_bitter', 'normal'),
+      K('arthur', 'I can feel it.', 'k_stern', 'normal'),
+      D('Feel what?', 'd_solemn', 'slow'),
+      K('arthur', 'Peace. Goodbye, Car.', 'k_stern', 'normal'),
+      D('Rest well, King Arthur.', 'd_solemn', 'slow'),
     ].filter(Boolean);
   }
 
