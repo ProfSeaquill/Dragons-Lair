@@ -1500,7 +1500,6 @@ function _apportion(total, sharesMap) {
   return new Map(ints);
 }
 
-// Optional sparse specials (kept out of shares)
 function _cadenceSpecials(wave, cadence, FLAGS) {
   const out = [];
 
@@ -1510,8 +1509,10 @@ function _cadenceSpecials(wave, cadence, FLAGS) {
   // If truthy, we spawn a kingsguard exactly *one wave before* each boss wave
   const kgBeforeBoss = cadence?.kingsguardEvery ?? FLAGS.kingsguardEvery;
 
-  // Story script: any wave in BOSS_SCHEDULE is a boss wave (Arthur, named knights, etc.)
-  const scriptedBoss = !!(BOSS_SCHEDULE && BOSS_SCHEDULE[wave]);
+    // Story script: any wave in BOSS_SCHEDULE is a boss wave (Arthur, named knights, etc.)
+  const bossId       = BOSS_SCHEDULE?.[wave] || null;
+  const scriptedBoss = !!bossId;
+
 
   // Is the *next* wave a boss (either by cadence or by story)?
   const nextWaveIsBoss =
@@ -1528,6 +1529,14 @@ function _cadenceSpecials(wave, cadence, FLAGS) {
   // Kingsguard exactly one wave before *any* boss wave
   if (kgBeforeBoss && nextWaveIsBoss) {
     out.push('kingsguard');
+  }
+
+    // Arthur special-case: pack this wave with extra kingsguard
+  if (bossId === 'king arthur' || bossId === 'arthur') {
+    const EXTRA_KG = 5; // tweak up/down as desired
+    for (let i = 0; i < EXTRA_KG; i++) {
+      out.push('kingsguard');
+    }
   }
 
   return out;

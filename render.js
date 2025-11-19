@@ -11,7 +11,6 @@ import { ROAR_FX_VISUAL } from './combat/upgrades/abilities/roar.js';
 window.__logFlame = window.__logFlame ?? false; // default quiet; toggle in console if needed
 
 
-
 // ===== Phase 9: render scratch + caches =====
 const SCR = {
   rect: { x:0, y:0, w:0, h:0 },       // generic rect scratch
@@ -288,7 +287,7 @@ function drawEntry(ctx) {
   ring(ctx, ep.x, ep.y, state.GRID.tile * 0.32, COLORS.entryRing);
 }
 
-/** -------- Bone walls -------- */
+/** -------- Bone walls -------- **/
 function drawEdgeWallsAsBones(ctx, gs) {
   const t = state.GRID.tile;
 
@@ -671,7 +670,7 @@ function drawFireSplash(ctx, gs) {
  * Subtle heat shimmer near the dragon’s mouth.
  * Cheap effect: layered soft gradients with small sinusoidal offsets and blur.
  * No assets required. It’s subtle by default; tweak SHIM values to taste.
- */
+ **/
 function drawHeatShimmer(ctx, gs) {
   const fx = gs.dragonFX || {};
   // Show shimmer if attacking OR (subtly) always-on near mouth
@@ -791,7 +790,6 @@ function drawFlameWaves(ctx, gs) {
     }
   }
 }
-
 
 /* --------- Tunneling ----------*/
 function drawTunnelIndicators(ctx, gs) {

@@ -2,7 +2,7 @@
 import * as state from './state.js';
 import * as walls from './grid/walls.js';
 import * as upgrades from './upgrades.js';
-import { getBossId } from './story.js';
+import { getBossId, BOSS_SCHEDULE } from './story.js';
 import { drawEnemyGlyph } from './render.js';
 
 
@@ -798,6 +798,8 @@ async function renderNextWavePreview() {
 
     const combat = await getCombat();
   const wave = state.GameState.wave | 0;
+  const bossId = BOSS_SCHEDULE?.[wave] || null;
+
 
   // ✅ Always use the same function you just tested in the console
   const counts = (typeof combat.previewWaveCounts === 'function')
@@ -829,6 +831,14 @@ async function renderNextWavePreview() {
     if (displayName) {
       meta = { ...meta, name: displayName };        // keep color/blurb, override name
     }
+
+    if (bossId === 'king arthur' || bossId === 'arthur') {
+        meta = {
+          name:  'Final Battle: King Arthur',
+          color: meta.color || '#f4a261',
+          blurb: 'The Once and Future King himself. Survive this and you’ve beaten the game.'
+        };
+      }
   }
 
 
