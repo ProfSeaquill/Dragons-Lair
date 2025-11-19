@@ -1533,7 +1533,7 @@ function _cadenceSpecials(wave, cadence, FLAGS) {
 
     // Arthur special-case: pack this wave with extra kingsguard
   if (bossId === 'king arthur' || bossId === 'arthur') {
-    const EXTRA_KG = 3; // tweak up/down as desired
+    const EXTRA_KG = 5; // tweak up/down as desired
     for (let i = 0; i < EXTRA_KG; i++) {
       out.push('kingsguard');
     }
