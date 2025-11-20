@@ -13,6 +13,7 @@ import { updateAgent } from './pathing/index.js';
 import * as combat from './combat.js';
 import './story.js'; // load narrative hooks (boss dialogue events)
 import { isBossLevel, getBossId } from './story.js';
+import { applyFlameVents } from './combat/vents.js';
 
 
 window.state = state;             // exposes state.GameState for console tools
@@ -786,6 +787,10 @@ if ((gs.dragonHP | 0) <= 0) {
   // 1) Let Combat drive game logic if available
   if (typeof combatUpdate === 'function') {
    combatUpdate(gs, dt);
+}
+
+   if (typeof applyFlameVents === 'function') {
+  applyFlameVents(gs, dt);
 }
 
   // 2b) Dragon fire animation FX timer (visual only; optional)
