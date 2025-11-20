@@ -3,6 +3,16 @@
 
 import * as state from '../state.js';
 
+function getVentConfig(gs) {
+  const cfg = state.getCfg ? state.getCfg(gs) : null;
+  const tv = cfg?.tuning?.vents || null;
+
+  return {
+    dps:      tv?.dps      ?? 8,   // damage per second per tile
+    maxCount: tv?.maxCount ?? 0,   // how many vents you can place total
+  };
+}
+
 /**
  * Ensure vent-related fields exist on the game state.
  * (Safe to call as often as you like.)
@@ -10,21 +20,14 @@ import * as state from '../state.js';
 function ensureVentState(gs) {
   if (!gs) gs = state.GameState;
   if (!Array.isArray(gs.flameVents)) gs.flameVents = [];
+
   if (typeof gs.flameVentsAvailable !== 'number') {
-    // Default pool; you can override from your save or tuning
-    gs.flameVentsAvailable = 0;
+    const { maxCount } = getVentConfig(gs);
+    gs.flameVentsAvailable =
+      (typeof maxCount === 'number' && maxCount >= 0) ? maxCount : 0;
   }
+
   return gs;
-}
-
-function getVentConfig(gs) {
-  const cfg = state.getCfg ? state.getCfg(gs) : null;
-  const tv = cfg?.tuning?.vents || null;
-
-  // 🔧 TODO: if you add tuning.vents to tuning.json, wire it here.
-  return {
-    dps:  tv?.dps  ?? 8,   // damage per second per tile
-  };
 }
 
 /**
@@ -102,11 +105,9 @@ export function applyFlameVents(gs, dt) {
 
     e.hp -= dmg;
     if (e.hp <= 0 && !e.dead) {
+      e.hp = 0;
       e.dead = true;
-      // You can layer in whatever "on kill" logic you use for dragon damage:
-      //  - add gold/bones
-      //  - spawn death FX, etc.
-      // For now this is just a raw kill.
+      // (If you want gold/bones here, we can mirror your usual dragon-kill path later.)
     }
   }
 }
