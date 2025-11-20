@@ -44,7 +44,7 @@
     "enemyScaling": {
       "maxWave": 51,
       "hpCapMult": 10.0,
-      "spdCapMult": 1.5,
+      "spdCapMult": 1.1,
       "dpsCapMult": 1.0,
       "shape": "exp",
       "kHP": 3.0,
