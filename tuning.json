@@ -41,13 +41,10 @@
     "roar":  { "baseCooldownSec": 1, "minCooldownSec": 0,  "capStunSec": 6,   "kCooldown": 0.25, "kStun": 0.25 },
     "stomp": { "baseCooldownSec": 1, "minCooldownSec": 0,  "capDamage": 100, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
     "vents": {
-        "baseCooldownSec": 14,        // seconds at level 1
-        "minCooldownSec":  6,         // hard floor at high levels
-        "capDps":          50,        // max DPS per tile at cap
-        "kCooldown":       0.25,      // scaling curve for cooldown
-        "kDps":            0.35,      // scaling curve for DPS
-        "radiusTiles":     1.0,       // splash radius in tiles
-        "durSec":          4.0        // how long a vent stays active
+        "capDps":          50,
+        "kCooldown":       0.25,
+        "kDps":            0.35,
+        "radiusTiles":     1.0 
 },
 
     "enemyScaling": {
