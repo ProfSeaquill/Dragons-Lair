@@ -61,10 +61,10 @@
     "armor": 0,
     "shielded": true,
     "nav": {
-      "epsilonWorse": 0.10,
+      "epsilonWorse": 0.15,
       "bias": { "bandGain": 1.8 },
-      "tags": ["shield"]
     }
+    "tags": ["shield"]
   },
   
   "engineer": {
@@ -79,10 +79,27 @@
     "shielded": false,
     "nav": {
       "epsilonWorse": 0.00,
-      "bias": { "bandGain": 2.0 },
-      "tags": ["scout"]
+      "bias": { "bandGain": 2.0 }, 
     }
+    "tags": ["scout"]
   },
+
+  "bulldozer": {
+  "hp": 60,
+  "speed": 1.6,          
+  "rate": 0.5,
+  "damage": 4,
+  "range": 1,
+  "gold": 4,
+  "bones": 2,
+  "armor": 0,
+  "shielded": false,
+  "nav": {
+      "epsilonWorse": 0.00,
+      "bias": { "bandGain": 2.0 },
+    }
+  "tags": ["scout"]
+}
   
   "kingsguard": {
     "hp": 150,
