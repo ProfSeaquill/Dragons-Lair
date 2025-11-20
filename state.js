@@ -576,6 +576,12 @@ export const GameState = {
   reqRoar:     false,
   reqStomp:    false,
 
+  // Vents
+gs.flameVents = gs.flameVents || []; // [{ x, y }]
+gs.maxFlameVents = 3;                // or from tuning.json later
+gs.flameVentsAvailable = 3;          // pool the player can place
+
+
   // Per-cell edge walls: Map<"x,y", {N,E,S,W:boolean}>
   cellWalls: new Map(),
 
