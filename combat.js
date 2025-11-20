@@ -632,16 +632,42 @@ function updateBulldozerStraight(gs, e, dt) {
     e.dir = 'E';
   }
 
-  // Keep visuals snapped to the tile center while ramming
+    // Smooth bulldozer visuals while ramming so it glides between tiles
   if (!e.bulldozeDone) {
     const cx = e.cx | 0;
     const cy = e.cy | 0;
+
+    // Logical position: still snapped to tile center (authoritative for gameplay)
     e.x = (cx + 0.5) * tsize;
     e.y = (cy + 0.5) * tsize;
-    e.drawX = e.x;
-    e.drawY = e.y;
+
+    // Seed draw coords if they haven't been used yet
+    if (!Number.isFinite(e.drawX)) e.drawX = e.x;
+    if (!Number.isFinite(e.drawY)) e.drawY = e.y;
+
+    // Move the visual position toward the logical position at bulldozer speed
+    const pxPerSec =
+      (e.bulldozeTilesPerSec || e.speedTilesPerSec || 1) * tsize;
+    const maxStep = pxPerSec * dt;
+
+    const dx = e.x - e.drawX;
+    const dy = e.y - e.drawY;
+    const dist = Math.hypot(dx, dy);
+
+    if (!Number.isFinite(dist) || dist === 0 || dist <= maxStep) {
+      // Close enough or nonsense: just snap to the logical position
+      e.drawX = e.x;
+      e.drawY = e.y;
+    } else {
+      // Advance draw position along the direction of travel
+      const ux = dx / dist;
+      const uy = dy / dist;
+      e.drawX += ux * maxStep;
+      e.drawY += uy * maxStep;
+    }
   }
 }
+
 
 
 
