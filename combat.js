@@ -1231,6 +1231,10 @@ let trailDecayAccum = 0;
 // module-scope accumulator for bomb tick (1 Hz)
 let bombAccum = 0;
 
+// ---- Legacy safety shim: some old paths may still reference bare `cx`/`cy` ----
+// Defining them at module scope prevents "cx is not defined" crashes if any
+// legacy code or bundled module mistakenly uses `cx` instead of e.cx, etc.
+let cx = 0, cy = 0;
 
 /**
  * Dragon breath tick:
