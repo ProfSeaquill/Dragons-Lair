@@ -28,7 +28,6 @@ async function loadConfigFiles() {
    const [tuningRaw, enemies, upgrades] = await Promise.all([
    fetch('./tuning.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
    fetch('./enemies.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
-   fetch('./upgrades.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
  ]);
 
   // Unwrap if the file is { "tuning": { ... } }
