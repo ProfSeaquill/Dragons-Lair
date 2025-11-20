@@ -703,7 +703,7 @@ const FLAGS = {
 
 // Bulldozer tuning: faster while bulldozing, slower after
 const BULLDOZER_BURROW_MULT  = 1.8;  // tiles/sec during “ram” phase
-const BULLDOZER_POST_MULT    = 1.2; // tiles/sec after becoming normal
+const BULLDOZER_POST_MULT    = 0.8; // tiles/sec after becoming normal
 
 // -------- Wave helpers --------
 // Progress gated by unlock (minWave): 0 before unlock; 1 at maxWave
