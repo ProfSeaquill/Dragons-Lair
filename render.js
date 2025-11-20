@@ -6,6 +6,7 @@ import * as state from './state.js';
 import { drawClawSlashes } from './combat/upgrades/abilities/claw.js';
 import { drawWingGusts }   from './combat/upgrades/abilities/wing_gust.js';
 import { ROAR_FX_VISUAL } from './combat/upgrades/abilities/roar.js';
+import { drawFlameVents } from './combat/vents.js';
 
 // DEBUG toggle
 window.__logFlame = window.__logFlame ?? false; // default quiet; toggle in console if needed
