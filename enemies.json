@@ -11,9 +11,9 @@
     "shielded": false,
     "nav": {
       "epsilonWorse": 0.30,
-      "bias": { "bandGain": 1.0 },
-      "tags": ["trash"]
-    }
+      "bias": { "bandGain": 1.0 }
+    },
+    "tags": ["trash"]
   },
   
   "squire": {
@@ -28,9 +28,9 @@
     "shielded": false,
     "nav": {
       "epsilonWorse": 0.25,
-      "bias": { "bandGain": 1.0 },
-      "tags": ["trash"]
-    }
+      "bias": { "bandGain": 1.0 }
+    },
+    "tags": ["trash"]
   },
   
   "knight": {
@@ -45,9 +45,9 @@
     "shielded": false,
     "nav": {
       "epsilonWorse": 0.20,
-      "bias": { "bandGain": 1.0 },
-      "tags": ["scout"]
-    }
+      "bias": { "bandGain": 1.0 }
+    },
+    "tags": ["scout"]
   },
   
   "hero": {
@@ -62,8 +62,8 @@
     "shielded": true,
     "nav": {
       "epsilonWorse": 0.15,
-      "bias": { "bandGain": 1.8 },
-    }
+      "bias": { "bandGain": 1.8 }
+    },
     "tags": ["shield"]
   },
   
@@ -79,8 +79,8 @@
     "shielded": false,
     "nav": {
       "epsilonWorse": 0.00,
-      "bias": { "bandGain": 2.0 }, 
-    }
+      "bias": { "bandGain": 2.0 }
+    },
     "tags": ["scout"]
   },
 
@@ -96,8 +96,8 @@
   "shielded": false,
   "nav": {
       "epsilonWorse": 0.00,
-      "bias": { "bandGain": 2.0 },
-    }
+      "bias": { "bandGain": 2.0 }
+    },
   "tags": ["scout"]
 }
   
