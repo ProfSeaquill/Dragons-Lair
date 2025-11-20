@@ -4,6 +4,7 @@ import * as walls from './grid/walls.js';
 import * as upgrades from './upgrades.js';
 import { getBossId, BOSS_SCHEDULE } from './story.js';
 import { drawEnemyGlyph } from './render.js';
+import { placeFlameVent, removeFlameVent } from './combat/vents.js';
 
 
 // ---------- DOM helpers ----------
@@ -24,6 +25,7 @@ const hud = {
   upgrades: $('upgrades'),
   preview:  $('preview'),
   clear:   $('clearBtn'),
+  ventMode: $('ventModeBtn'),
 };
 
 // For render.js hover highlight
@@ -459,6 +461,7 @@ export function refreshHUD() {
   // These should run every refresh (or at least not be tied to speed)
   renderHealButtonLabel(gs);
   renderGridHelp(gs);
+  updateVentModeButton(gs);
 }
 
 // ---------- Buttons / HUD wiring ----------
@@ -505,6 +508,17 @@ function wireButtons() {
       window.dispatchEvent(new CustomEvent('dl-save-clear'));
     });
   }
+  
+    if (hud.ventMode) {
+    hud.ventMode.addEventListener('click', () => {
+      const gs = state.GameState;
+      // Toggle between walls (default) and vents
+      gs.buildMode = (gs.buildMode === 'vents') ? 'walls' : 'vents';
+      refreshHUD();
+    });
+  }
+}
+
 }
 
 function renderHealButtonLabel(gs) {
@@ -513,6 +527,19 @@ function renderHealButtonLabel(gs) {
   const costPerHP = (state.getCfg(gs)?.tuning?.dragon?.healCostBone ?? 1) | 0;
   const unit = costPerHP === 1 ? 'bone' : 'bones';
   btn.textContent = `Heal (1 HP / ${costPerHP} ${unit})`;
+}
+
+function updateVentModeButton(gs) {
+  const btn = hud.ventMode;
+  if (!btn) return;
+  const mode = (gs.buildMode === 'vents') ? 'vents' : 'walls';
+  if (mode === 'vents') {
+    btn.textContent = 'Vent Mode (ON)';
+    btn.title = 'Click tiles to place/remove flame vents';
+  } else {
+    btn.textContent = 'Vent Mode (OFF)';
+    btn.title = 'Click to switch from wall building to flame vents';
+  }
 }
 
 // ---------- Upgrades panel ----------
@@ -634,11 +661,23 @@ function renderGridHelp(gs) {
     return;
   }
 
+  const mode = (gs.buildMode === 'vents') ? 'vents' : 'walls';
+
+  if (mode === 'vents') {
+    const left = (gs.flameVentsAvailable | 0);
+    el.textContent =
+      `Vent Mode: Click a TILE CENTER to place a flame vent (vents left: ${left}). ` +
+      `Right-click a vent tile to remove it and return it to your pool. ` +
+      `Vents are always-on and cannot be placed on the dragon.`;
+    return;
+  }
+
   const cost = edgeCost(gs);
   el.textContent =
     `Build Mode: Click a TILE EDGE to add a wall (${cost} bone${cost === 1 ? '' : 's'}). ` +
     `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
 }
+
 // Make available to main.js even if it calls it globally
 // (keeps compatibility without changing main.js imports)
 if (typeof window !== 'undefined') window.renderGridHelp = renderGridHelp;
@@ -651,57 +690,133 @@ function wireCanvasEdgeBuild() {
   // Prevent default context menu for right-click remove
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
 
-  cv.addEventListener('mousemove', (e) => {
+    cv.addEventListener('mousemove', (e) => {
     const gs = state.GameState;
 
-// Hide the hover + do nothing while a wave is active
-if (!state.canEditMaze(gs)) {
-  gs.uiHoverEdge = null;
-  _hoverKey = null;
-  _hoverHasWall = null;
-  return;
-}
+    // Hide the hover + do nothing while a wave is active
+    if (!state.canEditMaze(gs)) {
+      gs.uiHoverEdge = null;
+      _hoverKey = null;
+      _hoverHasWall = null;
+      return;
+    }
 
-const hover = edgeHitTest(cv, e);
-gs.uiHoverEdge = hover; // for render highlight
-if (!hover) {
-  if (_hoverKey !== null) {
-    _hoverKey = null;
-    _hoverHasWall = null;
-    tell(''); // clear any stale message
-  }
-  return;
-}
+    const mode = (gs.buildMode === 'vents') ? 'vents' : 'walls';
 
-const hasWall = walls.edgeHasWall(gs, hover.x, hover.y, hover.side);
-const k = `${hover.x},${hover.y},${hover.side}`;
-if (k !== _hoverKey || hasWall !== _hoverHasWall) {
-  _hoverKey = k;
-  _hoverHasWall = hasWall;
+    if (mode === 'vents') {
+      // No edge hover in vent mode
+      gs.uiHoverEdge = null;
+      _hoverKey = null;
+      _hoverHasWall = null;
 
-const verb = hasWall ? 'Remove' : 'Place';
-const refund = edgeRefund(gs) | 0;
-const msg = hasWall
-  ? (refund > 0 ? `Remove wall: (${hover.x},${hover.y}) ${hover.side} (+${refund} bones)` 
-                : `Remove wall: (${hover.x},${hover.y}) ${hover.side}`)
-  : `Place wall: (${hover.x},${hover.y}) ${hover.side} (${edgeCost(gs)} bones)`;
-tell(msg, '#9cf');
-}
+      const tile = tileHitTest(cv, e);
+      if (!tile) {
+        tell('');
+        return;
+      }
+
+      const vents = gs.flameVents || [];
+      const hasVent = vents.some(v => v && v.x === tile.x && v.y === tile.y);
+      const left = (gs.flameVentsAvailable | 0);
+
+      if (hasVent) {
+        tell(`Remove vent: (${tile.x},${tile.y}) (+1 back to pool)`, '#ffa');
+      } else if (left <= 0) {
+        tell('No vents left in pool', '#f88');
+      } else {
+        tell(`Place vent: (${tile.x},${tile.y}) (vents left: ${left})`, '#9cf');
+      }
+      return;
+    }
+
+    // --- original wall hover behavior (wall mode) ---
+    const hover = edgeHitTest(cv, e);
+    gs.uiHoverEdge = hover; // for render highlight
+    if (!hover) {
+      if (_hoverKey !== null) {
+        _hoverKey = null;
+        _hoverHasWall = null;
+        tell(''); // clear any stale message
+      }
+      return;
+    }
+
+    const hasWall = walls.edgeHasWall(gs, hover.x, hover.y, hover.side);
+    const k = `${hover.x},${hover.y},${hover.side}`;
+    if (k !== _hoverKey || hasWall !== _hoverHasWall) {
+      _hoverKey = k;
+      _hoverHasWall = hasWall;
+
+      const verb = hasWall ? 'Remove' : 'Place';
+      const refund = edgeRefund(gs) | 0;
+      const msg = hasWall
+        ? (refund > 0 ? `Remove wall: (${hover.x},${hover.y}) ${hover.side} (+${refund} bones)` 
+                      : `Remove wall: (${hover.x},${hover.y}) ${hover.side}`)
+        : `Place wall: (${hover.x},${hover.y}) ${hover.side} (${edgeCost(gs)} bones)`;
+      tell(msg, '#9cf');
+    }
   });
+
 
   cv.addEventListener('mouseleave', () => {
     state.GameState.uiHoverEdge = null;
   });
 
-  cv.addEventListener('mousedown', (e) => {
+   cv.addEventListener('mousedown', (e) => {
     const gs = state.GameState;
 
     // Hard UI guard: no edits during waves
     if (!state.canEditMaze(gs)) {
-      tell('You can only place/remove walls between waves.', '#f88');
+      tell('You can only place/remove walls or vents between waves.', '#f88');
       return;
     }
 
+    const mode = (gs.buildMode === 'vents') ? 'vents' : 'walls';
+
+    if (mode === 'vents') {
+      const tile = tileHitTest(cv, e);
+      if (!tile) return;
+
+      const place  = (e.button === 0);
+      const remove = (e.button === 2);
+      if (!place && !remove) return;
+
+      const vents = gs.flameVents || [];
+      const hasVent = vents.some(v => v && v.x === tile.x && v.y === tile.y);
+
+      if (place) {
+        if (hasVent) {
+          tell('A vent is already here.');
+          return;
+        }
+        if (state.isDragonCell(tile.x, tile.y, gs)) {
+          tell("Can't place vents on the dragon", '#f88');
+          return;
+        }
+
+        const ok = placeFlameVent(gs, tile.x, tile.y);
+        if (!ok) {
+          tell('No vents left in pool', '#f88');
+        } else {
+          tell(`Vent placed at (${tile.x},${tile.y})`, '#9cf');
+        }
+        refreshHUD?.();
+      } else if (remove) {
+        if (!hasVent) {
+          tell('No vent here to remove.');
+          return;
+        }
+        const removed = removeFlameVent(gs, tile.x, tile.y);
+        if (removed) {
+          tell(`Vent removed at (${tile.x},${tile.y})`, '#ffa');
+          refreshHUD?.();
+        }
+      }
+
+      return;
+    }
+
+    // --- original wall placement / removal in wall mode ---
     const hover = edgeHitTest(cv, e);
     if (!hover) return;
 
@@ -754,6 +869,7 @@ tell(msg, '#9cf');
   });
 }
 
+
 function edgeHitTest(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
@@ -778,6 +894,20 @@ function edgeHitTest(canvas, evt) {
 
   if (!side) return null;
   return { x: cx, y: cy, side };
+}
+
+function tileHitTest(canvas, evt) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const mx = (evt.clientX - rect.left) * scaleX;
+  const my = (evt.clientY - rect.top) * scaleY;
+
+  const t = state.GRID.tile;
+  const cx = Math.floor(mx / t);
+  const cy = Math.floor(my / t);
+  if (!state.inBounds(cx, cy)) return null;
+  return { x: cx, y: cy };
 }
 
 function edgeTouchesDragon(gs, x, y, side) {
