@@ -86,7 +86,7 @@
 
   "bulldozer": {
   "hp": 60,
-  "speed": 1.6,          
+  "speed": 1.8,          
   "rate": 0.5,
   "damage": 4,
   "range": 1,
