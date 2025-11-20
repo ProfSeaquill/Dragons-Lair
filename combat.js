@@ -2346,19 +2346,25 @@ if (e.type === 'engineer' && e.tunneling) {
     e.tunneling = false;
     e.updateByCombat = false;
 
-    // Plant bomb at dragon perimeter, leaning toward engineer
-    const dc = state.nearestDragonCell(gs, e.cx, e.cy);
-    const cx = (dc.x + 0.5) * t;
-    const cy = (dc.y + 0.5) * t;
+    // Dragon perimeter center (pixel coords)
+const dc = state.nearestDragonCell(gs, e.cx, e.cy);
+const dragPx = (dc.x + 0.5) * t;
+const dragPy = (dc.y + 0.5) * t;
 
-    // place along the line from dragon center to engineer
-    const ex = (e.cx + 0.5) * t;
-    const ey = (e.cy + 0.5) * t;
-    const dx = ex - cx, dy = ey - cy;
-    const L  = Math.hypot(dx, dy) || 1;
-    const halfTile = t * 0.5;
-    const bx = cx + (dx / L) * halfTile;
-    const by = cy + (dy / L) * halfTile;
+// Engineer pixel center
+const engPx = (e.cx + 0.5) * t;
+const engPy = (e.cy + 0.5) * t;
+
+const dx = engPx - dragPx;
+const dy = engPy - dragPy;
+const L  = Math.hypot(dx, dy) || 1;
+
+// Place bomb halfway from dragon toward engineer
+const halfTile = t * 0.5;
+const bx = dragPx + (dx / L) * halfTile;
+const by = dragPy + (dy / L) * halfTile;
+
+    
     (gs.effects || (gs.effects = [])).push(
   acquireEffect('bomb', { x: bx, y: by, timer: FLAGS.engineerBombTimer, dmg: FLAGS.engineerBombDmg })
 );
