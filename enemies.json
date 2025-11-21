@@ -52,7 +52,7 @@
   
   "hero": {
     "hp": 80,
-    "speed": 1.41,
+    "speed": 1.42,
     "rate": 1.0,
     "damage": 6,
     "range": 1,
@@ -69,7 +69,7 @@
   
   "engineer": {
     "hp": 25,
-    "speed": 1.6,
+    "speed": 1.35,
     "rate": 0.33,
     "damage": 3,
     "range": 1,
@@ -86,7 +86,7 @@
 
   "bulldozer": {
   "hp": 60,
-  "speed": 1.6,          
+  "speed": 1.0,          
   "rate": 0.5,
   "damage": 4,
   "range": 1,
