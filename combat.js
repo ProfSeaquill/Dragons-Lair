@@ -595,14 +595,16 @@ function updateBulldozerStraight(gs, e, dt) {
   const tilesPerSec = e.bulldozeTilesPerSec || e.speedTilesPerSec || 1;
   const stepTiles = tilesPerSec * dt;
 
+  // Accumulate progress in "tiles" (can be > 1 if framerate dips)
   e._bdAcc = (e._bdAcc || 0) + stepTiles;
 
+  // Consume whole tiles of progress as pure grid steps
   while (e._bdAcc >= 1 && !e.bulldozeDone) {
     e._bdAcc -= 1;
 
     const cx = e.cx | 0;
     const cy = e.cy | 0;
-    const nx = cx + 1;
+    const nx = cx + 1; // bulldozers always ram east
 
     // 1) If the NEXT tile is in the attack-zone, treat it as a dragon impact.
     if (state.inBounds(nx, cy) && isInAttackZone(gs, nx, cy)) {
@@ -610,64 +612,53 @@ function updateBulldozerStraight(gs, e, dt) {
       break;
     }
 
-    // 2) Otherwise, check for a blocking wall and explode (destroy walls)
+    // 2) Otherwise, if blocked or out-of-bounds, explode (destroy walls) and stop.
     if (!state.inBounds(nx, cy) || !state.isOpen(gs, cx, cy, 'E')) {
       bulldozerExplode(gs, e);
       break;
     }
 
-    // 3) Otherwise, walk one tile east
+    // 3) Otherwise, walk one *logical* tile east.
     e.cx = nx;
     e.cy = cy;
     e.tileX = nx;
     e.tileY = cy;
 
-    e.x = (nx + 0.5) * tsize;
-    e.y = (cy + 0.5) * tsize;
-    e.drawX = e.x;
-    e.drawY = e.y;
-    e.prevX = e.x;
-    e.prevY = e.y;
+    const wx = (nx + 0.5) * tsize;
+    const wy = (cy + 0.5) * tsize;
+    e.x = wx;
+    e.y = wy;
+    e.prevX = wx;
+    e.prevY = wy;
 
     e.dir = 'E';
   }
 
-    // Smooth bulldozer visuals while ramming so it glides between tiles
+  // While ramming, use leftover fractional progress (0..1) to smoothly slide visuals.
   if (!e.bulldozeDone) {
     const cx = e.cx | 0;
     const cy = e.cy | 0;
 
-    // Logical position: still snapped to tile center (authoritative for gameplay)
-    e.x = (cx + 0.5) * tsize;
-    e.y = (cy + 0.5) * tsize;
+    // Authoritative logical position: tile center
+    const baseX = (cx + 0.5) * tsize;
+    const baseY = (cy + 0.5) * tsize;
+    e.x = baseX;
+    e.y = baseY;
 
-    // Seed draw coords if they haven't been used yet
-    if (!Number.isFinite(e.drawX)) e.drawX = e.x;
-    if (!Number.isFinite(e.drawY)) e.drawY = e.y;
+    // Ensure draw coords are seeded
+    if (!Number.isFinite(e.drawX)) e.drawX = baseX;
+    if (!Number.isFinite(e.drawY)) e.drawY = baseY;
 
-    // Move the visual position toward the logical position at bulldozer speed
-    const pxPerSec =
-      (e.bulldozeTilesPerSec || e.speedTilesPerSec || 1) * tsize;
-    const maxStep = pxPerSec * dt;
+    // e._bdAcc is "how far into the *next* tile" we are, in tiles (0.. <1)
+    const frac = Math.max(0, Math.min(1, e._bdAcc || 0)); // clamp safety
+    const offsetX = frac * tsize; // bulldozer always moves east
+    const offsetY = 0;
 
-    const dx = e.x - e.drawX;
-    const dy = e.y - e.drawY;
-    const dist = Math.hypot(dx, dy);
-
-    if (!Number.isFinite(dist) || dist === 0 || dist <= maxStep) {
-      // Close enough or nonsense: just snap to the logical position
-      e.drawX = e.x;
-      e.drawY = e.y;
-    } else {
-      // Advance draw position along the direction of travel
-      const ux = dx / dist;
-      const uy = dy / dist;
-      e.drawX += ux * maxStep;
-      e.drawY += uy * maxStep;
-    }
+    // Visual-only position: slide from current tile center toward the next tile.
+    e.drawX = baseX + offsetX;
+    e.drawY = baseY + offsetY;
   }
 }
-
 
 
 
