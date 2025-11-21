@@ -1,4 +1,4 @@
-// ui.js — edge-wall build mode + HUD + Next Wave preview + Dev Panel
+// ui.js
 import * as state from './state.js';
 import * as walls from './grid/walls.js';
 import * as upgrades from './upgrades.js';
