@@ -25,7 +25,6 @@ const hud = {
   upgrades: $('upgrades'),
   preview:  $('preview'),
   clear:   $('clearBtn'),
-  ventMode: $('ventModeBtn'),
 };
 
 // For render.js hover highlight
@@ -482,7 +481,6 @@ export function refreshHUD() {
   // These should run every refresh (or at least not be tied to speed)
   renderHealButtonLabel(gs);
   renderGridHelp(gs);
-  updateVentModeButton(gs);
 }
 
 // ---------- Buttons / HUD wiring ----------
@@ -527,15 +525,6 @@ function wireButtons() {
   if (hud.clear) {
     hud.clear.addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('dl-save-clear'));
-    });
-  }
-  
-    if (hud.ventMode) {
-    hud.ventMode.addEventListener('click', () => {
-      const gs = state.GameState;
-      // Toggle between walls (default) and vents
-      gs.buildMode = (gs.buildMode === 'vents') ? 'walls' : 'vents';
-      refreshHUD();
     });
   }
 }
@@ -609,28 +598,50 @@ export function renderUpgradesPanel() {
     row.appendChild(left);
     row.appendChild(buy);
 
-    // Ability Use buttons (gust / roar / stomp)
-    if (info.type === 'ability' && (info.key === 'gust' || info.key === 'roar' || info.key === 'stomp')) {
-      const use = document.createElement('button');
-      use.className = 'btn';
-      use.textContent = 'Locked';
-      use.disabled = true;
+    // Ability Use buttons (gust / roar / stomp / vents)
+if (info.type === 'ability' &&
+    (info.key === 'gust' || info.key === 'roar' || info.key === 'stomp' || info.key === 'vents')) {
 
-      use.addEventListener('click', () => {
-        const U = state.GameState.upgrades || {};
-        const lvlNow = (U[info.key] | 0);
-        if (lvlNow <= 0) return;
-        if (info.key === 'gust')  state.GameState.reqWingGust = true;
-        if (info.key === 'roar')  state.GameState.reqRoar     = true;
-        if (info.key === 'stomp') state.GameState.reqStomp    = true;
-      });
+  const use = document.createElement('button');
+  use.className = 'btn';
+  use.textContent = 'Locked';
+  use.disabled = true;
 
-      row.appendChild(use);
-_abilityButtons.push({ key: info.key, btn: use });
+  use.addEventListener('click', () => {
+    const gs = state.GameState;
+    const U = gs.upgrades || {};
+    const lvlNow = (U[info.key] | 0);
+    if (lvlNow <= 0) return;
+
+    if (info.key === 'gust') {
+      gs.reqWingGust = true;
+    } else if (info.key === 'roar') {
+      gs.reqRoar = true;
+    } else if (info.key === 'stomp') {
+      gs.reqStomp = true;
+    } else if (info.key === 'vents') {
+      // 🔥 Toggle Vent Mode via the ability button
+      const wasVents = (gs.buildMode === 'vents');
+      gs.buildMode = wasVents ? 'walls' : 'vents';
+
+      const left = (gs.flameVentsAvailable | 0);
+      if (!wasVents) {
+        tell(`Vent Mode ON — click tile centers to place vents (vents left: ${left}).`, '#9cf');
+      } else {
+        tell('Vent Mode OFF — back to wall building.', '#ffa');
+      }
+
+      // Keep HUD / grid help in sync
+      if (typeof refreshHUD === 'function') {
+        refreshHUD();
+      }
     }
-
-    root.appendChild(row);
   });
+
+  row.appendChild(use);
+  _abilityButtons.push({ key: info.key, btn: use });
+}
+
 
  // Live cooldown / lock updater (start once)
 if (!_abilityLoopInit) {
