@@ -641,7 +641,8 @@ if (info.type === 'ability' &&
   row.appendChild(use);
   _abilityButtons.push({ key: info.key, btn: use });
 }
-
+root.appendChild(row);
+}); // ← close list.forEach
 
  // Live cooldown / lock updater (start once)
 if (!_abilityLoopInit) {
