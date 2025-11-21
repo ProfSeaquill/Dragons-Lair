@@ -4,7 +4,7 @@ import * as walls from './grid/walls.js';
 import * as upgrades from './upgrades.js';
 import { getBossId, BOSS_SCHEDULE } from './story.js';
 import { drawEnemyGlyph } from './render.js';
-import { placeFlameVent, removeFlameVent } from './combat/vents.js';
+import { placeFlameVent, removeFlameVent } from './combat/upgrades/abilities/vents.js';
 
 
 // ---------- DOM helpers ----------
