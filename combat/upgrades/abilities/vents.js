@@ -1,6 +1,6 @@
-// combat/vents.js
-// Always-on flame vent tiles: data helpers + damage + rendering.
+// ./combat/upgrades/abilities/vents.js
 
+// Always-on flame vent tiles: data helpers + damage + rendering.
 import * as state from '../state.js';
 
 function getVentConfig(gs) {
