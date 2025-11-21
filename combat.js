@@ -62,7 +62,21 @@ function __resolveMixedType(gs, t) {
 
 function acquireEnemy(type, wave, initFn) {
   const pool = ENEMY_POOL.get(type);
-  let e = (pool && pool.length) ? pool.pop() : makeEnemy(type, wave);
+  let e;
+
+  if (pool && pool.length) {
+    // Reuse a pooled object, but resync ALL base stats to this wave
+    const fresh = makeEnemy(type, wave);   // wave-scaled hp/speed/dmg/etc.
+    e = pool.pop();
+
+    // Copy all template fields onto the pooled enemy so it behaves
+    // exactly like a freshly-created one for this wave.
+    Object.assign(e, fresh);
+  } else {
+    // No pooled enemy available → create a brand-new one as before
+    e = makeEnemy(type, wave);
+  }
+
   // RESET mutable fields fast (avoid per-spawn object literals)
   e.id = 0; e.groupId = 0; e.followLeaderId = null; e.leader = false; e.torchBearer = false;
   e.burnLeft = 0; e.burnDps = 0; e.stunLeft = 0; e.slowLeft = 0; e.roarBuffLeft = 0;
@@ -75,62 +89,64 @@ function acquireEnemy(type, wave, initFn) {
   e.bulldozeTilesPerSec = 0;
   e._bdAcc = 0;
 
-    // --- reset positional / steering state (important for pooled enemies) ---
+  // --- reset positional / steering state (important for pooled enemies) ---
   e.x = undefined;
   e.y = undefined;
 
   // 💥 kill any stale render-smoothing carried by the pool
-    // Leave undefined so spawners MUST seed these; renderer should not assume defaults
+  // Leave undefined so spawners MUST seed these; renderer should not assume defaults
   e.drawX = e.drawY = e.prevX = e.prevY = undefined;
 
   e.ox = 0;
   e.oy = 0;
   e.tBorn = 0;        // set on spawn
 
-    e.sepX = 0; e.sepY = 0;
+  e.sepX = 0; e.sepY = 0;
   e.sepOffsetX = 0; e.sepOffsetY = 0;
   e._suppressSep = false;
 
+  e.cx = 0;
+  e.cy = 0;
+  e.tileX = undefined;
+  e.tileY = undefined;
+  e.prevCX = undefined;
+  e.prevCY = undefined;
+  e.vx = 0;
+  e.vy = 0;
+  e.dir = 'E';
+  e.kb = null; // ← clear any leftover knockback state from the pool
 
-e.cx = 0;
-e.cy = 0;
-e.tileX = undefined;
-e.tileY = undefined;
-e.prevCX = undefined;
-e.prevCY = undefined;
-e.vx = 0;
-e.vy = 0;
-e.dir = 'E';
-e.kb = null; // ← clear any leftover knockback state from the pool
-// --- engineer / tunneling state (must be hard-reset when pulled from the pool)
-e._tunnelArmed   = false;   // ← crucial: pooled engineers must re-arm
-e.surfaceGraceT  = 0;       // will be set at spawn for engineers
-e.tunnelT        = 0;       // will be set at spawn for engineers
-e.tunneling = false;
-e.updateByCombat = false;
-e._tunnelStartPx = null;
-e._tunnelDestPx  = null;
-e._tunnelDestCell = null;
-e._tunnelTotal = 0;
-e._tunnelElapsed = 0;
-e.commitDir = null;
-e.commitSteps = 0;
-e.commitTilesLeft = 0;
-e.isAttacking = false;
-e.pausedForAttack = false;
-e.speedMul = 1;
-// wipe any nav/lerp scratch that a pooled enemy could carry over
-e.fromXY = null;        // some pathers keep a [x,y] start of segment
-delete e._fromX; delete e._fromY;
-delete e._seg; delete e._acc; delete e._lerp; delete e._t;
-// Also wipe the FSM smoother’s pixel fields so updateAgent will re-seed them
-delete e._fromPX; delete e._fromPY;
-delete e._toPX;   delete e._toPY;
-delete e._stepAcc;
+  // --- engineer / tunneling state (must be hard-reset when pulled from the pool)
+  e._tunnelArmed   = false;   // ← crucial: pooled engineers must re-arm
+  e.surfaceGraceT  = 0;       // will be set at spawn for engineers
+  e.tunnelT        = 0;       // will be set at spawn for engineers
+  e.tunneling = false;
+  e.updateByCombat = false;
+  e._tunnelStartPx = null;
+  e._tunnelDestPx  = null;
+  e._tunnelDestCell = null;
+  e._tunnelTotal = 0;
+  e._tunnelElapsed = 0;
+  e.commitDir = null;
+  e.commitSteps = 0;
+  e.commitTilesLeft = 0;
+  e.isAttacking = false;
+  e.pausedForAttack = false;
+  e.speedMul = 1;
+
+  // wipe any nav/lerp scratch that a pooled enemy could carry over
+  e.fromXY = null;        // some pathers keep a [x,y] start of segment
+  delete e._fromX; delete e._fromY;
+  delete e._seg; delete e._acc; delete e._lerp; delete e._t;
+  // Also wipe the FSM smoother’s pixel fields so updateAgent will re-seed them
+  delete e._fromPX; delete e._fromPY;
+  delete e._toPX;   delete e._toPY;
+  delete e._stepAcc;
 
   if (initFn) initFn(e);
   return e;
 }
+
 
 function releaseEnemy(e) {
   if (!e || !e.type) return;
