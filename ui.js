@@ -56,6 +56,27 @@ const SPEAKER_PORTRAITS = {
   defaultKnight: { src: KNIGHT_PORTRAIT_SRC, side: 'left' },
 };
 
+// --- Simple story portrait preloader -----------------------------------------
+const _portraitPreloadImages = [];
+
+function preloadStoryPortraits() {
+  try {
+    const list = Object.values(SPEAKER_PORTRAITS);
+    for (const cfg of list) {
+      if (!cfg || !cfg.src) continue;
+      const img = new Image();
+      img.src = cfg.src;         // kick off fetch + decode
+      _portraitPreloadImages.push(img); // keep a reference so it stays in memory
+    }
+  } catch (err) {
+    console.warn('[UI] portrait preload failed:', err);
+  }
+}
+
+// Run immediately when ui.js is first imported
+preloadStoryPortraits();
+
+
 let dlgRoot = null;
 let dlgBox, dlgContent, dlgSpeaker, dlgText, dlgHint;
 let dlgActive = false;
