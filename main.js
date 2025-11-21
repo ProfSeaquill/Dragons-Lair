@@ -13,7 +13,7 @@ import { updateAgent } from './pathing/index.js';
 import * as combat from './combat.js';
 import './story.js'; // load narrative hooks (boss dialogue events)
 import { isBossLevel, getBossId } from './story.js';
-import { applyFlameVents } from './abilities/vents.js';
+import { applyFlameVents } from './combat/upgrades/abilities/vents.js';
 
 
 window.state = state;             // exposes state.GameState for console tools
