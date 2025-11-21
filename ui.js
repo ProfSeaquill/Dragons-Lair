@@ -519,8 +519,6 @@ function wireButtons() {
   }
 }
 
-}
-
 function renderHealButtonLabel(gs) {
   const btn = document.getElementById('healBtn');
   if (!btn) return;
