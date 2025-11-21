@@ -94,15 +94,17 @@ function statCostFor(gs, key, level) {
 function abilityCostFor(gs, key, level) {
   const T = getCfg(gs)?.tuning || {};
   const baseMap = {
-    claw:  T.abilities?.costBaseClaw  ?? 30,
-    gust:  T.abilities?.costBaseGust  ?? 50,
-    roar:  T.abilities?.costBaseRoar  ?? 70,
-    stomp: T.abilities?.costBaseStomp ?? 90,
+    claw:   T.abilities?.costBaseClaw   ?? 30,
+    gust:   T.abilities?.costBaseGust   ?? 50,
+    roar:   T.abilities?.costBaseRoar   ?? 70,
+    stomp:  T.abilities?.costBaseStomp  ?? 90,
+    vents:  T.abilities?.costBaseVents  ?? 200, // 🔥 new: Flame Vents base unlock cost
   };
   const baseCost = baseMap[key];
   if (typeof baseCost !== 'number') return 999999;
   return levelOnlyPrice(baseCost, level, 'ability', gs);
 }
+
 
 
 
@@ -227,25 +229,52 @@ function buildFireDesc(gs) {
 
 export const ABILITY_UPGRADES = [
   // Costs are base “unlock” costs; cost scales per level using the same geometric model
-  { key: 'claw',  title: 'Claw',      base: 50, mult: 1.30, type: 'ability' },
-  { key: 'gust',  title: 'Wing Gust', base: 150, mult: 1.30, type: 'ability' },
-  { key: 'roar',  title: 'Roar',      base: 300, mult: 1.30, type: 'ability' },
-  { key: 'stomp', title: 'Stomp',     base: 500, mult: 1.30, type: 'ability' },
+  { key: 'claw',   title: 'Claw',        base: 50,  mult: 1.30, type: 'ability' },
+  { key: 'gust',   title: 'Wing Gust',   base: 150, mult: 1.30, type: 'ability' },
+  { key: 'roar',   title: 'Roar',        base: 300, mult: 1.30, type: 'ability' },
+  { key: 'stomp',  title: 'Stomp',       base: 500, mult: 1.30, type: 'ability' },
+  { key: 'vents',  title: 'Flame Vents', base: 200, mult: 1.30, type: 'ability' },
 ];
+
 
 /** Live descriptions for abilities (matches combat/state scaling we discussed) */
 function buildAbilityDesc(gs) {
-  const cs = getClawStatsTuned(gs);
+  const cs  = getClawStatsTuned(gs);
   const gsT = getGustStatsTuned(gs);
-  const rs = getRoarStatsTuned(gs);
-  const ss = getStompStatsTuned(gs);
+  const rs  = getRoarStatsTuned(gs);
+  const ss  = getStompStatsTuned(gs);
+
+  // 🔥 Flame Vents tuning (purely from config + level)
+  const tv  = getCfg(gs)?.tuning?.vents || {};
+  const u   = gs.upgrades || {};
+  const lvlVents = Math.max(0, (u.vents | 0));
+
+  // Allow a couple of different tuning styles:
+  // - baseMaxCount + perLevel
+  // - or just maxCount (fixed) if you don’t care about scaling (levels then just cost more)
+  const baseMax = (Number.isFinite(tv.baseMaxCount) ? tv.baseMaxCount
+                : Number.isFinite(tv.maxCount)      ? tv.maxCount
+                : 1);
+  const perLvl  = Number.isFinite(tv.perLevel) ? tv.perLevel : 1;
+
+  const maxCount = Math.max(0, baseMax + perLvl * Math.max(0, lvlVents - 1));
+
+  const dpsRaw  = Number.isFinite(tv.dps) ? tv.dps : 8;
+  const dpsStr  = (typeof dpsRaw === 'number' && dpsRaw.toFixed)
+    ? dpsRaw.toFixed(1)
+    : String(dpsRaw);
+
   return {
-    claw:  `DMG: ${Math.round(cs.dmg)}  •  CD: ${cs.cd.toFixed(2)}s`,
-    gust:  `Push: ${gsT.pushTiles} tiles  •  CD: ${gsT.cd.toFixed(2)}s`,
-    roar:  `Stun: ${rs.stunSec.toFixed(2)}s  •  CD: ${rs.cd.toFixed(2)}s`,
-    stomp: `Slow: ${Math.round((1-ss.slowMult)*100)}%  •  DMG: ${ss.dmg}  •  CD: ${ss.cd.toFixed(2)}s`,
+    claw:   `DMG: ${Math.round(cs.dmg)}  •  CD: ${cs.cd.toFixed(2)}s`,
+    gust:   `Push: ${gsT.pushTiles} tiles  •  CD: ${gsT.cd.toFixed(2)}s`,
+    roar:   `Stun: ${rs.stunSec.toFixed(2)}s  •  CD: ${rs.cd.toFixed(2)}s`,
+    stomp:  `Slow: ${Math.round((1 - ss.slowMult) * 100)}%  •  DMG: ${ss.dmg}  •  CD: ${ss.cd.toFixed(2)}s`,
+
+    // 🔥 New: Flame Vents
+    vents:  `Vents: ${maxCount} tiles  •  ${dpsStr} DPS per tile`,
   };
 }
+
 
 
 /* ============================================================
