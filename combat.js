@@ -726,7 +726,7 @@ const FLAGS = {
   bossEvery: 5,             // Knight of the Round Table cadence
   kingsguardEvery: 1,       // truthy → enable "one wave before each boss"
   engineerBombTimer: 5,
-  engineerTravelTime: 4.0,
+  engineerTravelTime: 5.0,
   engineerBombDmg: 25,
   spawnGap: 0.45,
   groupGap: 2.0,
@@ -910,7 +910,7 @@ e.id = (++__ENEMY_ID);
 e.nav = buildEnemyNav(type, gs); // <- attach per-enemy nav from config
 
 if (type === 'engineer') {
-  e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
+  e.surfaceGraceT = 1.5;                 // seconds above ground before burrowing
 e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
 }
 
