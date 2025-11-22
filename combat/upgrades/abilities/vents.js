@@ -4,7 +4,7 @@
 import * as state from '../../../state.js';
 import { flagHit } from '../../../pathing/attack.js';
 
-function getVentConfig(gs) {
+export function getVentConfig(gs) {
   const cfg = state.getCfg ? state.getCfg(gs) : null;
   const tv = cfg?.tuning?.vents || {};
 
