@@ -129,9 +129,15 @@ export function applyFlameVents(gs, dt) {
     const cy = (e.cy | 0);
     if (!Number.isInteger(cx) || !Number.isInteger(cy)) continue;
 
-    if (!hot.has(`${cx},${cy}`)) continue;
+        if (!hot.has(`${cx},${cy}`)) continue;
 
     e.hp -= dmg;
+
+    if (dmg > 0) {
+      // Reuse the global hit marker so HP bars / “recent hit” visuals show up
+      flagHit(e, dmg);
+    }
+
     if (e.hp <= 0 && !e.dead) {
       e.hp = 0;
       e.dead = true;
