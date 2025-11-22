@@ -246,34 +246,27 @@ function buildAbilityDesc(gs) {
   const rs  = getRoarStatsTuned(gs);
   const ss  = getStompStatsTuned(gs);
 
-  // 🔥 Flame Vents tuning (purely from config + level)
-  const tv  = getCfg(gs)?.tuning?.vents || {};
-  const u   = gs.upgrades || {};
-  const lvlVents = Math.max(0, (u.vents | 0));
+  // 🔥 Flame Vents: ask vents.js for the canonical numbers
+  let ventsLine = '';
+  try {
+    const vc = getVentConfig(gs);        // { dps, maxCount, maxCountCfg, ... }
 
-  // Allow a couple of different tuning styles:
-  // - baseMaxCount + perLevel
-  // - or just maxCount (fixed) if you don’t care about scaling (levels then just cost more)
-  const baseMax = (Number.isFinite(tv.baseMaxCount) ? tv.baseMaxCount
-                : Number.isFinite(tv.maxCount)      ? tv.maxCount
-                : 1);
-  const perLvl  = Number.isFinite(tv.perLevel) ? tv.perLevel : 1;
+    const countNow = vc?.maxCount ?? 0;      // effective vent cap at this level
+    const peak     = vc?.maxCountCfg ?? countNow; // theoretical max from tuning (for /X display)
+    const dpsNow   = vc?.dps ?? 0;
 
-  const maxCount = Math.max(0, baseMax + perLvl * Math.max(0, lvlVents - 1));
-
-  const dpsRaw  = Number.isFinite(tv.dps) ? tv.dps : 8;
-  const dpsStr  = (typeof dpsRaw === 'number' && dpsRaw.toFixed)
-    ? dpsRaw.toFixed(1)
-    : String(dpsRaw);
+    ventsLine = `Vents: ${countNow}/${peak} tiles  •  ${dpsNow.toFixed(1)} DPS per tile`;
+  } catch (err) {
+    console.warn('[upgrades] vent desc failed:', err);
+    ventsLine = 'Vents: flame tiles that deal DPS over time';
+  }
 
   return {
     claw:   `DMG: ${Math.round(cs.dmg)}  •  CD: ${cs.cd.toFixed(2)}s`,
     gust:   `Push: ${gsT.pushTiles} tiles  •  CD: ${gsT.cd.toFixed(2)}s`,
     roar:   `Stun: ${rs.stunSec.toFixed(2)}s  •  CD: ${rs.cd.toFixed(2)}s`,
     stomp:  `Slow: ${Math.round((1 - ss.slowMult) * 100)}%  •  DMG: ${ss.dmg}  •  CD: ${ss.cd.toFixed(2)}s`,
-
-    // 🔥 New: Flame Vents
-    vents:  `Vents: ${maxCount} tiles  •  ${dpsStr} DPS per tile`,
+    vents:  ventsLine,
   };
 }
 
