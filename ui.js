@@ -707,9 +707,8 @@ function renderGridHelp(gs) {
   if (mode === 'vents') {
     const left = (gs.flameVentsAvailable | 0);
     el.textContent =
-      `Vent Mode: Click a TILE CENTER to place a flame vent (vents left: ${left}). ` +
-      `Right-click a vent tile to remove it and return it to your pool. ` +
-      `Vents are always-on and cannot be placed on the dragon.`;
+      `Vent Mode: Click a TILE CENTER to place a flame vent. ` +
+      `Right-click a vent tile to remove it and return it to your pool. `;
     return;
   }
 
