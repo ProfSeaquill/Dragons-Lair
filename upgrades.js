@@ -3,6 +3,8 @@
 import { GameState, GRID, getCfg, 
         getDragonStatsTuned, getClawStatsTuned, getGustStatsTuned, 
         getRoarStatsTuned, getStompStatsTuned, getDragonStatsBase } from './state.js';
+import { getVentConfig } from './combat/upgrades/abilities/vents.js';
+
 
 
 // ---- Asymptotic curves (like waves) ----
