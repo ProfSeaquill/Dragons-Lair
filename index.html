@@ -28,18 +28,38 @@
     </style>
   </head>
   <body>
-    <div id="hud">
-      <div class="stat">Wave: <span id="wave">1</span></div>
-      <div class="stat">HP: <span id="dragonHP">100</span></div>
-      <div class="stat">Gold: <span id="gold">0</span></div>
-      <div class="stat">Bones: <span id="bones">0</span></div>
-      <button id="healBtn" class="btn">Heal (1 HP / bone)</button>
-      <button id="startBtn" class="btn">Start Wave</button>
-      <label class="stat"><input id="autoStart" type="checkbox" /> Auto-start</label>
-      <button id="speedBtn" class="btn">1× Speed</button>
-      <button id="saveBtn" class="btn">Save</button>
-      <button id="loadBtn" class="btn">Load</button>
-      <span id="msg" style="margin-left:auto; opacity:.8"></span>
+        <div id="hud">
+      <div class="hud-main-stats">
+        <div class="stat stat-stack">
+          <div class="stat-label">HP</div>
+          <div id="dragonHP" class="stat-value">100</div>
+        </div>
+
+        <div class="stat stat-stack">
+          <div class="stat-label">Gold</div>
+          <div id="gold" class="stat-value">0</div>
+        </div>
+
+        <div class="stat stat-stack">
+          <div class="stat-label">Bones</div>
+          <div id="bones" class="stat-value">0</div>
+        </div>
+
+        <div class="stat stat-stack">
+          <div class="stat-label">Wave</div>
+          <div id="wave" class="stat-value">1</div>
+        </div>
+      </div>
+
+      <div class="hud-controls">
+        <button id="healBtn" class="btn">Heal (1 HP / bone)</button>
+        <button id="startBtn" class="btn">Start Wave</button>
+        <label class="stat"><input id="autoStart" type="checkbox" /> Auto-start</label>
+        <button id="speedBtn" class="btn">1× Speed</button>
+        <button id="saveBtn" class="btn">Save</button>
+        <button id="loadBtn" class="btn">Load</button>
+        <span id="msg" class="hud-msg" style="opacity:.8"></span>
+      </div>
     </div>
 
 
