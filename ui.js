@@ -707,14 +707,14 @@ function renderGridHelp(gs) {
   if (mode === 'vents') {
     const left = (gs.flameVentsAvailable | 0);
     el.textContent =
-      `Vent Mode: Click a TILE CENTER to place a flame vent. ` +
+      `VENT MODE: Click a TILE CENTER to place a flame vent. ` +
       `Right-click a vent tile to remove it and return it to your pool. `;
     return;
   }
 
   const cost = edgeCost(gs);
   el.textContent =
-    `Build Mode: Click a TILE EDGE to add a wall (${cost} bone${cost === 1 ? '' : 's'}). ` +
+    `BUILD MODE: Click a tile edge to add a wall (${cost} bone${cost === 1 ? '' : 's'}). ` +
     `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
 }
 
