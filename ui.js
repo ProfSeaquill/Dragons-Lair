@@ -89,7 +89,9 @@ let dlgFullText = '';
 // Portrait layout elements
 let dlgMainRow = null;
 let dlgPortraitWrap = null;
-let dlgPortraitImg = null;
+let dlgPortraitImgDragon = null;
+let dlgPortraitImgKnight = null;
+
 
 
 function ensureDialogueLayer() {
@@ -142,7 +144,7 @@ function ensureDialogueLayer() {
   dlgMainRow.style.flexDirection = 'row'; // we may flip this per speaker
   dlgMainRow.style.gap = '10px';
 
-  dlgPortraitWrap = document.createElement('div');
+    dlgPortraitWrap = document.createElement('div');
   dlgPortraitWrap.style.flex = '0 0 auto';
   dlgPortraitWrap.style.width = '96px';
   dlgPortraitWrap.style.height = '96px';
@@ -154,13 +156,27 @@ function ensureDialogueLayer() {
   dlgPortraitWrap.style.justifyContent = 'center';
   dlgPortraitWrap.style.border = '1px solid #222b3d';
 
-  dlgPortraitImg = document.createElement('img');
-  dlgPortraitImg.style.maxWidth = '100%';
-  dlgPortraitImg.style.maxHeight = '100%';
-  dlgPortraitImg.style.display = 'block';
-  dlgPortraitImg.style.imageRendering = 'pixelated';
+  // Two layered portrait <img>s so we can swap without changing src
+  dlgPortraitImgDragon = document.createElement('img');
+  dlgPortraitImgKnight = document.createElement('img');
 
-  dlgPortraitWrap.appendChild(dlgPortraitImg);
+  const applyPortraitImgStyle = (img) => {
+    img.style.maxWidth = '100%';
+    img.style.maxHeight = '100%';
+    img.style.display = 'none';           // hidden by default
+    img.style.imageRendering = 'pixelated';
+    img.draggable = false;
+  };
+
+  applyPortraitImgStyle(dlgPortraitImgDragon);
+  applyPortraitImgStyle(dlgPortraitImgKnight);
+
+  // Fixed sources (loaded once)
+  dlgPortraitImgDragon.src = DRAGON_PORTRAIT_SRC;
+  dlgPortraitImgKnight.src = KNIGHT_PORTRAIT_SRC;
+
+  dlgPortraitWrap.appendChild(dlgPortraitImgDragon);
+  dlgPortraitWrap.appendChild(dlgPortraitImgKnight);
 
   // Inner content area (speaker + text)
   dlgContent = document.createElement('div');
@@ -267,18 +283,32 @@ function dialogueShowNext() {
   dlgSpeaker.textContent = label || '';
   dlgSpeaker.dataset.speaker = id || '';
 
-  // 🔧 NEW: portrait selection
+    // Portrait selection (no src swaps; just show/hide preloaded imgs)
   const cfg = getPortraitConfigForLine(line);
-  if (cfg && dlgPortraitImg && dlgPortraitWrap && dlgMainRow) {
-    dlgPortraitImg.src = cfg.src;
-    dlgPortraitImg.alt = label || '';
+  if (dlgPortraitWrap && dlgMainRow) {
+    // Hide both first
+    if (dlgPortraitImgDragon) dlgPortraitImgDragon.style.display = 'none';
+    if (dlgPortraitImgKnight) dlgPortraitImgKnight.style.display = 'none';
+
+    // Decide which portrait to show based on speaker
+    if (id === 'dragon' && dlgPortraitImgDragon) {
+      dlgPortraitImgDragon.style.display = 'block';
+      dlgPortraitImgDragon.alt = label || '';
+    } else if (dlgPortraitImgKnight) {
+      // All non-dragon speakers use the knight portrait for now
+      dlgPortraitImgKnight.style.display = 'block';
+      dlgPortraitImgKnight.alt = label || '';
+    }
+
     dlgPortraitWrap.style.display = 'flex';
 
+    const side = cfg?.side || (id === 'dragon' ? 'right' : 'left');
     // Knights on the left facing right, dragon on the right facing left
-    dlgMainRow.style.flexDirection = (cfg.side === 'right') ? 'row-reverse' : 'row';
+    dlgMainRow.style.flexDirection = (side === 'right') ? 'row-reverse' : 'row';
   } else if (dlgPortraitWrap) {
     dlgPortraitWrap.style.display = 'none';
   }
+
 
   dialogueStartTyping(line.text, line.speed);
 }
