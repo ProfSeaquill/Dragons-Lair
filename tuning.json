@@ -9,7 +9,7 @@
       "costBaseGust": 50,
       "costBaseRoar": 70,
       "costBaseStomp": 90,
-      "costBaseVents": 120,
+      "costBaseVents": 50,
 
       "gust": 5,
       "roar": 5,
@@ -21,7 +21,7 @@
     "gust":  { "baseCooldownSec": 1, "minCooldownSec": 0,  "capPushTiles": 12, "kCooldown": 0.30, "kPush": 0.35 },
     "roar":  { "baseCooldownSec": 1, "minCooldownSec": 0,  "capStunSec": 6,   "kCooldown": 0.25, "kStun": 0.25 },
     "stomp": { "baseCooldownSec": 1, "minCooldownSec": 0,  "capDamage": 100, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
-    "vents": { "minCount": 3, "maxCount": 8, "minDps": 10, "maxDps": 30, "perLevel": 0 },
+    "vents": { "minCount": 1, "maxCount": 10, "minDps": 10, "maxDps": 30, "perLevel": 0 },
 
 
     "flame": {
