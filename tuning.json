@@ -9,7 +9,7 @@
       "costBaseGust": 50,
       "costBaseRoar": 70,
       "costBaseStomp": 90,
-      "costBaseVents": 50,
+      "costBaseVents": 120,
 
       "gust": 5,
       "roar": 5,
@@ -67,7 +67,7 @@
     },
 
     "waves": {
-      "count": { "base": 5, "cap": 101, "k": 0.04 },
+      "count": { "base": 5, "cap": 180, "k": 0.04 },
 
       "mixCurves": {
         "villager": { "minWave": 1,  "base": 1.00, "cap": 0.25, "k": 0.60 },
