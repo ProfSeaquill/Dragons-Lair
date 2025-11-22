@@ -697,7 +697,9 @@ function renderGridHelp(gs) {
   const el = document.querySelector('.gridHelp');
   if (!el) return;
 
+  // If building is disabled, show neutral text and clear mode styles
   if (!state.canEditMaze(gs)) {
+    el.classList.remove('gridHelp-build', 'gridHelp-vent');
     el.textContent = 'Build disabled during waves.';
     return;
   }
@@ -705,18 +707,27 @@ function renderGridHelp(gs) {
   const mode = (gs.buildMode === 'vents') ? 'vents' : 'walls';
 
   if (mode === 'vents') {
+    // ORANGE: Vent Mode
+    el.classList.add('gridHelp-vent');
+    el.classList.remove('gridHelp-build');
+
     const left = (gs.flameVentsAvailable | 0);
     el.textContent =
-      `VENT MODE: Click a TILE CENTER to place a flame vent. ` +
+      `VENT MODE: Click a tile center to place a flame vent. ` +
       `Right-click a vent tile to remove it and return it to your pool. `;
     return;
   }
+
+  // BLUE: Build Mode
+  el.classList.add('gridHelp-build');
+  el.classList.remove('gridHelp-vent');
 
   const cost = edgeCost(gs);
   el.textContent =
     `BUILD MODE: Click a tile edge to add a wall (${cost} bone${cost === 1 ? '' : 's'}). ` +
     `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
 }
+
 
 // Make available to main.js even if it calls it globally
 // (keeps compatibility without changing main.js imports)
