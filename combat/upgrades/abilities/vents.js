@@ -2,6 +2,7 @@
 
 // Always-on flame vent tiles: data helpers + damage + rendering.
 import * as state from '../../../state.js';
+import { flagHit } from '../../../pathing/attack.js';
 
 function getVentConfig(gs) {
   const cfg = state.getCfg ? state.getCfg(gs) : null;
