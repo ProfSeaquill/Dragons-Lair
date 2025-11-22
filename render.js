@@ -6,6 +6,7 @@ import * as state from './state.js';
 import { drawClawSlashes } from './combat/upgrades/abilities/claw.js';
 import { drawWingGusts }   from './combat/upgrades/abilities/wing_gust.js';
 import { ROAR_FX_VISUAL } from './combat/upgrades/abilities/roar.js';
+import { drawFlameVents } from './combat/upgrades/abilities/vents.js';
 
 // DEBUG toggle
 window.__logFlame = window.__logFlame ?? false; // default quiet; toggle in console if needed
@@ -88,10 +89,11 @@ caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
  * --------------------------------------------------------- */
 const TYPE_COLOR = {
   villager:   '#c4a484',
-  squire:     '#7fd1ff',
-  knight:     '#9acd32',
+  squire:     '#64683c',
+  knight:     '#7fd1ff',
   hero:       '#e0e0e0',
   engineer:   '#c084fc',
+  bulldozer:  '#f97316',   // fiery orange
   kingsguard: '#ED2939',   // red
   boss:       '#ffd700',   // gold
 };
@@ -224,6 +226,7 @@ if (state.canEditMaze(gs)) {
   drawClawSlashes(ctx, gs);
   drawWingGusts(ctx, gs);
   drawRoarFx(ctx, gs); 
+  drawFlameVents(ctx, gs);
   // drawHeatShimmer(ctx, gs); // subtle, after dragon + fire for overlay then
 drawFireSplash(ctx, gs);
 
@@ -412,6 +415,7 @@ function enemyRenderOffset(e, tsize) {
 
 /* ===================== enemies, dragon, fire, shimmer ===================== */
 // Shared enemy glyph helper: used by main renderer *and* HUD preview
+// Shared enemy glyph helper: used by main renderer *and* HUD preview
 export function drawEnemyGlyph(ctx, cx, cy, type, opts = {}) {
   const radius = opts.radius ?? Math.max(3, (opts.tsize ?? state.GRID.tile) * 0.18);
 
@@ -421,10 +425,36 @@ export function drawEnemyGlyph(ctx, cx, cy, type, opts = {}) {
     || TYPE_COLOR[type]
     || (opts.shield ? '#5cf' : '#fc3');
 
+  const ringWidth = opts.ringWidth ?? 2;
+
+  // Optional spiky silhouette (used for bulldozer while ramming)
+  const spiky = !!opts.spiky;
+  if (spiky && radius > 0) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.beginPath();
+
+    const spikes  = 12;
+    const innerR  = radius * 0.95;
+    const outerR  = radius * 1.55;
+
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (i * Math.PI) / spikes;
+      const r = (i % 2 === 0) ? outerR : innerR;
+      const x = Math.cos(angle) * r;
+      const y = Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = bodyColor;
+    ctx.globalAlpha = 0.95;
+    ctx.fill();
+    ctx.restore();
+  }
+
   // Core body
   circle(ctx, cx, cy, radius, bodyColor, true);
-
-  const ringWidth = opts.ringWidth ?? 2;
 
   // Shield ring (heroes always get one)
   const hasShieldRing =
@@ -455,6 +485,7 @@ export function drawEnemyGlyph(ctx, cx, cy, type, opts = {}) {
 
   return radius;
 }
+
 
 function drawEnemies(ctx, gs) {
   if (!Array.isArray(gs.enemies)) return;
@@ -521,13 +552,19 @@ function drawEnemies(ctx, gs) {
     const px = ex + off.dx;
     const py = ey + off.dy;
 
+        // Spiky only while the bulldozer is actively ramming
+    const isBulldozerSpiky =
+      e.type === 'bulldozer' && e.isBulldozer && !e.bulldozeDone;
+
     // Draw enemy body + rings via shared helper
     drawEnemyGlyph(ctx, px, py, e.type, {
       radius,
-      shield: e.shield,
+      shield:   e.shield,
       miniboss: e.miniboss,
-      boss: e.boss,
+      boss:     e.boss,
+      spiky:    isBulldozerSpiky,
     });
+
 
     // Optional HP bar (uses e.showHpUntil / e.maxHp)
     if (e.showHpUntil && now < e.showHpUntil && e.maxHp > 0) {

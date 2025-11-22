@@ -1,12 +1,10 @@
 // grid/walls.js — per-edge wall helpers + no-full-block guard
 import * as state from '../state.js';
 
-
 // passthrough shim so old imports keep working
 export * from './topology.js';
 
 // --- Canonical edge accessors ----------------------------------------------
-// We store N/W on the current cell; E is neighbor.W; S is neighbor.N.
 function getEdge(gs, x, y, side) {
   const rec = state.ensureCell(gs, x, y);
   if (!rec) return false;
@@ -44,22 +42,35 @@ function setEdge(gs, x, y, side, on) {
   }
 }
 
+// Permanent wall coordinates (x, y, side)
+const PERMA_WALLS = [
+  [21, 6, 'N'], [22, 6, 'N'], [23, 6, 'N'],
+  [20, 10, 'N'], [21, 11, 'N'], [22, 11, 'N'],
+  [23, 11, 'N'], [21, 10, 'W'],
+  [21, 6, 'W'], [20, 7, 'N'],
+];
+
+// Helper so enemies (bulldozer) can check permanence
+export function isPermanentWall(gs, x, y, side) {
+  for (const [px, py, ps] of PERMA_WALLS) {
+    if (px === x && py === y && ps === side) return true;
+  }
+  return false;
+}
+
 // --- Public: query ----------------------------------------------------------
 export function edgeHasWall(gs, x, y, side) {
   return getEdge(gs, x, y, side);
 }
 
 // Permanently place a small set of walls and bump topology once. 
-export function installPermanentWalls(gs) 
-{ const PERMA = [ [21, 6, 'N'], [22, 6, 'N'], [23, 6, 'N'], 
-                 [20, 10, 'N'], [21, 11, 'N'], [22, 11, 'N'], 
-                  [23, 11, 'N'], [21, 10, 'W'], 
-                 [21, 6, 'W'], [20, 7, 'N'], ]; 
- for (
-   const [x, y, side] of PERMA) 
-   setEdge(gs, x, y, side, true); 
- state.bumpTopology?.(gs, 'walls:install-permanent');
+export function installPermanentWalls(gs) {
+  for (const [x, y, side] of PERMA_WALLS) {
+    setEdge(gs, x, y, side, true);
+  }
+  state.bumpTopology?.(gs, 'walls:install-permanent');
 }
+
 
 
 

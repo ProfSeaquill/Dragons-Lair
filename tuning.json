@@ -2,9 +2,27 @@
   "tuning": {
     "dragon":   { "maxHP": 100, "healCostBone": 1 },
     "economy":  { "wallCostBones": 1, "goldBase": 15 },
-    "abilities":{ "gust": 5, "roar": 5, "stomp": 5 },
     "saves":    { "autosaveSec": 0 },
     "telemetry":{ "enabled": false },
+    "abilities": {
+      "costBaseClaw": 30,
+      "costBaseGust": 50,
+      "costBaseRoar": 70,
+      "costBaseStomp": 90,
+      "costBaseVents": 120,
+
+      "gust": 5,
+      "roar": 5,
+      "stomp": 5,
+      "vents": 5
+},
+
+    "claw":  { "baseCooldownSec": 5,  "minCooldownSec": 2,  "capDamage": 500,  "kCooldown": 0.25, "kDamage": 0.25 },
+    "gust":  { "baseCooldownSec": 1, "minCooldownSec": 0,  "capPushTiles": 12, "kCooldown": 0.30, "kPush": 0.35 },
+    "roar":  { "baseCooldownSec": 1, "minCooldownSec": 0,  "capStunSec": 6,   "kCooldown": 0.25, "kStun": 0.25 },
+    "stomp": { "baseCooldownSec": 1, "minCooldownSec": 0,  "capDamage": 100, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
+    "vents": { "minCount": 1, "maxCount": 10, "minDps": 10, "maxDps": 30, "perLevel": 0 },
+
 
     "flame": {
       "baseRangeTiles": 8,
@@ -36,15 +54,11 @@
       "costBumpPerLevel": 0.15
     },
 
-    "claw":  { "baseCooldownSec": 5,  "minCooldownSec": 2,  "capDamage": 500,  "kCooldown": 0.25, "kDamage": 0.25 },
-    "gust":  { "baseCooldownSec": 1, "minCooldownSec": 0,  "capPushTiles": 12, "kCooldown": 0.30, "kPush": 0.35 },
-    "roar":  { "baseCooldownSec": 1, "minCooldownSec": 0,  "capStunSec": 6,   "kCooldown": 0.25, "kStun": 0.25 },
-    "stomp": { "baseCooldownSec": 1, "minCooldownSec": 0,  "capDamage": 50, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
-
+    
     "enemyScaling": {
       "maxWave": 51,
       "hpCapMult": 10.0,
-      "spdCapMult": 1.5,
+      "spdCapMult": 1.1,
       "dpsCapMult": 1.0,
       "shape": "exp",
       "kHP": 3.0,
@@ -53,29 +67,33 @@
     },
 
     "waves": {
-      "count": { "base": 5, "cap": 101, "k": 0.04 },
+      "count": { "base": 5, "cap": 180, "k": 0.04 },
 
       "mixCurves": {
         "villager": { "minWave": 1,  "base": 1.00, "cap": 0.25, "k": 0.60 },
         "squire":   { "minWave": 2,  "base": 0.10, "cap": 0.35, "k": 0.90 },
         "knight":   { "minWave": 3,  "base": 0.10, "cap": 0.20, "k": 0.60 },
         "hero":     { "minWave": 6, "base": 0.07, "cap": 0.13, "k": 0.80 },
-        "engineer": { "minWave": 11, "base": 0.05, "cap": 0.10, "k": 0.30 }
+        "engineer": { "minWave": 11, "base": 0.05, "cap": 0.10, "k": 0.30 },
+        "bulldozer": { "minWave": 16, "base": 0.02, "cap": 0.05, "k": 1.0 }
+
       },
 
       "groupPolicy": {
         "priority": {
-          "hero": 1,
-          "squire": 2,
-          "villager": 3,
-          "engineer": 4,
-          "knight": 5,
-          "kingsguard": 6,
-          "boss": 7
+          "bulldozer": 1,
+          "hero": 2,
+          "squire": 3,
+          "villager": 4,
+          "engineer": 5,
+          "knight": 6,
+          "kingsguard": 7,
+          "boss": 8
         },
         "caps": {
           "engineer": 1,
           "hero": 1,
+          "bulldozer": 3,
           "kingsguard": 1,
           "boss": 1,
           "knight": 2

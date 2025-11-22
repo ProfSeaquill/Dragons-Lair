@@ -3,6 +3,7 @@ import * as state from './state.js';
 // New pathing wrappers (added in state.js patch)
 import { pathSpawnAgent, pathUpdateAgent, pathRenderOffset, GRID, ENTRY, EXIT, ensureFreshPathing, pathDespawnAgent } from './state.js';
 import { isInAttackZone } from './grid/attackzone.js';
+import { edgeHasWall, toggleEdge, isPermanentWall } from './grid/walls.js';
 import { updateAttacks } from './pathing/attack.js';
 import { spawnClawSlashEffect } from './combat/upgrades/abilities/claw.js';
 import { spawnWingGustCorridorFX } from './combat/upgrades/abilities/wing_gust.js';
@@ -61,69 +62,91 @@ function __resolveMixedType(gs, t) {
 
 function acquireEnemy(type, wave, initFn) {
   const pool = ENEMY_POOL.get(type);
-  let e = (pool && pool.length) ? pool.pop() : makeEnemy(type, wave);
+  let e;
+
+  if (pool && pool.length) {
+    // Reuse a pooled object, but resync ALL base stats to this wave
+    const fresh = makeEnemy(type, wave);   // wave-scaled hp/speed/dmg/etc.
+    e = pool.pop();
+
+    // Copy all template fields onto the pooled enemy so it behaves
+    // exactly like a freshly-created one for this wave.
+    Object.assign(e, fresh);
+  } else {
+    // No pooled enemy available → create a brand-new one as before
+    e = makeEnemy(type, wave);
+  }
+
   // RESET mutable fields fast (avoid per-spawn object literals)
   e.id = 0; e.groupId = 0; e.followLeaderId = null; e.leader = false; e.torchBearer = false;
   e.burnLeft = 0; e.burnDps = 0; e.stunLeft = 0; e.slowLeft = 0; e.roarBuffLeft = 0;
   e.pausedForAttack = false; e.isAttacking = false;
   e.hp = e.maxHp; e.lastHitAt = 0; e.showHpUntil = 0; e.slowMult = 1;
 
-    // --- reset positional / steering state (important for pooled enemies) ---
+  // Bulldozer flags (important when reusing pooled enemies)
+  e.isBulldozer = false;
+  e.bulldozeDone = false;
+  e.bulldozeTilesPerSec = 0;
+  e._bdAcc = 0;
+
+  // --- reset positional / steering state (important for pooled enemies) ---
   e.x = undefined;
   e.y = undefined;
 
   // 💥 kill any stale render-smoothing carried by the pool
-    // Leave undefined so spawners MUST seed these; renderer should not assume defaults
+  // Leave undefined so spawners MUST seed these; renderer should not assume defaults
   e.drawX = e.drawY = e.prevX = e.prevY = undefined;
 
   e.ox = 0;
   e.oy = 0;
   e.tBorn = 0;        // set on spawn
 
-    e.sepX = 0; e.sepY = 0;
+  e.sepX = 0; e.sepY = 0;
   e.sepOffsetX = 0; e.sepOffsetY = 0;
   e._suppressSep = false;
 
+  e.cx = 0;
+  e.cy = 0;
+  e.tileX = undefined;
+  e.tileY = undefined;
+  e.prevCX = undefined;
+  e.prevCY = undefined;
+  e.vx = 0;
+  e.vy = 0;
+  e.dir = 'E';
+  e.kb = null; // ← clear any leftover knockback state from the pool
 
-e.cx = 0;
-e.cy = 0;
-e.tileX = undefined;
-e.tileY = undefined;
-e.prevCX = undefined;
-e.prevCY = undefined;
-e.vx = 0;
-e.vy = 0;
-e.dir = 'E';
-e.kb = null; // ← clear any leftover knockback state from the pool
-// --- engineer / tunneling state (must be hard-reset when pulled from the pool)
-e._tunnelArmed   = false;   // ← crucial: pooled engineers must re-arm
-e.surfaceGraceT  = 0;       // will be set at spawn for engineers
-e.tunnelT        = 0;       // will be set at spawn for engineers
-e.tunneling = false;
-e.updateByCombat = false;
-e._tunnelStartPx = null;
-e._tunnelDestPx  = null;
-e._tunnelDestCell = null;
-e._tunnelTotal = 0;
-e._tunnelElapsed = 0;
-e.commitDir = null;
-e.commitSteps = 0;
-e.commitTilesLeft = 0;
-e.isAttacking = false;
-e.pausedForAttack = false;
-e.speedMul = 1;
-// wipe any nav/lerp scratch that a pooled enemy could carry over
-e.fromXY = null;        // some pathers keep a [x,y] start of segment
-delete e._fromX; delete e._fromY;
-delete e._seg; delete e._acc; delete e._lerp; delete e._t;
-// Also wipe the FSM smoother’s pixel fields so updateAgent will re-seed them
-delete e._fromPX; delete e._fromPY;
-delete e._toPX;   delete e._toPY;
-delete e._stepAcc;
+  // --- engineer / tunneling state (must be hard-reset when pulled from the pool)
+  e._tunnelArmed   = false;   // ← crucial: pooled engineers must re-arm
+  e.surfaceGraceT  = 0;       // will be set at spawn for engineers
+  e.tunnelT        = 0;       // will be set at spawn for engineers
+  e.tunneling = false;
+  e.updateByCombat = false;
+  e._tunnelStartPx = null;
+  e._tunnelDestPx  = null;
+  e._tunnelDestCell = null;
+  e._tunnelTotal = 0;
+  e._tunnelElapsed = 0;
+  e.commitDir = null;
+  e.commitSteps = 0;
+  e.commitTilesLeft = 0;
+  e.isAttacking = false;
+  e.pausedForAttack = false;
+  e.speedMul = 1;
+
+  // wipe any nav/lerp scratch that a pooled enemy could carry over
+  e.fromXY = null;        // some pathers keep a [x,y] start of segment
+  delete e._fromX; delete e._fromY;
+  delete e._seg; delete e._acc; delete e._lerp; delete e._t;
+  // Also wipe the FSM smoother’s pixel fields so updateAgent will re-seed them
+  delete e._fromPX; delete e._fromPY;
+  delete e._toPX;   delete e._toPY;
+  delete e._stepAcc;
 
   if (initFn) initFn(e);
   return e;
 }
+
 
 function releaseEnemy(e) {
   if (!e || !e.type) return;
@@ -474,6 +497,186 @@ export function wingGustPush(gs, tiles) {
 }
 
 
+// --- Bulldozer movement + explosion (above-ground ram, then becomes normal) ---
+
+function bulldozerExplode(gs, e) {
+  const tsize = state.GRID.tile || 32;
+
+  const cx = e.cx | 0;
+  const cy = e.cy | 0;
+  const dir = 'E'; // design: bulldozers always ram east
+
+  // For EAST, we blow the wall in front and the two vertical neighbors.
+  const targets = [
+    { x: cx,     y: cy,     side: 'E' },
+    { x: cx,     y: cy - 1, side: 'E' },
+    { x: cx,     y: cy + 1, side: 'E' },
+  ];
+
+  for (const { x, y, side } of targets) {
+    if (!state.inBounds(x, y)) continue;
+    if (!edgeHasWall(gs, x, y, side)) continue;
+    if (isPermanentWall(gs, x, y, side)) continue; // do not destroy map perma walls
+    toggleEdge(gs, x, y, side); // removal path doesn’t run connectivity guard
+  }
+
+  // Optional FX: small blast at the center of the main impacted edge
+  const ex = (cx + 1 + 0.5) * tsize; // center of the tile to the east
+  const ey = (cy + 0.5) * tsize;
+  (gs.effects || (gs.effects = [])).push(
+    acquireEffect('bombBlast', {
+      x: ex,
+      y: ey,
+      dur: 0.60,
+      rTiles: 1,
+    })
+  );
+
+  // Transition to "normal" enemy with slightly slower speed
+  e.bulldozeDone = true;
+  e.isBulldozer = true; // still identifiable if you ever want to reference
+  e._bdAcc = 0;
+
+  const baseTiles = e.speedTilesPerSec || (typeof e.speed === 'number' ? e.speed : 1);
+  const newTiles = baseTiles * BULLDOZER_POST_MULT;
+  e.speedTilesPerSec = newTiles;
+  e.speed = newTiles;
+  e.speedBase = newTiles;
+  e.pxPerSec = newTiles * tsize;
+
+  // Reset heading to face east (toward exit) and treat this like a fresh nav spawn
+  e.dir = 'E';
+  initializeSpawnPrevAndCommit(e);
+
+  try { pathDespawnAgent?.(e); } catch (_) {}
+  pathSpawnAgent?.(e, gs);
+  try { pathUpdateAgent?.(e, 0, gs); } catch (_) {}
+}
+
+/**
+ * Bulldozer straight-line movement:
+ * - moves EAST only
+ * - ignores junction logic and A*
+ * - when it encounters a blocking wall, triggers bulldozerExplode(...)
+ */
+function bulldozerHitDragon(gs, e) {
+  // Deal a hefty impact, then revert to post-bulldoze state
+  const dmg = e.touchDmg ?? e.dmg ?? 15; // pick something beefy but sane
+
+  if (typeof state.damageDragon === 'function') {
+    state.damageDragon(gs, dmg, 'bulldozer');
+  } else {
+    gs.dragonHP = Math.max(0, (gs.dragonHP || 0) - dmg);
+  }
+
+  // Optional: small impact FX at the dragon’s mouth / attack-zone edge.
+  const tsize = state.GRID.tile || 32;
+  const cx = e.cx | 0;
+  const cy = e.cy | 0;
+  const ex = (cx + 1 + 0.5) * tsize;
+  const ey = (cy + 0.5) * tsize;
+  (gs.effects || (gs.effects = [])).push(
+    acquireEffect('bombBlast', {
+      x: ex,
+      y: ey,
+      dur: 0.60,
+      rTiles: 1,
+    })
+  );
+
+  // Reuse the same “done bulldozing, become normal” behavior.
+  e.bulldozeDone = true;
+  e.isBulldozer = true;
+  e._bdAcc = 0;
+
+  const tpsBase = e.speedTilesPerSec || (typeof e.speed === 'number' ? e.speed : 1);
+  const newTiles = tpsBase * BULLDOZER_POST_MULT;
+  e.speedTilesPerSec = newTiles;
+  e.speed = newTiles;
+  e.speedBase = newTiles;
+  e.pxPerSec = newTiles * (state.GRID.tile || 32);
+
+  e.dir = 'E';
+  initializeSpawnPrevAndCommit(e);
+
+  try { pathDespawnAgent?.(e); } catch (_) {}
+  pathSpawnAgent?.(e, gs);
+  try { pathUpdateAgent?.(e, 0, gs); } catch (_) {}
+}
+
+function updateBulldozerStraight(gs, e, dt) {
+  if (!e.isBulldozer || e.bulldozeDone) return;
+
+  const tsize = state.GRID.tile || 32;
+  const tilesPerSec = e.bulldozeTilesPerSec || e.speedTilesPerSec || 1;
+  const stepTiles = tilesPerSec * dt;
+
+  // Accumulate progress in "tiles" (can be > 1 if framerate dips)
+  e._bdAcc = (e._bdAcc || 0) + stepTiles;
+
+  // Consume whole tiles of progress as pure grid steps
+  while (e._bdAcc >= 1 && !e.bulldozeDone) {
+    e._bdAcc -= 1;
+
+    const cx = e.cx | 0;
+    const cy = e.cy | 0;
+    const nx = cx + 1; // bulldozers always ram east
+
+    // 1) If the NEXT tile is in the attack-zone, treat it as a dragon impact.
+    if (state.inBounds(nx, cy) && isInAttackZone(gs, nx, cy)) {
+      bulldozerHitDragon(gs, e);
+      break;
+    }
+
+    // 2) Otherwise, if blocked or out-of-bounds, explode (destroy walls) and stop.
+    if (!state.inBounds(nx, cy) || !state.isOpen(gs, cx, cy, 'E')) {
+      bulldozerExplode(gs, e);
+      break;
+    }
+
+    // 3) Otherwise, walk one *logical* tile east.
+    e.cx = nx;
+    e.cy = cy;
+    e.tileX = nx;
+    e.tileY = cy;
+
+    const wx = (nx + 0.5) * tsize;
+    const wy = (cy + 0.5) * tsize;
+    e.x = wx;
+    e.y = wy;
+    e.prevX = wx;
+    e.prevY = wy;
+
+    e.dir = 'E';
+  }
+
+  // While ramming, use leftover fractional progress (0..1) to smoothly slide visuals.
+  if (!e.bulldozeDone) {
+    const cx = e.cx | 0;
+    const cy = e.cy | 0;
+
+    // Authoritative logical position: tile center
+    const baseX = (cx + 0.5) * tsize;
+    const baseY = (cy + 0.5) * tsize;
+    e.x = baseX;
+    e.y = baseY;
+
+    // Ensure draw coords are seeded
+    if (!Number.isFinite(e.drawX)) e.drawX = baseX;
+    if (!Number.isFinite(e.drawY)) e.drawY = baseY;
+
+    // e._bdAcc is "how far into the *next* tile" we are, in tiles (0.. <1)
+    const frac = Math.max(0, Math.min(1, e._bdAcc || 0)); // clamp safety
+    const offsetX = frac * tsize; // bulldozer always moves east
+    const offsetY = 0;
+
+    // Visual-only position: slide from current tile center toward the next tile.
+    e.drawX = baseX + offsetX;
+    e.drawY = baseY + offsetY;
+  }
+}
+
+
 
 // --- Spawn helper: give freshly-spawned enemies a "previous cell" (if available)
 // and a short forward commit so they don't immediately reconsider direction.
@@ -523,7 +726,7 @@ const FLAGS = {
   bossEvery: 5,             // Knight of the Round Table cadence
   kingsguardEvery: 1,       // truthy → enable "one wave before each boss"
   engineerBombTimer: 5,
-  engineerTravelTime: 4.0,
+  engineerTravelTime: 5.0,
   engineerBombDmg: 25,
   spawnGap: 0.45,
   groupGap: 2.0,
@@ -531,6 +734,9 @@ const FLAGS = {
   groupMax: 10,
 };
 
+// Bulldozer tuning: faster while bulldozing, slower after
+const BULLDOZER_BURROW_MULT  = 1.8;  // tiles/sec during “ram” phase
+const BULLDOZER_POST_MULT    = 0.8; // tiles/sec after becoming normal
 
 // -------- Wave helpers --------
 // Progress gated by unlock (minWave): 0 before unlock; 1 at maxWave
@@ -704,10 +910,20 @@ e.id = (++__ENEMY_ID);
 e.nav = buildEnemyNav(type, gs); // <- attach per-enemy nav from config
 
 if (type === 'engineer') {
-  e.surfaceGraceT = 0.6;                 // seconds above ground before burrowing
+  e.surfaceGraceT = 1.5;                 // seconds above ground before burrowing
 e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
 }
 
+if (type === 'bulldozer') {
+  e.isBulldozer = true;
+  e.bulldozeDone = false;
+  // tiles/sec base comes from scaling
+  const baseTiles = (typeof e.speed === 'number')
+    ? e.speed
+    : (e.speedTilesPerSec || 1);
+  e.bulldozeTilesPerSec = baseTiles * BULLDOZER_BURROW_MULT;
+}
+  
   e.cx = state.ENTRY.x;
   e.cy = state.ENTRY.y;
   e.dir = 'E';
@@ -796,6 +1012,15 @@ if (type === 'engineer') {
  e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
 }
 
+if (type === 'bulldozer') {
+  e.isBulldozer = true;
+  e.bulldozeDone = false;
+  const baseTiles = (typeof e.speed === 'number')
+    ? e.speed
+    : (e.speedTilesPerSec || 1);
+  e.bulldozeTilesPerSec = baseTiles * BULLDOZER_BURROW_MULT;
+}
+  
   e.groupId = groupId | 0;
   e.routeSeed = e.routeSeed ?? ((Math.random() * 1e9) | 0);
   e.cx = state.ENTRY.x;
@@ -910,6 +1135,15 @@ if (type === 'engineer') {
   e.tunnelT = FLAGS.engineerTravelTime;  // travel time once underground
 }
 
+if (type === 'bulldozer') {
+  e.isBulldozer = true;
+  e.bulldozeDone = false;
+  const baseTiles = (typeof e.speed === 'number')
+    ? e.speed
+    : (e.speedTilesPerSec || 1);
+  e.bulldozeTilesPerSec = baseTiles * BULLDOZER_BURROW_MULT;
+}
+    
     // spawn at entry, facing east
     e.cx = state.ENTRY.x;
     e.cy = state.ENTRY.y;
@@ -1030,6 +1264,10 @@ let trailDecayAccum = 0;
 // module-scope accumulator for bomb tick (1 Hz)
 let bombAccum = 0;
 
+// ---- Legacy safety shim: some old paths may still reference bare `cx`/`cy` ----
+// Defining them at module scope prevents "cx is not defined" crashes if any
+// legacy code or bundled module mistakenly uses `cx` instead of e.cx, etc.
+let cx = 0, cy = 0;
 
 /**
  * Dragon breath tick:
@@ -1893,9 +2131,11 @@ for (const e of enemies) {
     if (e.type === 'engineer' && e.tunneling) continue;
     if (e.stunLeft > 0 || e.kb) continue;  // frozen OR mid-knockback
 
-
+// Bulldozers in ram-mode ignore the attack-zone freeze
+const isRammingBulldozer = e.isBulldozer && !e.bulldozeDone;
+    
 // -- Attack-zone lock: freeze & face the lair if inside the 3×1 west column --
-if (isInAttackZone(gs, e.cx|0, e.cy|0)) {
+if (!isRammingBulldozer && isInAttackZone(gs, cx, cy)) {
   e.pausedForAttack = true;
   e.isAttacking     = true;
   e.commitDir = null;
@@ -1917,6 +2157,11 @@ if (isInAttackZone(gs, e.cx|0, e.cy|0)) {
   continue; // do NOT call pathUpdateAgent while in the zone
 }
 
+    // Bulldozer special movement: straight east until it hits a wall, then explode
+  if (e.isBulldozer && !e.bulldozeDone) {
+    updateBulldozerStraight(gs, e, dt);
+    continue; // skip normal pathing while ramming
+  }
 
    // Let the navigator advance e.cx/e.cy (most implementations mutate the agent directly).
     const res = pathUpdateAgent(e, dt, gs);
@@ -2363,10 +2608,6 @@ const halfTile = t * 0.5;
 const bx = dragPx + (dx / L) * halfTile;
 const by = dragPy + (dy / L) * halfTile;
 
-    
-    (gs.effects || (gs.effects = [])).push(
-  acquireEffect('bomb', { x: bx, y: by, timer: FLAGS.engineerBombTimer, dmg: FLAGS.engineerBombDmg })
-);
 
     // cleanup tunneling cache
     e._tunnelStartPx = e._tunnelDestPx = null;

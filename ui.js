@@ -1,9 +1,10 @@
-// ui.js — edge-wall build mode + HUD + Next Wave preview + Dev Panel
+// ui.js
 import * as state from './state.js';
 import * as walls from './grid/walls.js';
 import * as upgrades from './upgrades.js';
 import { getBossId, BOSS_SCHEDULE } from './story.js';
 import { drawEnemyGlyph } from './render.js';
+import { placeFlameVent, removeFlameVent } from './combat/upgrades/abilities/vents.js';
 
 
 // ---------- DOM helpers ----------
@@ -54,6 +55,7 @@ const SPEAKER_PORTRAITS = {
   defaultKnight: { src: KNIGHT_PORTRAIT_SRC, side: 'left' },
 };
 
+
 let dlgRoot = null;
 let dlgBox, dlgContent, dlgSpeaker, dlgText, dlgHint;
 let dlgActive = false;
@@ -67,7 +69,9 @@ let dlgFullText = '';
 // Portrait layout elements
 let dlgMainRow = null;
 let dlgPortraitWrap = null;
-let dlgPortraitImg = null;
+let dlgPortraitImgDragon = null;
+let dlgPortraitImgKnight = null;
+
 
 
 function ensureDialogueLayer() {
@@ -120,7 +124,7 @@ function ensureDialogueLayer() {
   dlgMainRow.style.flexDirection = 'row'; // we may flip this per speaker
   dlgMainRow.style.gap = '10px';
 
-  dlgPortraitWrap = document.createElement('div');
+    dlgPortraitWrap = document.createElement('div');
   dlgPortraitWrap.style.flex = '0 0 auto';
   dlgPortraitWrap.style.width = '96px';
   dlgPortraitWrap.style.height = '96px';
@@ -132,13 +136,27 @@ function ensureDialogueLayer() {
   dlgPortraitWrap.style.justifyContent = 'center';
   dlgPortraitWrap.style.border = '1px solid #222b3d';
 
-  dlgPortraitImg = document.createElement('img');
-  dlgPortraitImg.style.maxWidth = '100%';
-  dlgPortraitImg.style.maxHeight = '100%';
-  dlgPortraitImg.style.display = 'block';
-  dlgPortraitImg.style.imageRendering = 'pixelated';
+  // Two layered portrait <img>s so we can swap without changing src
+  dlgPortraitImgDragon = document.createElement('img');
+  dlgPortraitImgKnight = document.createElement('img');
 
-  dlgPortraitWrap.appendChild(dlgPortraitImg);
+  const applyPortraitImgStyle = (img) => {
+    img.style.maxWidth = '100%';
+    img.style.maxHeight = '100%';
+    img.style.display = 'none';           // hidden by default
+    img.style.imageRendering = 'pixelated';
+    img.draggable = false;
+  };
+
+  applyPortraitImgStyle(dlgPortraitImgDragon);
+  applyPortraitImgStyle(dlgPortraitImgKnight);
+
+  // Fixed sources (loaded once)
+  dlgPortraitImgDragon.src = DRAGON_PORTRAIT_SRC;
+  dlgPortraitImgKnight.src = KNIGHT_PORTRAIT_SRC;
+
+  dlgPortraitWrap.appendChild(dlgPortraitImgDragon);
+  dlgPortraitWrap.appendChild(dlgPortraitImgKnight);
 
   // Inner content area (speaker + text)
   dlgContent = document.createElement('div');
@@ -245,18 +263,32 @@ function dialogueShowNext() {
   dlgSpeaker.textContent = label || '';
   dlgSpeaker.dataset.speaker = id || '';
 
-  // 🔧 NEW: portrait selection
+    // Portrait selection (no src swaps; just show/hide preloaded imgs)
   const cfg = getPortraitConfigForLine(line);
-  if (cfg && dlgPortraitImg && dlgPortraitWrap && dlgMainRow) {
-    dlgPortraitImg.src = cfg.src;
-    dlgPortraitImg.alt = label || '';
+  if (dlgPortraitWrap && dlgMainRow) {
+    // Hide both first
+    if (dlgPortraitImgDragon) dlgPortraitImgDragon.style.display = 'none';
+    if (dlgPortraitImgKnight) dlgPortraitImgKnight.style.display = 'none';
+
+    // Decide which portrait to show based on speaker
+    if (id === 'dragon' && dlgPortraitImgDragon) {
+      dlgPortraitImgDragon.style.display = 'block';
+      dlgPortraitImgDragon.alt = label || '';
+    } else if (dlgPortraitImgKnight) {
+      // All non-dragon speakers use the knight portrait for now
+      dlgPortraitImgKnight.style.display = 'block';
+      dlgPortraitImgKnight.alt = label || '';
+    }
+
     dlgPortraitWrap.style.display = 'flex';
 
+    const side = cfg?.side || (id === 'dragon' ? 'right' : 'left');
     // Knights on the left facing right, dragon on the right facing left
-    dlgMainRow.style.flexDirection = (cfg.side === 'right') ? 'row-reverse' : 'row';
+    dlgMainRow.style.flexDirection = (side === 'right') ? 'row-reverse' : 'row';
   } else if (dlgPortraitWrap) {
     dlgPortraitWrap.style.display = 'none';
   }
+
 
   dialogueStartTyping(line.text, line.speed);
 }
@@ -309,6 +341,7 @@ const ENEMY_META = {
   knight:     { name: 'Knight',    color: '#ffd166', blurb: 'Fast mover with solid hp and damage.' },
   hero:       { name: 'Hero',      color: '#ff6b6b', blurb: 'Shield-bearer: blocks direct fire for units behind him.' },
   engineer:   { name: 'Engineer',  color: '#c084fc', blurb: 'Tunnels to the lair and plants a timed bomb.' },
+  bulldozer:  { name: 'Bulldozer',  color: '#f97316', blurb: 'Charges straight ahead and smashes walls before reaching the lair.' },
   kingsguard: { name: 'King\'s Guard', color: '#ffa8a8', blurb: 'Miniboss: heavier Knight, moves a bit slower but hits harder.' },
   boss:       { name: 'Knight of the Round Table', color: '#f4a261', blurb: 'Knight of the Round Table: massive HP and damage.' },
 };
@@ -514,6 +547,19 @@ function renderHealButtonLabel(gs) {
   btn.textContent = `Heal (1 HP / ${costPerHP} ${unit})`;
 }
 
+function updateVentModeButton(gs) {
+  const btn = hud.ventMode;
+  if (!btn) return;
+  const mode = (gs.buildMode === 'vents') ? 'vents' : 'walls';
+  if (mode === 'vents') {
+    btn.textContent = 'Vent Mode (ON)';
+    btn.title = 'Click tiles to place/remove flame vents';
+  } else {
+    btn.textContent = 'Vent Mode (OFF)';
+    btn.title = 'Click to switch from wall building to flame vents';
+  }
+}
+
 // ---------- Upgrades panel ----------
 export function renderUpgradesPanel() {
   const root = hud.upgrades;
@@ -562,28 +608,51 @@ export function renderUpgradesPanel() {
     row.appendChild(left);
     row.appendChild(buy);
 
-    // Ability Use buttons (gust / roar / stomp)
-    if (info.type === 'ability' && (info.key === 'gust' || info.key === 'roar' || info.key === 'stomp')) {
-      const use = document.createElement('button');
-      use.className = 'btn';
-      use.textContent = 'Locked';
-      use.disabled = true;
+    // Ability Use buttons (gust / roar / stomp / vents)
+if (info.type === 'ability' &&
+    (info.key === 'gust' || info.key === 'roar' || info.key === 'stomp' || info.key === 'vents')) {
 
-      use.addEventListener('click', () => {
-        const U = state.GameState.upgrades || {};
-        const lvlNow = (U[info.key] | 0);
-        if (lvlNow <= 0) return;
-        if (info.key === 'gust')  state.GameState.reqWingGust = true;
-        if (info.key === 'roar')  state.GameState.reqRoar     = true;
-        if (info.key === 'stomp') state.GameState.reqStomp    = true;
-      });
+  const use = document.createElement('button');
+  use.className = 'btn';
+  use.textContent = 'Locked';
+  use.disabled = true;
 
-      row.appendChild(use);
-_abilityButtons.push({ key: info.key, btn: use });
+  use.addEventListener('click', () => {
+    const gs = state.GameState;
+    const U = gs.upgrades || {};
+    const lvlNow = (U[info.key] | 0);
+    if (lvlNow <= 0) return;
+
+    if (info.key === 'gust') {
+      gs.reqWingGust = true;
+    } else if (info.key === 'roar') {
+      gs.reqRoar = true;
+    } else if (info.key === 'stomp') {
+      gs.reqStomp = true;
+    } else if (info.key === 'vents') {
+      // 🔥 Toggle Vent Mode via the ability button
+      const wasVents = (gs.buildMode === 'vents');
+      gs.buildMode = wasVents ? 'walls' : 'vents';
+
+      const left = (gs.flameVentsAvailable | 0);
+      if (!wasVents) {
+        tell(`Vent Mode ON — click tile centers to place vents (vents left: ${left}).`, '#9cf');
+      } else {
+        tell('Vent Mode OFF — back to wall building.', '#ffa');
+      }
+
+      // Keep HUD / grid help in sync
+      if (typeof refreshHUD === 'function') {
+        refreshHUD();
+      }
     }
-
-    root.appendChild(row);
   });
+
+  row.appendChild(use);
+  _abilityButtons.push({ key: info.key, btn: use });
+}
+root.appendChild(row);
+}); // ← close list.forEach
 
  // Live cooldown / lock updater (start once)
 if (!_abilityLoopInit) {
@@ -628,16 +697,38 @@ function renderGridHelp(gs) {
   const el = document.querySelector('.gridHelp');
   if (!el) return;
 
+  // If building is disabled, show neutral text and clear mode styles
   if (!state.canEditMaze(gs)) {
+    el.classList.remove('gridHelp-build', 'gridHelp-vent');
     el.textContent = 'Build disabled during waves.';
     return;
   }
 
+  const mode = (gs.buildMode === 'vents') ? 'vents' : 'walls';
+
+  if (mode === 'vents') {
+    // ORANGE: Vent Mode
+    el.classList.add('gridHelp-vent');
+    el.classList.remove('gridHelp-build');
+
+    const left = (gs.flameVentsAvailable | 0);
+    el.textContent =
+      `VENT MODE: Click a tile center to place a flame vent. ` +
+      `Right-click a vent tile to remove it and return it to your pool. `;
+    return;
+  }
+
+  // BLUE: Build Mode
+  el.classList.add('gridHelp-build');
+  el.classList.remove('gridHelp-vent');
+
   const cost = edgeCost(gs);
   el.textContent =
-    `Build Mode: Click a TILE EDGE to add a wall (${cost} bone${cost === 1 ? '' : 's'}). ` +
+    `BUILD MODE: Click a tile edge to add a wall (${cost} bone${cost === 1 ? '' : 's'}). ` +
     `Right-click an edge wall to remove. Walls cannot fully block entry ↔ exit.`;
 }
+
+
 // Make available to main.js even if it calls it globally
 // (keeps compatibility without changing main.js imports)
 if (typeof window !== 'undefined') window.renderGridHelp = renderGridHelp;
@@ -650,57 +741,133 @@ function wireCanvasEdgeBuild() {
   // Prevent default context menu for right-click remove
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
 
-  cv.addEventListener('mousemove', (e) => {
+    cv.addEventListener('mousemove', (e) => {
     const gs = state.GameState;
 
-// Hide the hover + do nothing while a wave is active
-if (!state.canEditMaze(gs)) {
-  gs.uiHoverEdge = null;
-  _hoverKey = null;
-  _hoverHasWall = null;
-  return;
-}
+    // Hide the hover + do nothing while a wave is active
+    if (!state.canEditMaze(gs)) {
+      gs.uiHoverEdge = null;
+      _hoverKey = null;
+      _hoverHasWall = null;
+      return;
+    }
 
-const hover = edgeHitTest(cv, e);
-gs.uiHoverEdge = hover; // for render highlight
-if (!hover) {
-  if (_hoverKey !== null) {
-    _hoverKey = null;
-    _hoverHasWall = null;
-    tell(''); // clear any stale message
-  }
-  return;
-}
+    const mode = (gs.buildMode === 'vents') ? 'vents' : 'walls';
 
-const hasWall = walls.edgeHasWall(gs, hover.x, hover.y, hover.side);
-const k = `${hover.x},${hover.y},${hover.side}`;
-if (k !== _hoverKey || hasWall !== _hoverHasWall) {
-  _hoverKey = k;
-  _hoverHasWall = hasWall;
+    if (mode === 'vents') {
+      // No edge hover in vent mode
+      gs.uiHoverEdge = null;
+      _hoverKey = null;
+      _hoverHasWall = null;
 
-const verb = hasWall ? 'Remove' : 'Place';
-const refund = edgeRefund(gs) | 0;
-const msg = hasWall
-  ? (refund > 0 ? `Remove wall: (${hover.x},${hover.y}) ${hover.side} (+${refund} bones)` 
-                : `Remove wall: (${hover.x},${hover.y}) ${hover.side}`)
-  : `Place wall: (${hover.x},${hover.y}) ${hover.side} (${edgeCost(gs)} bones)`;
-tell(msg, '#9cf');
-}
+      const tile = tileHitTest(cv, e);
+      if (!tile) {
+        tell('');
+        return;
+      }
+
+      const vents = gs.flameVents || [];
+      const hasVent = vents.some(v => v && v.x === tile.x && v.y === tile.y);
+      const left = (gs.flameVentsAvailable | 0);
+
+      if (hasVent) {
+        tell(`Remove vent: (${tile.x},${tile.y}) (+1 back to pool)`, '#ffa');
+      } else if (left <= 0) {
+        tell('No vents left in pool', '#f88');
+      } else {
+        tell(`Place vent: (${tile.x},${tile.y}) (vents left: ${left})`, '#9cf');
+      }
+      return;
+    }
+
+    // --- original wall hover behavior (wall mode) ---
+    const hover = edgeHitTest(cv, e);
+    gs.uiHoverEdge = hover; // for render highlight
+    if (!hover) {
+      if (_hoverKey !== null) {
+        _hoverKey = null;
+        _hoverHasWall = null;
+        tell(''); // clear any stale message
+      }
+      return;
+    }
+
+    const hasWall = walls.edgeHasWall(gs, hover.x, hover.y, hover.side);
+    const k = `${hover.x},${hover.y},${hover.side}`;
+    if (k !== _hoverKey || hasWall !== _hoverHasWall) {
+      _hoverKey = k;
+      _hoverHasWall = hasWall;
+
+      const verb = hasWall ? 'Remove' : 'Place';
+      const refund = edgeRefund(gs) | 0;
+      const msg = hasWall
+        ? (refund > 0 ? `Remove wall: (${hover.x},${hover.y}) ${hover.side} (+${refund} bones)` 
+                      : `Remove wall: (${hover.x},${hover.y}) ${hover.side}`)
+        : `Place wall: (${hover.x},${hover.y}) ${hover.side} (${edgeCost(gs)} bones)`;
+      tell(msg, '#9cf');
+    }
   });
+
 
   cv.addEventListener('mouseleave', () => {
     state.GameState.uiHoverEdge = null;
   });
 
-  cv.addEventListener('mousedown', (e) => {
+   cv.addEventListener('mousedown', (e) => {
     const gs = state.GameState;
 
     // Hard UI guard: no edits during waves
     if (!state.canEditMaze(gs)) {
-      tell('You can only place/remove walls between waves.', '#f88');
+      tell('You can only place/remove walls or vents between waves.', '#f88');
       return;
     }
 
+    const mode = (gs.buildMode === 'vents') ? 'vents' : 'walls';
+
+    if (mode === 'vents') {
+      const tile = tileHitTest(cv, e);
+      if (!tile) return;
+
+      const place  = (e.button === 0);
+      const remove = (e.button === 2);
+      if (!place && !remove) return;
+
+      const vents = gs.flameVents || [];
+      const hasVent = vents.some(v => v && v.x === tile.x && v.y === tile.y);
+
+      if (place) {
+        if (hasVent) {
+          tell('A vent is already here.');
+          return;
+        }
+        if (state.isDragonCell(tile.x, tile.y, gs)) {
+          tell("Can't place vents on the dragon", '#f88');
+          return;
+        }
+
+        const ok = placeFlameVent(gs, tile.x, tile.y);
+        if (!ok) {
+          tell('No vents left in pool', '#f88');
+        } else {
+          tell(`Vent placed at (${tile.x},${tile.y})`, '#9cf');
+        }
+        refreshHUD?.();
+      } else if (remove) {
+        if (!hasVent) {
+          tell('No vent here to remove.');
+          return;
+        }
+        const removed = removeFlameVent(gs, tile.x, tile.y);
+        if (removed) {
+          tell(`Vent removed at (${tile.x},${tile.y})`, '#ffa');
+          refreshHUD?.();
+        }
+      }
+
+      return;
+    }
+
+    // --- original wall placement / removal in wall mode ---
     const hover = edgeHitTest(cv, e);
     if (!hover) return;
 
@@ -753,6 +920,7 @@ tell(msg, '#9cf');
   });
 }
 
+
 function edgeHitTest(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
@@ -777,6 +945,20 @@ function edgeHitTest(canvas, evt) {
 
   if (!side) return null;
   return { x: cx, y: cy, side };
+}
+
+function tileHitTest(canvas, evt) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const mx = (evt.clientX - rect.left) * scaleX;
+  const my = (evt.clientY - rect.top) * scaleY;
+
+  const t = state.GRID.tile;
+  const cx = Math.floor(mx / t);
+  const cy = Math.floor(my / t);
+  if (!state.inBounds(cx, cy)) return null;
+  return { x: cx, y: cy };
 }
 
 function edgeTouchesDragon(gs, x, y, side) {
@@ -817,7 +999,7 @@ async function renderNextWavePreview() {
   console.debug('[HUD preview] wave', wave, 'counts', counts);
 
 
-  const order = ['villager','squire','knight','hero','engineer','kingsguard','boss'];
+  const order = ['villager','squire','knight','hero','engineer','bulldozer','kingsguard','boss'];
   order.forEach((type) => {
     const n = counts[type] | 0;
     if (n <= 0) return;
@@ -964,7 +1146,7 @@ async function ensureDevPanel() {
   spawnRow.style.gridTemplateColumns = 'repeat(3, 1fr)';
   spawnRow.style.gap = '6px';
 
-  const types = ['villager','squire','knight','hero','engineer','kingsguard','boss'];
+  const types = ['villager','squire','knight','hero','engineer','bulldozer','kingsguard','boss'];
   const combat = await getCombat();
 
   function addSpawnBtn(type) {

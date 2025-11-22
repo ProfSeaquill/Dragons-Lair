@@ -8,6 +8,10 @@ function _markHit(e, amount = 0) {
   e.showHpUntil = now + 1000;
 }
 
+export function flagHit(e, amount = 0) {
+  _markHit(e, amount);
+}
+
 /** Centralized per-frame contact attacks. */
 export function updateAttacks(gs, dt) {
   // --- DT PROBE: log once after ~60 frames ---

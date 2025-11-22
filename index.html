@@ -58,6 +58,26 @@
 
       .stat { background:#141b2d; padding:6px 10px; border-radius:8px; border:1px solid #243047; }
       .btn { background:#1b2437; padding:6px 10px; border-radius:8px; border:1px solid #2a3854; cursor:pointer; }
+            /* Highlight Heal button specifically */
+      #healBtn {
+        background: #14532d;          /* deep green */
+        border-color: #22c55e;        /* bright green border */
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+        font-weight: 600;
+      }
+
+      #healBtn:hover:not(:disabled) {
+        background: #15803d;          /* lighter on hover */
+        border-color: #4ade80;
+        transform: translateY(-1px);  /* raised effect */
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
+      }
+
+      #healBtn:active:not(:disabled) {
+        transform: translateY(0);     /* press down */
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+      }
+
       .btn:disabled { opacity:.5; cursor:not-allowed; }
       #root { display:flex; gap:16px; padding:12px; }
       #leftCol { display:flex; flex-direction:column; gap:12px; }
@@ -67,7 +87,57 @@
   font-size: 10px;   /* or 11px, tweak as you like */
   white-space: nowrap; /* keeps it from wrapping to a second line */
 }
-      .panel { background:#0f1628; border:1px solid #223; border-radius:10px; padding:10px; }
+      .panel {
+  background:#0f1628;
+  border:1px solid #223;
+  border-radius:10px;
+  padding:10px;
+}
+
+/* Base style for the bottom mode bar */
+.gridHelp {
+  font-size:12px;
+  opacity:.95;
+  position:relative;
+  padding-left:14px; /* room for the colored accent bar */
+}
+
+/* Build Mode: blue */
+.panel.gridHelp-build {
+  background:#0b1220;
+  border-color:#2563eb;
+  color:#dbeafe;
+  box-shadow:0 0 12px rgba(37,99,235,0.35);
+}
+
+/* Vent Mode: orange */
+.panel.gridHelp-vent {
+  background:#1f1305;
+  border-color:#f97316;
+  color:#ffedd5;
+  box-shadow:0 0 12px rgba(249,115,22,0.35);
+}
+
+/* Little colored bar on the left for extra pop */
+.panel.gridHelp-build::before,
+.panel.gridHelp-vent::before {
+  content:"";
+  position:absolute;
+  left:4px;
+  top:8px;
+  bottom:8px;
+  width:3px;
+  border-radius:999px;
+}
+
+.panel.gridHelp-build::before {
+  background:#60a5fa;
+}
+
+.panel.gridHelp-vent::before {
+  background:#fdba74;
+}
+
       .pTitle { font-weight:700; margin-bottom:8px; }
       .uRow { display:flex; align-items:center; justify-content:space-between; margin:6px 0; gap:8px; }
       .uRow small { opacity:.8; }
@@ -101,9 +171,9 @@
       </div>
 
       <div class="hud-controls">
-        <button id="healBtn" class="btn">Heal (1 HP / bone)</button>
         <button id="startBtn" class="btn">Start Wave</button>
         <label class="stat"><input id="autoStart" type="checkbox" /> Auto-start</label>
+        <button id="healBtn" class="btn">Heal (1 HP / bone)</button>
         <button id="speedBtn" class="btn">1× Speed</button>
         <button id="saveBtn" class="btn">Save</button>
         <button id="loadBtn" class="btn">Load</button>

@@ -13,6 +13,7 @@ import { updateAgent } from './pathing/index.js';
 import * as combat from './combat.js';
 import './story.js'; // load narrative hooks (boss dialogue events)
 import { isBossLevel, getBossId } from './story.js';
+import { applyFlameVents } from './combat/upgrades/abilities/vents.js';
 
 
 window.state = state;             // exposes state.GameState for console tools
@@ -28,7 +29,6 @@ async function loadConfigFiles() {
    const [tuningRaw, enemies, upgrades] = await Promise.all([
    fetch('./tuning.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
    fetch('./enemies.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
-   fetch('./upgrades.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
  ]);
 
   // Unwrap if the file is { "tuning": { ... } }
@@ -787,6 +787,10 @@ if ((gs.dragonHP | 0) <= 0) {
   // 1) Let Combat drive game logic if available
   if (typeof combatUpdate === 'function') {
    combatUpdate(gs, dt);
+}
+
+   if (typeof applyFlameVents === 'function') {
+  applyFlameVents(gs, dt);
 }
 
   // 2b) Dragon fire animation FX timer (visual only; optional)
