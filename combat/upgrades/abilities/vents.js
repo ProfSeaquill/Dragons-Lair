@@ -5,13 +5,35 @@ import * as state from '../../../state.js';
 
 function getVentConfig(gs) {
   const cfg = state.getCfg ? state.getCfg(gs) : null;
-  const tv = cfg?.tuning?.vents || null;
+  const tv = cfg?.tuning?.vents || {};
+
+  const U = gs?.upgrades || {};
+  const lvl = Math.max(0, (U.vents | 0));   // vents ability level
+  const MAX_LVL = 10;                      // keep in sync with ABILITY_MAX_LEVEL
+  const f = Math.max(0, Math.min(1, lvl / MAX_LVL)); // 0..1
+
+  const minCount = (tv.minCount ?? tv.maxCount ?? 3);
+  const maxCountCfg = (tv.maxCount ?? minCount);
+
+  const minDps = (tv.minDps ?? tv.dps ?? 8);
+  const maxDpsCfg = (tv.maxDps ?? minDps);
+
+  // Linear interpolation between min and max based on level
+  const maxCount = Math.round(minCount + (maxCountCfg - minCount) * f);
+  const dps      = minDps + (maxDpsCfg - minDps) * f;
 
   return {
-    dps:      tv?.dps      ?? 8,   // damage per second per tile
-    maxCount: tv?.maxCount ?? 0,   // how many vents you can place total
+    dps,
+    maxCount,       // effective cap at this level
+    minCount,
+    maxCountCfg,
+    minDps,
+    maxDps: maxDpsCfg,
+    lvl,
+    f,
   };
 }
+
 
 /**
  * Ensure vent-related fields exist on the game state.
@@ -21,14 +43,19 @@ function ensureVentState(gs) {
   if (!gs) gs = state.GameState;
   if (!Array.isArray(gs.flameVents)) gs.flameVents = [];
 
-  if (typeof gs.flameVentsAvailable !== 'number') {
-    const { maxCount } = getVentConfig(gs);
-    gs.flameVentsAvailable =
-      (typeof maxCount === 'number' && maxCount >= 0) ? maxCount : 0;
+  const { maxCount } = getVentConfig(gs);
+
+  // Never allow more vents than the current cap for this level
+  if (gs.flameVents.length > maxCount) {
+    gs.flameVents.length = maxCount;
   }
+
+  const used = gs.flameVents.length;
+  gs.flameVentsAvailable = Math.max(0, maxCount - used);
 
   return gs;
 }
+
 
 /**
  * Place a vent on tile (x,y) if there is pool available and no vent already.
