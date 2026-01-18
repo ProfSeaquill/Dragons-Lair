@@ -21,7 +21,8 @@
     "gust":  { "baseCooldownSec": 10, "minCooldownSec": 3,  "capPushTiles": 12, "kCooldown": 0.30, "kPush": 0.35 },
     "roar":  { "baseCooldownSec": 12, "minCooldownSec": 4,  "capStunSec": 6,   "kCooldown": 0.25, "kStun": 0.25 },
     "stomp": { "baseCooldownSec": 15, "minCooldownSec": 5,  "capDamage": 100, "kCooldown": 0.30, "kDamage": 0.25, "floorSlowMult": 0.30, "kSlow": 0.30 },
-    "vents": { "minCount": 1, "maxCount": 10, "minDps": 10, "maxDps": 30, "perLevel": 0 },
+    "vents": { "minCount": 1, "maxCount": 10, "minDps": 5, "maxDps": 30, "perLevel": 0 },
+     "starterSpots": [ [3, 5], [6, 5], [9, 5], [3, 9], [6, 9], [9, 9] ]
 
 
     "flame": {
