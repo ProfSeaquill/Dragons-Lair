@@ -97,10 +97,10 @@ function abilityCostFor(gs, key, level) {
   const T = getCfg(gs)?.tuning || {};
   const baseMap = {
     claw:   T.abilities?.costBaseClaw   ?? 30,
+    vents:  T.abilities?.costBaseVents  ?? 200,
     gust:   T.abilities?.costBaseGust   ?? 50,
     roar:   T.abilities?.costBaseRoar   ?? 70,
     stomp:  T.abilities?.costBaseStomp  ?? 90,
-    vents:  T.abilities?.costBaseVents  ?? 200, // 🔥 new: Flame Vents base unlock cost
   };
   const baseCost = baseMap[key];
   if (typeof baseCost !== 'number') return 999999;
