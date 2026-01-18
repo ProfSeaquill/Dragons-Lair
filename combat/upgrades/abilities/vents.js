@@ -57,6 +57,38 @@ function ensureVentState(gs) {
   return gs;
 }
 
+export function maybePlaceStarterVent(gs) {
+  if (!gs) gs = state.GameState;
+
+  // Only do this on a fresh game: if vents already exist, do nothing.
+  if (Array.isArray(gs.flameVents) && gs.flameVents.length > 0) return false;
+
+  // Require vents to be unlocked (start at 1 anyway, but keep it safe)
+  const lvl = (gs.upgrades?.vents | 0);
+  if (lvl <= 0) return false;
+
+  const tv = state.getCfg(gs)?.tuning?.vents || {};
+  const spots = Array.isArray(tv.starterSpots) ? tv.starterSpots : [];
+  if (!spots.length) return false;
+
+  // Pick a random spot
+  // If you have a seeded RNG, use it here instead of Math.random().
+  const idx0 = Math.floor(Math.random() * spots.length);
+
+  // Try that spot first, then fall through the list (so we still succeed if a spot is invalid)
+  for (let k = 0; k < spots.length; k++) {
+    const [x, y] = spots[(idx0 + k) % spots.length] || [];
+    if (!Number.isInteger(x) || !Number.isInteger(y)) continue;
+    if (!state.inBounds(x, y)) continue;
+    if (state.isDragonCell(x, y, gs)) continue;
+
+    // Use your normal placement pipeline so pool accounting stays consistent
+    const ok = placeFlameVent(gs, x, y);
+    if (ok) return true;
+  }
+
+  return false;
+}
 
 /**
  * Place a vent on tile (x,y) if there is pool available and no vent already.
