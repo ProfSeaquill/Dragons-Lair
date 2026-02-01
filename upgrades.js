@@ -232,10 +232,10 @@ function buildFireDesc(gs) {
 export const ABILITY_UPGRADES = [
   // Costs are base “unlock” costs; cost scales per level using the same geometric model
   { key: 'claw',   title: 'Claw',        base: 50,  mult: 1.30, type: 'ability' },
+  { key: 'vents',  title: 'Flame Vents', base: 200, mult: 1.30, type: 'ability' },
   { key: 'gust',   title: 'Wing Gust',   base: 150, mult: 1.30, type: 'ability' },
   { key: 'roar',   title: 'Roar',        base: 300, mult: 1.30, type: 'ability' },
   { key: 'stomp',  title: 'Stomp',       base: 500, mult: 1.30, type: 'ability' },
-  { key: 'vents',  title: 'Flame Vents', base: 200, mult: 1.30, type: 'ability' },
 ];
 
 
