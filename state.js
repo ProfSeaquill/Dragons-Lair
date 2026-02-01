@@ -198,7 +198,7 @@ export function dragonMouthCell(gs = GameState) {
 // ===== Ability Upgrade Levels =====
 // (0 = base; you can unlock/level these however you like)
 export const upgrades = {
-  vents: 1,   // ← start unlocked at level 1
+  vents: 0,
   claw:  0,
   gust:  0,
   roar:  0,
