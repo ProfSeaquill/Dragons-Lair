@@ -79,6 +79,7 @@ function acquireEnemy(type, wave, initFn) {
 
   // RESET mutable fields fast (avoid per-spawn object literals)
   e.id = 0; e.groupId = 0; e.followLeaderId = null; e.leader = false; e.torchBearer = false;
+  e.dead = false; // IMPORTANT: pooled enemies may still have dead=true from a prior life
   e.burnLeft = 0; e.burnDps = 0; e.stunLeft = 0; e.slowLeft = 0; e.roarBuffLeft = 0;
   e.pausedForAttack = false; e.isAttacking = false;
   e.hp = e.maxHp; e.lastHitAt = 0; e.showHpUntil = 0; e.slowMult = 1;
