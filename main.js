@@ -536,6 +536,13 @@ state.applyConfig(state.GameState, cfg);
        
        // Seed 1 starter vent on fresh runs (safe: function should no-op if already has vents)
  maybePlaceStarterVent(state.GameState);
+ console.log('[starter vent]', {
+  didSeed: maybePlaceStarterVent(state.GameState),
+  vents: state.GameState.flameVents,
+  avail: state.GameState.flameVentsAvailable,
+  tuningVents: state.getCfg(state.GameState)?.tuning?.vents
+});
+
        
  installPermanentWalls(state.GameState);
  state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1; // bump first
