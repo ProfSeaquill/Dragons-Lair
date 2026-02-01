@@ -13,7 +13,7 @@ import { updateAgent } from './pathing/index.js';
 import * as combat from './combat.js';
 import './story.js'; // load narrative hooks (boss dialogue events)
 import { isBossLevel, getBossId } from './story.js';
-import { applyFlameVents } from './combat/upgrades/abilities/vents.js';
+import { applyFlameVents, maybePlaceStarterVent } from './combat/upgrades/abilities/vents.js';
 
 
 window.state = state;             // exposes state.GameState for console tools
@@ -533,6 +533,10 @@ window.addEventListener('dl-wave-hardened-wipe', () => {
 
 // After config load + before the game loop starts, do:
 state.applyConfig(state.GameState, cfg);
+       
+       // Seed 1 starter vent on fresh runs (safe: function should no-op if already has vents)
+ maybePlaceStarterVent(state.GameState);
+       
  installPermanentWalls(state.GameState);
  state.GameState.topologyVersion = (state.GameState.topologyVersion || 0) + 1; // bump first
  ensureFreshPathing(state.GameState); // new pathing build
