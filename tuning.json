@@ -92,10 +92,10 @@
         "priority": {
           "bulldozer": 1,
           "hero": 2,
-          "squire": 3,
-          "villager": 4,
-          "engineer": 5,
-          "knight": 6,
+          "squire": 5,
+          "villager": 6,
+          "engineer": 3,
+          "knight": 4,
           "kingsguard": 7,
           "boss": 8
         },
