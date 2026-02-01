@@ -15,6 +15,8 @@ import './story.js'; // load narrative hooks (boss dialogue events)
 import { isBossLevel, getBossId } from './story.js';
 import { applyFlameVents, maybePlaceStarterVent } from './combat/upgrades/abilities/vents.js';
 
+// Debug convenience: allow calling from DevTools console
+window.maybePlaceStarterVent = maybePlaceStarterVent;
 
 window.state = state;             // exposes state.GameState for console tools
 window.GameState = state.GameState;
