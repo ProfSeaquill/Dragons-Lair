@@ -625,12 +625,21 @@ if (dragonReady) {
   const sx = (frame % cols) * fw;
   const sy = Math.floor(frame / cols) * fh;
 
+  // after you compute sx, sy, fw, fh, and before drawImage
+ctx.save();
+
+// flip around the sprite’s center
+ctx.translate(p.x, p.y);
+ctx.scale(-1, 1);
+  
   ctx.drawImage(
     dragonImg,
     sx, sy, fw, fh,          // source rect (one frame)
     p.x - half, p.y - half,  // destination
     size, size
   );
+
+  ctx.restore();
 }
 }
 
