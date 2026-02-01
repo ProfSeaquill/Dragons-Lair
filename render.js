@@ -97,7 +97,7 @@ caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
  * Enemy type colors
  * --------------------------------------------------------- */
 const TYPE_COLOR = {
-  villager:   '#c4a484',
+  villager:   '#00cc00',
   squire:     '#ffff9a',
   knight:     '#7fd1ff',
   hero:       '#e0e0e0',
