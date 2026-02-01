@@ -98,7 +98,7 @@ caveImg.src = './assets/cave_backdrop.png'; // or 1536x1024 etc.
  * --------------------------------------------------------- */
 const TYPE_COLOR = {
   villager:   '#c4a484',
-  squire:     '#64683c',
+  squire:     '#ffff9a',
   knight:     '#7fd1ff',
   hero:       '#e0e0e0',
   engineer:   '#c084fc',
