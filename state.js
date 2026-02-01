@@ -198,6 +198,7 @@ export function dragonMouthCell(gs = GameState) {
 // ===== Ability Upgrade Levels =====
 // (0 = base; you can unlock/level these however you like)
 export const upgrades = {
+  vents: 1,   // ← start unlocked at level 1
   claw:  0,
   gust:  0,
   roar:  0,
@@ -865,7 +866,7 @@ export function resetState(gs = GameState) {
   gs.enemies = [];
   gs.projectiles = [];
   gs.effects = [];
-  gs.upgrades = {};
+  gs.upgrades = { ...upgrades };
   gs.cellWalls = new Map();
   gs.distFromEntry = makeScalarField(GRID.cols, GRID.rows, Infinity);
   gs.distToExit    = makeScalarField(GRID.cols, GRID.rows, Infinity);
