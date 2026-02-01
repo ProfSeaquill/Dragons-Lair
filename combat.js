@@ -2806,13 +2806,14 @@ if (gs.reqWingGust && gustCooldown <= 0) {
 
 
 // 4) Dragon breath (with shield rule)
-if (enemies.length > 0) {
+const anyAlive = enemies.some(e => e && !e.dead);
+if (anyAlive) {
   dragonBreathTick(gs, dt, state.getDragonStatsTuned(gs));
 }
 
 
  // 5) Wave completion (hard wipe at END of wave)
-if (R.waveActive && !_jsonPlan && enemies.length === 0) {
+if (R.waveActive && !_jsonPlan && !anyAlive) {
   // Clean absolutely everything that could leak into the next wave
   hardWipeActors(gs);
 
