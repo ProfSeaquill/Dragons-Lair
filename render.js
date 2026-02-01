@@ -27,7 +27,16 @@ function isOnScreen(x, y, w, h, cw, ch) {
 const dragonImg = new Image();
 let dragonReady = false;
 dragonImg.onload = () => { dragonReady = true; };
+
+// Point this to your NEW sprite sheet (or keep the same name if you overwrite the file)
 dragonImg.src = './assets/dragon_idle.png';
+
+// --- DRAGON IDLE SPRITE SHEET SETTINGS ---
+// Set these to match your sheet.
+const DRAGON_IDLE_COLS = 6;  // e.g. 4 frames across
+const DRAGON_IDLE_ROWS = 6;  // e.g. 1 row
+const DRAGON_IDLE_FPS  = 12;  // idle speed (frames per second)
+
 
 /* -----------------------------------------------------------
  * WING GUST SPRITE SHEET
@@ -596,10 +605,34 @@ const tilesHigh  = state.DRAGON_HITBOX?.h ?? 3;
 const size = Math.round(state.GRID.tile * Math.max(tilesWide, tilesHigh));
   const half = size / 2;
 
-  // Dragon sprite
-  if (dragonReady) {
-    ctx.drawImage(dragonImg, p.x - half, p.y - half, size, size);
-  } 
+  // Dragon sprite (animated sprite sheet)
+if (dragonReady) {
+  const cols = DRAGON_IDLE_COLS;
+  const rows = DRAGON_IDLE_ROWS;
+  const frames = Math.max(1, cols * rows);
+
+  // Use sim time if available (respects your game speed), else fall back to real time
+  const simT =
+    (gs && gs.time && Number.isFinite(gs.time.t)) ? gs.time.t :
+    ((typeof performance !== 'undefined' && performance.now) ? performance.now() * 0.001 : Date.now() * 0.001);
+
+  const frame = Math.floor(simT * DRAGON_IDLE_FPS) % frames;
+
+  // Derive frame size from the actual loaded image dimensions
+  const fw = dragonImg.width / cols;
+  const fh = dragonImg.height / rows;
+
+  const sx = (frame % cols) * fw;
+  const sy = Math.floor(frame / cols) * fh;
+
+  ctx.drawImage(
+    dragonImg,
+    sx, sy, fw, fh,          // source rect (one frame)
+    p.x - half, p.y - half,  // destination
+    size, size
+  );
+}
+
 }
 
   function drawRoarFx(ctx, gs) {
