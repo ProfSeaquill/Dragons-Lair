@@ -635,7 +635,7 @@ ctx.scale(-1, 1);
   ctx.drawImage(
     dragonImg,
     sx, sy, fw, fh,          // source rect (one frame)
-    p.x - half, p.y - half,  // destination
+    -half, -half,            // destination (because we already translated to p)
     size, size
   );
 
