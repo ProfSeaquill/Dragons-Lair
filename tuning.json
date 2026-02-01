@@ -82,9 +82,9 @@
         "villager": { "minWave": 1,  "base": 1.00, "cap": 0.25, "k": 0.60 },
         "squire":   { "minWave": 2,  "base": 0.10, "cap": 0.35, "k": 0.90 },
         "knight":   { "minWave": 3,  "base": 0.10, "cap": 0.20, "k": 0.60 },
-        "hero":     { "minWave": 6, "base": 0.05, "cap": 0.13, "k": 0.80 },
-        "engineer": { "minWave": 11, "base": 0.05, "cap": 0.10, "k": 0.30 },
-        "bulldozer": { "minWave": 16, "base": 0.02, "cap": 0.05, "k": 1.0 }
+        "hero":     { "minWave": 10, "base": 0.05, "cap": 0.13, "k": 0.80 },
+        "engineer": { "minWave": 20, "base": 0.05, "cap": 0.10, "k": 0.30 },
+        "bulldozer": { "minWave": 30, "base": 0.02, "cap": 0.05, "k": 1.0 }
 
       },
 
