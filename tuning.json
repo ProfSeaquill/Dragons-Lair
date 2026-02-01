@@ -6,10 +6,11 @@
     "telemetry":{ "enabled": false },
     "abilities": {
       "costBaseClaw": 30,
-      "costBaseGust": 50,
-      "costBaseRoar": 70,
-      "costBaseStomp": 90,
-      "costBaseVents": 120,
+      "costBaseVents": 50,
+      "costBaseGust": 70,
+      "costBaseRoar": 90,
+      "costBaseStomp": 120,
+      
 
       "gust": 5,
       "roar": 5,
